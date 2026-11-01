@@ -15,7 +15,7 @@ pub use edit::{
 };
 pub use link::{
     Compiled as CompiledLinkAction, LinkAction, MAX_LINK_ACTION_NAME_CHARS, MAX_LINK_ACTIONS,
-    MAX_MATCHES, Match as LinkMatch, compile_all as compile_link_actions,
+    MAX_MATCHES, Match as LinkMatch, choices as link_choices, compile_all as compile_link_actions,
 };
 pub use load::{ConfigError, MAX_ADDRESS_CHARS, line_col, load, load_text_or_empty, parse};
 pub use model::{
