@@ -1466,18 +1466,31 @@ under the cursor.
 | `url` | yes | An `http` or `https` template whose `{1}`, `{2}`, … are `match`'s groups, numbered from 1. |
 
 Every match of every rule is offered, so a subject carrying two ids reaches either: one match
-opens after the same confirmation as any other link, several are listed by number. A subject
-no rule matches is a notice, not an error. Rail keeps at most 20 link actions.
+opens after the same confirmation as any other link, several are listed by number with the
+rule that found each and the address it opens. One address is one choice, whether a subject
+names the same record twice or two rules read it the same way. A subject no rule matches is a
+notice, not an error. Rail keeps at most 20 link actions.
 
 The subject is the sender's text, so a capture is never trusted. Each one is percent-encoded
 before it reaches the template, which leaves it no `/`, `?`, `#` or `@` to steer the address
-with; the template's scheme and host must be spelled out before its first `{n}`, so the host
-comes from this file and from nowhere else; and the address Rail builds goes through the same
-confirmation as a link in a message, with the warnings described under
-[Reading mail](#reading-mail). A name that breaks the charset, a duplicate name, a pattern that
-does not compile, a template that is not `http`/`https`, one that places a `{n}` in its scheme
-or host, one with no `{n}` at all or one naming a group the pattern does not have makes
-`config.toml` invalid, and `rail doctor` names the rule.
+with. Encoding cannot defuse a dot segment, though — a parser reads `%2e%2e` back as `..` —
+so a capture of `.` or `..` drops the match rather than climbing out of the path the rule
+chose, and a template whose own path holds such a segment is refused outright, since an
+empty capture beside it would climb just the same. The address Rail then builds goes through
+the same confirmation as a link in a message, with the warnings described under
+[Reading mail](#reading-mail).
+
+Everything before the path — the scheme, any credentials, the host and the port — comes from
+this file and from nowhere else. To settle that, Rail fills the template twice with different
+values and reads both with the parser that later opens the link, refusing the rule unless the
+two agree. Reading the template any other way would let the check disagree with what the
+address turns out to mean: `https:///{1}` and `https://\/{1}` both look like they name a
+host, and a parser hands the host to the capture in each.
+
+A name that breaks the charset, a duplicate name, a pattern that does not compile, a template
+that is not `http`/`https`, one a match could steer before the path, one whose path holds a
+`.` or `..` segment, one with no `{n}` at all or one naming a group the pattern does not have
+makes `config.toml` invalid, and `rail doctor` names the rule.
 
 ```toml
 [[link_actions]]
