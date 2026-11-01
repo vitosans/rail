@@ -1467,7 +1467,8 @@ under the cursor.
 
 Every match of every rule is offered, so a subject carrying two ids reaches either: one match
 opens after the same confirmation as any other link, several are listed by number with the
-rule that found each and the address it opens. One address is one choice, whether a subject
+rule that found each and the address it opens; on a narrow terminal an address loses its middle,
+so the id at its end stays visible. One address is one choice, whether a subject
 names the same record twice or two rules read it the same way. A subject no rule matches is a
 notice, not an error. Rail keeps at most 20 link actions.
 
@@ -1475,7 +1476,8 @@ The subject is the sender's text, so a capture is never trusted. Each one is per
 before it reaches the template, which leaves it no `/`, `?`, `#` or `@` to steer the address
 with. Encoding cannot defuse a dot segment, though — a parser reads `%2e%2e` back as `..` —
 so a capture of `.` or `..` drops the match rather than climbing out of the path the rule
-chose, and a template whose own path holds such a segment is refused outright, since an
+chose, and a template whose own path holds such a segment, written with dots or `%2e`, is
+refused outright, since an
 empty capture beside it would climb just the same. The address Rail then builds goes through
 the same confirmation as a link in a message, with the warnings described under
 [Reading mail](#reading-mail).
