@@ -710,3 +710,75 @@ async fn the_trash_prompt_at_90_and_150_columns() {
         insta::assert_snapshot!(format!("trash_prompt_{width}"), shot);
     }
 }
+
+/// `rules` compiled, as the mail screen holds them.
+fn link_actions(rules: &[(&str, &str)]) -> Vec<rail_core::config::CompiledLinkAction> {
+    let config = rail_core::config::Config {
+        link_actions: rules
+            .iter()
+            .enumerate()
+            .map(|(n, (pattern, url))| rail_core::config::LinkAction {
+                name: format!("r{n}"),
+                pattern: (*pattern).to_string(),
+                url: (*url).to_string(),
+            })
+            .collect(),
+        ..rail_core::config::Config::default()
+    };
+    rail_core::config::compile_link_actions(&config).unwrap()
+}
+
+/// With nothing configured the key says so rather than doing nothing, so a reader who set a
+/// rule in the wrong file learns where to look.
+#[tokio::test]
+async fn open_link_without_rules_says_so() {
+    let mut f = fixture(3).await;
+    press(&mut f, KeyCode::Char('g')).await;
+    press(&mut f, KeyCode::Char('t')).await;
+    assert!(f.screen.modal.is_none());
+    assert!(
+        f.screen.status_line().contains("No link actions"),
+        "{}",
+        f.screen.status_line()
+    );
+}
+
+/// The subjects the fixture seeds are `subject wm<n>`, so a rule over that number stands in
+/// for a tracker id: one match opens through the same confirmation as any link.
+#[tokio::test]
+async fn open_link_confirms_a_single_match() {
+    let mut f = fixture(3).await;
+    f.screen.ctx.link_actions = link_actions(&[(r"m(\d+)", "https://tracker.example/t/{1}")]);
+    press(&mut f, KeyCode::Char('g')).await;
+    press(&mut f, KeyCode::Char('t')).await;
+    assert!(matches!(f.screen.modal, Some(Modal::Confirm(_))));
+}
+
+/// Two rules matching the same subject offer both addresses, by number: the question is
+/// which record was meant, and only the reader knows.
+#[tokio::test]
+async fn open_link_offers_every_match_by_number() {
+    let mut f = fixture(3).await;
+    f.screen.ctx.link_actions = link_actions(&[
+        (r"m(\d+)", "https://tracker.example/t/{1}"),
+        (r"subject (\w+)", "https://other.example/s/{1}"),
+    ]);
+    press(&mut f, KeyCode::Char('g')).await;
+    press(&mut f, KeyCode::Char('t')).await;
+    assert!(matches!(f.screen.modal, Some(Modal::LinkNumber(_))));
+}
+
+/// A subject no rule matches is a notice, not a modal: nothing to open is not an error.
+#[tokio::test]
+async fn open_link_says_when_nothing_matches() {
+    let mut f = fixture(3).await;
+    f.screen.ctx.link_actions = link_actions(&[(r"\(#(\d+)\)", "https://tracker.example/t/{1}")]);
+    press(&mut f, KeyCode::Char('g')).await;
+    press(&mut f, KeyCode::Char('t')).await;
+    assert!(f.screen.modal.is_none());
+    assert!(
+        f.screen.status_line().contains("matches a link action"),
+        "{}",
+        f.screen.status_line()
+    );
+}

@@ -82,6 +82,11 @@ fn context(
         icons: config.general.icons,
         split_threshold: config.general.split_threshold,
         bulk_confirm: config.general.bulk_confirm,
+        // Validated at load, so this cannot fail; an empty list only costs the feature.
+        link_actions: rail_core::config::compile_link_actions(config).unwrap_or_else(|err| {
+            tracing::warn!(%err, "link actions could not be compiled");
+            Vec::new()
+        }),
         hints: config.general.hints,
         show_clock: config.general.clock,
         thread_order: config.general.thread_order,

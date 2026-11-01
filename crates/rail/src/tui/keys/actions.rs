@@ -126,6 +126,7 @@ actions! {
     ListMove => "list.move", [List, Reader], ["m"], "Move to a label (Gmail) or a folder (Microsoft 365)";
     ListSnooze => "list.snooze", [List, Reader], ["h"], "Snooze until later, or return a snoozed thread";
     ListCompose => "list.compose", [List, Reader], ["c"], "Write a new message";
+    ListOpenLink => "list.open_link", [List, Reader], ["g t"], "Open the link the subject names";
     ListReply => "list.reply", [List, Reader], ["r"], "Reply to the latest message";
     ListReplyAll => "list.reply_all", [List, Reader], ["R"], "Reply to everyone";
     ListForward => "list.forward", [List, Reader], ["f"], "Forward the latest message";

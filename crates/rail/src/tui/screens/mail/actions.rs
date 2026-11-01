@@ -200,6 +200,7 @@ impl MailScreen {
             Action::ListSelectRange if self.focus == Focus::List => self.select_range(),
             Action::ListExtendDown if self.focus == Focus::List => self.extend_selection(true),
             Action::ListExtendUp if self.focus == Focus::List => self.extend_selection(false),
+            Action::ListOpenLink if thread_view => self.open_subject_link(),
             Action::ListArchive
             | Action::ListTrash
             | Action::ListStar
