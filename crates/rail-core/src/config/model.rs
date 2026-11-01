@@ -5,6 +5,7 @@ use std::time::Duration;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use super::link::LinkAction;
 use super::saved::SavedSearch;
 use crate::provider::FolderKind;
 
@@ -17,6 +18,10 @@ pub struct Config {
     /// one is saved, renamed or removed, keeping the rest of the file.
     #[serde(default)]
     pub saved_searches: Vec<SavedSearch>,
+    /// `[[link_actions]]`: a pattern over a thread's subject and the address it stands for,
+    /// so one key reaches the record the thread is about.
+    #[serde(default)]
+    pub link_actions: Vec<LinkAction>,
     #[serde(default)]
     pub accounts: Vec<AccountConfig>,
     /// `[keys]`: action id to key name. The values keep their position in the file, so the
