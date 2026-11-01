@@ -1,6 +1,7 @@
 //! The mail screen's reader side: opening a thread, fetching its bodies, the reader's keys,
 //! links and attachments.
 
+use rail_core::config::link_choices;
 use rail_core::ops::{BodyFetchResponse, ErrorCode, MAX_BODY_FETCH, OpError};
 use rail_core::store::view::{BodyState, HtmlBody, ThreadDetail};
 
@@ -440,20 +441,18 @@ impl MailScreen {
         let Some(subject) = self.subject_under_cursor() else {
             return Vec::new();
         };
-        let found: Vec<String> = self
-            .ctx
-            .link_actions
-            .iter()
-            .flat_map(|action| action.matches(&subject))
-            .map(|found| found.url)
-            .collect();
+        let found = link_choices(&self.ctx.link_actions, &subject);
         match found.len() {
             0 => self
                 .status
                 .notify("Nothing in this subject matches a link action.", self.tick),
-            1 => self.confirm_url(&found[0]),
-            // Each match is offered, so a subject carrying two ids reaches either.
-            _ => self.modal = Some(Modal::LinkNumber(LinkPrompt::new(found))),
+            1 => self.confirm_url(&found[0].url),
+            // Each match is offered, so a subject carrying two ids reaches either, and the
+            // prompt names the rule behind each so the numbers mean something.
+            _ => {
+                let listed = found.into_iter().map(|one| (one.name, one.url)).collect();
+                self.modal = Some(Modal::LinkNumber(LinkPrompt::listed(listed)));
+            }
         }
         Vec::new()
     }

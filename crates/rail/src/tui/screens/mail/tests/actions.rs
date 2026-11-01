@@ -711,14 +711,13 @@ async fn the_trash_prompt_at_90_and_150_columns() {
     }
 }
 
-/// `rules` compiled, as the mail screen holds them.
-fn link_actions(rules: &[(&str, &str)]) -> Vec<rail_core::config::CompiledLinkAction> {
+/// `rules`, each a name, a pattern and a template, compiled as the mail screen holds them.
+fn link_actions(rules: &[(&str, &str, &str)]) -> Vec<rail_core::config::CompiledLinkAction> {
     let config = rail_core::config::Config {
         link_actions: rules
             .iter()
-            .enumerate()
-            .map(|(n, (pattern, url))| rail_core::config::LinkAction {
-                name: format!("r{n}"),
+            .map(|(name, pattern, url)| rail_core::config::LinkAction {
+                name: (*name).to_string(),
                 pattern: (*pattern).to_string(),
                 url: (*url).to_string(),
             })
@@ -748,7 +747,8 @@ async fn open_link_without_rules_says_so() {
 #[tokio::test]
 async fn open_link_confirms_a_single_match() {
     let mut f = fixture(3).await;
-    f.screen.ctx.link_actions = link_actions(&[(r"m(\d+)", "https://tracker.example/t/{1}")]);
+    f.screen.ctx.link_actions =
+        link_actions(&[("tracker", r"m(\d+)", "https://tracker.example/t/{1}")]);
     press(&mut f, KeyCode::Char('g')).await;
     press(&mut f, KeyCode::Char('t')).await;
     assert!(matches!(f.screen.modal, Some(Modal::Confirm(_))));
@@ -760,19 +760,90 @@ async fn open_link_confirms_a_single_match() {
 async fn open_link_offers_every_match_by_number() {
     let mut f = fixture(3).await;
     f.screen.ctx.link_actions = link_actions(&[
-        (r"m(\d+)", "https://tracker.example/t/{1}"),
-        (r"subject (\w+)", "https://other.example/s/{1}"),
+        ("tracker", r"m(\d+)", "https://tracker.example/t/{1}"),
+        ("wiki", r"subject (\w+)", "https://other.example/s/{1}"),
     ]);
     press(&mut f, KeyCode::Char('g')).await;
     press(&mut f, KeyCode::Char('t')).await;
-    assert!(matches!(f.screen.modal, Some(Modal::LinkNumber(_))));
+    let Some(Modal::LinkNumber(prompt)) = &f.screen.modal else {
+        panic!("two matches ask by number");
+    };
+    // Nothing else on screen says what 1 and 2 stand for, so the prompt has to: the rule
+    // that found each address, and the address itself.
+    let rows = prompt.rows();
+    assert_eq!(rows.len(), 2, "{rows:?}");
+    assert!(rows[0].contains("tracker") && rows[0].contains("https://tracker.example/t/"));
+    assert!(rows[1].contains("wiki") && rows[1].contains("https://other.example/s/"));
+}
+
+/// How that listing looks, at the width the prompt is drawn to.
+#[tokio::test]
+async fn open_link_prompt_lists_every_match() {
+    let mut f = fixture(3).await;
+    f.screen.ctx.link_actions = link_actions(&[
+        ("tracker", r"m(\d+)", "https://tracker.example/t/{1}"),
+        ("wiki", r"subject (\w+)", "https://other.example/s/{1}"),
+    ]);
+    press(&mut f, KeyCode::Char('g')).await;
+    press(&mut f, KeyCode::Char('t')).await;
+    let shot = crate::tui::test_util::snapshot(100, 24, |frame| {
+        f.screen.view(frame, &crate::tui::theme::Theme::default())
+    });
+    insta::assert_snapshot!("open_link_prompt", shot);
+}
+
+/// The number has to reach the address it was listed against, all the way to the browser:
+/// choosing 2 confirms the second rule's address and opens that one.
+#[tokio::test]
+async fn open_link_number_two_opens_the_second_address() {
+    let mut f = fixture(3).await;
+    let (opener, opened) = crate::tui::test_util::recording_opener();
+    f.screen.ctx.opener = opener;
+    f.screen.ctx.link_actions = link_actions(&[
+        ("tracker", r"m(\d+)", "https://tracker.example/t/{1}"),
+        ("wiki", r"subject (\w+)", "https://other.example/s/{1}"),
+    ]);
+    press(&mut f, KeyCode::Char('g')).await;
+    press(&mut f, KeyCode::Char('t')).await;
+    press(&mut f, KeyCode::Char('2')).await;
+    press(&mut f, KeyCode::Enter).await;
+    assert!(
+        matches!(f.screen.modal, Some(Modal::Confirm(_))),
+        "a chosen number is confirmed like any other link"
+    );
+    press(&mut f, KeyCode::Char('y')).await;
+    let opened = opened.lock().unwrap();
+    assert_eq!(opened.len(), 1, "{opened:?}");
+    assert!(
+        opened[0].as_str().starts_with("https://other.example/s/"),
+        "{}",
+        opened[0]
+    );
+}
+
+/// Two rules that read a subject the same way are one choice, not two: the question the
+/// picker asks is where to go, and the answer is the same either way.
+#[tokio::test]
+async fn open_link_offers_one_address_once() {
+    let mut f = fixture(3).await;
+    f.screen.ctx.link_actions = link_actions(&[
+        ("tracker", r"m(\d+)", "https://tracker.example/t/{1}"),
+        ("again", r"subject wm(\d+)", "https://tracker.example/t/{1}"),
+    ]);
+    press(&mut f, KeyCode::Char('g')).await;
+    press(&mut f, KeyCode::Char('t')).await;
+    assert!(
+        matches!(f.screen.modal, Some(Modal::Confirm(_))),
+        "one address means one confirmation, not a prompt"
+    );
 }
 
 /// A subject no rule matches is a notice, not a modal: nothing to open is not an error.
 #[tokio::test]
 async fn open_link_says_when_nothing_matches() {
     let mut f = fixture(3).await;
-    f.screen.ctx.link_actions = link_actions(&[(r"\(#(\d+)\)", "https://tracker.example/t/{1}")]);
+    f.screen.ctx.link_actions =
+        link_actions(&[("tracker", r"\(#(\d+)\)", "https://tracker.example/t/{1}")]);
     press(&mut f, KeyCode::Char('g')).await;
     press(&mut f, KeyCode::Char('t')).await;
     assert!(f.screen.modal.is_none());
