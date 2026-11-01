@@ -1,6 +1,7 @@
 //! The mail screen's reader side: opening a thread, fetching its bodies, the reader's keys,
 //! links and attachments.
 
+use rail_core::config::link_choices;
 use rail_core::ops::{BodyFetchResponse, ErrorCode, MAX_BODY_FETCH, OpError};
 use rail_core::store::view::{BodyState, HtmlBody, ThreadDetail};
 
@@ -429,11 +430,53 @@ impl MailScreen {
         }
     }
 
+    /// The address the thread under the cursor names: `[[link_actions]]` run over its
+    /// subject. One match is confirmed as any link is, several are offered by number.
+    pub(super) fn open_subject_link(&mut self) -> Vec<Effect> {
+        if self.ctx.link_actions.is_empty() {
+            self.status
+                .notify("No link actions are configured.", self.tick);
+            return Vec::new();
+        }
+        let Some(subject) = self.subject_under_cursor() else {
+            return Vec::new();
+        };
+        let found = link_choices(&self.ctx.link_actions, &subject);
+        match found.len() {
+            0 => self
+                .status
+                .notify("Nothing in this subject matches a link action.", self.tick),
+            1 => self.confirm_url(&found[0].url),
+            // Each match is offered, so a subject carrying two ids reaches either, and the
+            // prompt names the rule behind each so the numbers mean something.
+            _ => {
+                let listed = found.into_iter().map(|one| (one.name, one.url)).collect();
+                self.modal = Some(Modal::LinkNumber(LinkPrompt::listed(listed)));
+            }
+        }
+        Vec::new()
+    }
+
+    /// The subject the cursor stands on: the open thread's, else the selected row's.
+    fn subject_under_cursor(&self) -> Option<String> {
+        if self.focus == Focus::Reader
+            && let Some(reader) = self.reader.as_ref()
+        {
+            return Some(reader.detail().subject.clone());
+        }
+        self.list.selected().map(|row| row.subject.clone())
+    }
+
     /// Show link `number`'s address before opening it; refuse one Rail would not open.
     fn confirm_link(&mut self, links: &[String], number: usize) {
         let Some(address) = links.get(number.wrapping_sub(1)) else {
             return;
         };
+        self.confirm_url(address);
+    }
+
+    /// Show `address` before opening it; refuse one Rail would not open.
+    fn confirm_url(&mut self, address: &str) {
         match safe_link(address) {
             Some(url) => {
                 self.modal = Some(Modal::Confirm(Confirm::new(

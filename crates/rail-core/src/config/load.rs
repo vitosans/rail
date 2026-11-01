@@ -149,6 +149,7 @@ fn validate(config: &Config) -> Result<(), String> {
     }
     validate_labels(config)?;
     super::saved::validate_saved_searches(config)?;
+    super::link::validate_link_actions(config)?;
     validate_onepassword(config)
 }
 

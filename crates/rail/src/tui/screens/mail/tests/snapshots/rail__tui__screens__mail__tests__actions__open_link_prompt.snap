@@ -1,0 +1,28 @@
+---
+source: crates/rail/src/tui/screens/mail/tests/actions.rs
+expression: shot
+---
+▍Rail │ All inboxes · 2 accounts · 5 unread  │ 🔍  / Search                    ● Synced 12:39 │ 12:40
+UNIFIED                  │YESTERDAY
+✉  All inboxes          5│●  W  Sender                  subject wm2                            08:55
+★  Starred               │●  H  Sender                  subject hm1                            08:54
+✎  Drafts                │●  W  Sender                  subject wm1                            08:54
+➤  Sent                  │●  H  Sender                  subject hm0                            08:53
+✕  Trash                 │●  W  Sender                  subject wm0                            08:53
+─────────────────────────│
+ACCOUNTS                 │
+▾  W  work    ┌ Open a link ─────────────────────────────────────────────────────────┐
+  ✉  Inbox    │ 1  tracker  https://tracker.example/t/2                              │
+  ➤  Sent     │ 2  wiki     https://other.example/s/wm2                              │
+──────────────│                                                                      │
+▸ 📁  More fold│Open link number (1-2): ▏                                             │
+▾  H  home    │Enter open · Esc cancel                                               │
+  ✉  Inbox    └──────────────────────────────────────────────────────────────────────┘
+  ➤  Sent                │
+─────────────────────────│
+▸ 📁  More folders (1)    │
+                         │
+                         │
+                         │
+                         │
+Enter open  j/k move  Tab sidebar  r reply  c compose  e archive  ? help         ● work ✓ · ● home ✓
