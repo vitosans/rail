@@ -22,13 +22,13 @@ All notable changes to Rail are recorded here. The format follows
   `{1}`, `{2}`, … are the pattern's capture groups. Every match of every rule is offered, so
   a subject carrying two ids reaches either; one match opens after the same confirmation as
   any other link, several are listed by number with the rule that found each and the address
-  it opens, and one address is one choice however many matches produced it.
+  it opens (a narrow terminal cuts an address's middle, so its id stays visible), and one address is one choice however many matches produced it.
 
 ### Security
 
 - A link action's captures are percent-encoded before they reach its template, and a capture
   of `.` or `..` drops the match rather than climbing out of the path the rule chose: a
-  subject is the sender's text. A template whose own path holds such a segment is refused
+  subject is the sender's text. A template whose own path holds such a segment, written with dots or `%2e`, is refused
   when the config loads, because an empty capture beside it climbs just as far.
 - The destination host comes from the config alone. A template whose scheme, credentials,
   host or port a match would decide is refused when the config loads, which Rail settles by

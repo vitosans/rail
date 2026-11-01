@@ -677,3 +677,39 @@ fn a_listing_taller_than_the_screen_keeps_the_question() {
         "the cut listing says so: {rendered}"
     );
 }
+
+/// The README's own rules: two addresses that differ only in the id at their end.
+fn two_merge_requests() -> LinkPrompt {
+    let address =
+        |id: u32| format!("https://gitlab.example.com/group/project/-/merge_requests/{id}");
+    LinkPrompt::listed(vec![
+        ("Merge-request".to_string(), address(123)),
+        ("Merge-request".to_string(), address(456)),
+    ])
+}
+
+/// A wide terminal has the room, so an address is shown whole.
+#[test]
+fn a_listed_address_is_whole_when_the_terminal_has_room() {
+    let prompt = two_merge_requests();
+    let rendered = render_lines(150, 12, |frame| {
+        prompt.render(frame, frame.area(), &Theme::default());
+    })
+    .join("\n");
+    assert!(rendered.contains("/merge_requests/123"), "{rendered}");
+    assert!(rendered.contains("/merge_requests/456"), "{rendered}");
+}
+
+/// A narrow terminal cuts the middle: the id at the end is what tells two addresses apart.
+#[test]
+fn a_cut_listed_address_keeps_its_end() {
+    let prompt = two_merge_requests();
+    let rendered = render_lines(60, 12, |frame| {
+        prompt.render(frame, frame.area(), &Theme::default());
+    })
+    .join("\n");
+    assert!(rendered.contains('…'), "{rendered}");
+    assert!(rendered.contains("requests/123"), "{rendered}");
+    assert!(rendered.contains("requests/456"), "{rendered}");
+    assert!(rendered.contains("1  Merge-request"), "{rendered}");
+}
