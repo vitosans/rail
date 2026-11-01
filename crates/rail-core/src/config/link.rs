@@ -243,17 +243,22 @@ fn settled_head(template: &str, probe: &str) -> Result<String, String> {
 /// filled address cannot be asked about them afterwards — by then it has already climbed.
 fn path_climbs(template: &str) -> bool {
     let emptied = fill(template, |_| "");
-    let authority = emptied
-        .split_once("//")
-        .map_or(emptied.as_str(), |(_, rest)| rest);
-    let path = authority
-        .split(['?', '#'])
-        .next()
-        .and_then(|head| head.split_once('/'))
+    let before_query = emptied.split(['?', '#']).next().unwrap_or_default();
+    // A parser reads a backslash as a separator, and for http and https it needs neither of
+    // the slashes after the scheme, so the host is the first segment after any of them.
+    let separated = before_query.replace('\\', "/");
+    let after_scheme = separated
+        .split_once(':')
+        .map_or(separated.as_str(), |(_, rest)| rest);
+    let path = after_scheme
+        .trim_start_matches('/')
+        .split_once('/')
         .map_or("", |(_, path)| path);
-    // A parser reads a backslash as a separator, so a segment can end at either.
-    path.split(['/', '\\'])
-        .any(|segment| segment == "." || segment == "..")
+    // A parser also reads `%2e` as a dot, in either case.
+    path.split('/').any(|segment| {
+        let dots = segment.to_ascii_lowercase().replace("%2e", ".");
+        dots == "." || dots == ".."
+    })
 }
 
 /// Check one template: at least one placeholder the pattern can fill, an authority no
@@ -544,6 +549,13 @@ mod tests {
             "https://e.example/a/{1}/../{2}",
             "https://e.example/a/{1}/./{2}",
             r"https://e.example/a/{1}\..\{2}",
+            // A parser reads `%2e` as a dot, in either case.
+            "https://e.example/t/%2e%2e{1}/{2}",
+            "https://e.example/t/.%2E{1}/{2}",
+            "https://e.example/t/%2E{1}/{2}",
+            // Backslashes and missing slashes still name a path.
+            r"https:\\e.example\a\..\{1}{2}",
+            "https:e.example/a/../{1}{2}",
         ] {
             let err = validate_link_actions(&config(vec![rule(r"(x)?(y)", url)])).unwrap_err();
             assert!(err.contains("'.' or '..' segment"), "{url}: {err}");
@@ -553,6 +565,9 @@ mod tests {
             "https://e.example/t/{1}.html",
             "https://e.example/t/x{1}/{2}",
             "https://e.example/t/{1}/{2}",
+            "https://e.example/t/%2e%2ex{1}/{2}",
+            // Dots after the path are not path segments.
+            "https://e.example/t/{1}{2}?from=/../",
         ] {
             assert_eq!(
                 validate_link_actions(&config(vec![rule(r"(x)?(y)", url)])),

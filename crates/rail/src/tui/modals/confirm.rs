@@ -15,8 +15,8 @@ use crate::tui::theme::Theme;
 /// A confirmation's width, its border included.
 const CONFIRM_WIDTH: u16 = 72;
 
-/// The link prompt's width when the question stands on its own, and when it carries the
-/// listing: an address needs the room, a bare number does not.
+/// The link prompt's width when the question stands on its own, and the least it takes when
+/// it carries the listing, which grows to its widest row as far as the screen allows.
 const PROMPT_WIDTH: u16 = 48;
 const LISTED_PROMPT_WIDTH: u16 = 72;
 
@@ -84,13 +84,34 @@ impl Confirm {
     }
 }
 
-/// `row` as it stands, or cut to `cols` columns ending in `…`.
-fn ellipsise_to(row: &str, cols: usize) -> String {
+/// `row` as it stands, or with its middle cut to fit `cols` columns. A listed address ends in
+/// the id that tells it from the others, and starts with the number and the rule, so both ends
+/// stay.
+fn cut_middle(row: &str, cols: usize) -> String {
     if width(row) <= cols {
-        row.to_string()
-    } else {
-        ellipsise(row, cols)
+        return row.to_string();
     }
+    let graphemes: Vec<&str> = row.graphemes(true).collect();
+    let room = cols.saturating_sub(1);
+    let mut tail: Vec<&str> = Vec::new();
+    let mut used = 0;
+    for grapheme in graphemes.iter().rev() {
+        if used + width(grapheme) > room / 2 {
+            break;
+        }
+        used += width(grapheme);
+        tail.push(grapheme);
+    }
+    tail.reverse();
+    let mut head = String::new();
+    for grapheme in &graphemes {
+        if used + width(grapheme) > room {
+            break;
+        }
+        used += width(grapheme);
+        head.push_str(grapheme);
+    }
+    format!("{head}…{}", tail.concat())
 }
 
 /// `row` ending in `…`, within `cols` columns.
@@ -183,7 +204,9 @@ impl LinkPrompt {
         let box_width = if self.listed.is_empty() {
             PROMPT_WIDTH
         } else {
-            LISTED_PROMPT_WIDTH
+            let widest = self.listed.iter().map(|row| width(row)).max().unwrap_or(0);
+            let borders = widest.saturating_add(2);
+            u16::try_from(borders).map_or(u16::MAX, |wanted| wanted.max(LISTED_PROMPT_WIDTH))
         };
         let cols = usize::from(area.width.min(box_width).saturating_sub(2)).max(1);
         let blank = usize::from(!self.listed.is_empty());
@@ -194,7 +217,7 @@ impl LinkPrompt {
             .listed
             .iter()
             .take(above)
-            .map(|row| ellipsise_to(row, cols))
+            .map(|row| cut_middle(row, cols))
             .collect();
         if self.listed.len() > above
             && let Some(last) = rows.last_mut()
