@@ -6,6 +6,29 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Link actions.** Mail from an issue tracker carries the record's id in its subject, so
+  `[[link_actions]]` turns that id into the record's address and `g t` (`list.open_link`,
+  in the list and the reader) opens it:
+
+  ```toml
+  [[link_actions]]
+  name  = "Ticket"
+  match = '\(#(\d+)\)'
+  url   = "https://tracker.example.com/ticket/{1}"
+  ```
+
+  `{1}`, `{2}`, … are the pattern's capture groups. Every match of every rule is offered, so
+  a subject carrying two ids reaches either; one match opens after the same confirmation as
+  any other link.
+
+### Security
+
+- A link action's captures are percent-encoded before they reach its template, and a template
+  whose scheme or host holds a `{n}` is refused when the config loads: a subject is the
+  sender's text, and the destination host comes from the config alone.
+
 ## [0.5.1] - 2026-10-30
 
 ### Fixed

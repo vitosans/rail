@@ -108,6 +108,8 @@ up without ever seeing your secrets.
   ask), filter as you type, a command palette, keys you can
   change in `config.toml`, and `o` to open a message's HTML in the browser. See
   [Reading mail](#reading-mail).
+- `[[link_actions]]`: a pattern over a thread's subject and the address it stands for, so `g t`
+  reaches the ticket or issue the thread is about. See [`[[link_actions]]`](#link_actions).
 - Archive, trash, star and mark read or unread, alone or as a selection, with undo, on Gmail and
   Microsoft 365. See [Doing things to mail](#doing-things-to-mail), including labelling (`l`, Gmail)
   and moving (`m`).
@@ -284,6 +286,7 @@ are in, with `*` after the ones set in `config.toml`.
 | `list.move` | list, reader | `m` | Move to a label (Gmail) or a folder (Microsoft 365). |
 | `list.snooze` | list, reader | `h` | Snooze until later, or return a snoozed thread ([Snooze](#snooze)). |
 | `list.compose` | list, reader | `c` | Write a new message. |
+| `list.open_link` | list, reader | `g t` | Open the link the thread's subject names ([`[[link_actions]]`](#link_actions)). |
 | `list.reply` | list, reader | `r` | Reply to the latest message. |
 | `list.reply_all` | list, reader | `R` | Reply to everyone. |
 | `list.forward` | list, reader | `f` | Forward the latest message. |
@@ -1447,6 +1450,45 @@ query = "from:dana is:unread"
 [[saved_searches]]
 name = "big-attachments"
 query = "has:attachment"
+```
+
+### `[[link_actions]]`
+
+Mail from an issue tracker carries the record's id in its subject — `(#12345)`, `[PROJ-123]`,
+`#4711` — so the way to the record is a substitution, not a search. One table per rule; `g t`
+(`list.open_link`, in the list and the reader) runs every rule over the subject of the thread
+under the cursor.
+
+| Key | Required | Meaning |
+|---|---|---|
+| `name` | yes | 1 to 40 ASCII letters, digits, `-` or `_`; unique among link actions, compared ignoring case. |
+| `match` | yes | A regular expression over the subject. Its capture groups fill the template. |
+| `url` | yes | An `http` or `https` template whose `{1}`, `{2}`, … are `match`'s groups, numbered from 1. |
+
+Every match of every rule is offered, so a subject carrying two ids reaches either: one match
+opens after the same confirmation as any other link, several are listed by number. A subject
+no rule matches is a notice, not an error. Rail keeps at most 20 link actions.
+
+The subject is the sender's text, so a capture is never trusted. Each one is percent-encoded
+before it reaches the template, which leaves it no `/`, `?`, `#` or `@` to steer the address
+with; the template's scheme and host must be spelled out before its first `{n}`, so the host
+comes from this file and from nowhere else; and the address Rail builds goes through the same
+confirmation as a link in a message, with the warnings described under
+[Reading mail](#reading-mail). A name that breaks the charset, a duplicate name, a pattern that
+does not compile, a template that is not `http`/`https`, one that places a `{n}` in its scheme
+or host, one with no `{n}` at all or one naming a group the pattern does not have makes
+`config.toml` invalid, and `rail doctor` names the rule.
+
+```toml
+[[link_actions]]
+name  = "Ticket"
+match = '\(#(\d+)\)'
+url   = "https://tracker.example.com/ticket/{1}"
+
+[[link_actions]]
+name  = "Merge-request"
+match = '!(\d+)'
+url   = "https://gitlab.example.com/group/project/-/merge_requests/{1}"
 ```
 
 ### `[[accounts]]`
