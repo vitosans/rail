@@ -625,3 +625,91 @@ fn the_theme_picker_without_truecolor_at_90_columns() {
     assert!(text.contains("no preview without truecolor"), "{text}");
     insta::assert_snapshot!("modal_theme_picker_no_preview_90x24", text);
 }
+
+/// The reader's links are numbered in the message text, so that prompt stays the bare
+/// question it has always been: two lines in a box 48 columns wide.
+#[test]
+fn the_bare_link_prompt_is_the_question_alone() {
+    let prompt = LinkPrompt::new(vec![
+        "https://e.example/a".into(),
+        "https://e.example/b".into(),
+    ]);
+    let lines = render_lines(80, 10, |frame| {
+        prompt.render(frame, frame.area(), &Theme::default());
+    });
+    let box_rows: Vec<&String> = lines.iter().filter(|l| l.contains('│')).collect();
+    assert_eq!(box_rows.len(), 2, "{lines:#?}");
+    assert!(
+        box_rows[0].contains("Open link number (1-2):"),
+        "{box_rows:#?}"
+    );
+    assert!(
+        box_rows[1].contains("Enter open · Esc cancel"),
+        "{box_rows:#?}"
+    );
+    let top = lines.iter().find(|l| l.contains('┌')).expect("a border");
+    let left = top.chars().position(|c| c == '┌').expect("a left corner");
+    let right = top.chars().position(|c| c == '┐').expect("a right corner");
+    assert_eq!(right - left + 1, 48, "{top}");
+}
+
+/// More matches than the screen can hold: the question and the hint are the rows that
+/// matter, so they stay, and the listing is cut where it runs out of room.
+#[test]
+fn a_listing_taller_than_the_screen_keeps_the_question() {
+    let matches: Vec<(String, String)> = (0..40)
+        .map(|n| {
+            (
+                "tracker".to_string(),
+                format!("https://tracker.example/t/{n}"),
+            )
+        })
+        .collect();
+    let prompt = LinkPrompt::listed(matches);
+    let lines = render_lines(80, 8, |frame| {
+        prompt.render(frame, frame.area(), &Theme::default());
+    });
+    let rendered = lines.join("\n");
+    assert!(rendered.contains("Open link number (1-40):"), "{rendered}");
+    assert!(rendered.contains("Enter open · Esc cancel"), "{rendered}");
+    assert!(
+        rendered.contains('…'),
+        "the cut listing says so: {rendered}"
+    );
+}
+
+/// The README's own rules: two addresses that differ only in the id at their end.
+fn two_merge_requests() -> LinkPrompt {
+    let address =
+        |id: u32| format!("https://gitlab.example.com/group/project/-/merge_requests/{id}");
+    LinkPrompt::listed(vec![
+        ("Merge-request".to_string(), address(123)),
+        ("Merge-request".to_string(), address(456)),
+    ])
+}
+
+/// A wide terminal has the room, so an address is shown whole.
+#[test]
+fn a_listed_address_is_whole_when_the_terminal_has_room() {
+    let prompt = two_merge_requests();
+    let rendered = render_lines(150, 12, |frame| {
+        prompt.render(frame, frame.area(), &Theme::default());
+    })
+    .join("\n");
+    assert!(rendered.contains("/merge_requests/123"), "{rendered}");
+    assert!(rendered.contains("/merge_requests/456"), "{rendered}");
+}
+
+/// A narrow terminal cuts the middle: the id at the end is what tells two addresses apart.
+#[test]
+fn a_cut_listed_address_keeps_its_end() {
+    let prompt = two_merge_requests();
+    let rendered = render_lines(60, 12, |frame| {
+        prompt.render(frame, frame.area(), &Theme::default());
+    })
+    .join("\n");
+    assert!(rendered.contains('…'), "{rendered}");
+    assert!(rendered.contains("requests/123"), "{rendered}");
+    assert!(rendered.contains("requests/456"), "{rendered}");
+    assert!(rendered.contains("1  Merge-request"), "{rendered}");
+}

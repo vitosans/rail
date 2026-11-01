@@ -485,6 +485,7 @@ pub fn recording_opener() -> (Opener, Arc<Mutex<Vec<Url>>>) {
 /// default keymap and glyphs, hyperlinks off.
 pub fn mail_ctx(paths: &Paths, fake: Arc<FakeDaemon>) -> MailContext {
     MailContext {
+        link_actions: Vec::new(),
         paths: paths.clone(),
         keymap: keymap(),
         store: StoreReader::new(paths.db_file()),

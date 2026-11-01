@@ -2850,6 +2850,8 @@ dependencies = [
  "mail-builder",
  "mail-parser",
  "oauth2",
+ "percent-encoding",
+ "regex",
  "reqwest",
  "rusqlite",
  "schemars",

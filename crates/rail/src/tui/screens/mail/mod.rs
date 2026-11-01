@@ -58,6 +58,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crossterm::event::KeyEvent;
+use rail_core::config::CompiledLinkAction;
 use rail_core::config::SavedSearch;
 use rail_core::config::{AccountKind, Config, DimRead, Icons, ThreadOrder};
 use rail_core::ops::OpError;
@@ -109,6 +110,9 @@ pub struct MailContext {
     pub clock: Clock,
     pub icons: Icons,
     pub split_threshold: u16,
+    /// `[[link_actions]]`, compiled once: the rules `list.open_link` runs over the subject
+    /// of the thread under the cursor.
+    pub link_actions: Vec<CompiledLinkAction>,
     /// `general.bulk_confirm`: how many threads an archive, star or mark-read may cover
     /// before Rail asks first; `0` never asks.
     pub bulk_confirm: u32,

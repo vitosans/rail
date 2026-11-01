@@ -34,10 +34,10 @@ expression: text
                                    │  m                    Move to a label (Gmail) or a folder (Microsoft 365)    │
                                    │  h                    Snooze until later, or return a snoozed thread         │
                                    │  c                    Write a new message                                    │
+                                   │  g t                  Open the link the subject names                        │
                                    │  r                    Reply to the latest message                            │
                                    │  R                    Reply to everyone                                      │
                                    │  f                    Forward the latest message                             │
                                    │  Space                Select or unselect the thread                          │
-                                   │  Esc                  Clear the selection                                    │
                                    │↓ more                                                                        │
                                    └──────────────────────────────────────────────────────────────────────────────┘
