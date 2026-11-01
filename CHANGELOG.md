@@ -6,6 +6,8 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-01
+
 ### Added
 
 - **Link actions.** Mail from an issue tracker carries the record's id in its subject, so
@@ -22,18 +24,26 @@ All notable changes to Rail are recorded here. The format follows
   `{1}`, `{2}`, … are the pattern's capture groups. Every match of every rule is offered, so
   a subject carrying two ids reaches either; one match opens after the same confirmation as
   any other link, several are listed by number with the rule that found each and the address
-  it opens (a narrow terminal cuts an address's middle, so its id stays visible), and one address is one choice however many matches produced it.
+  it opens (a narrow terminal cuts an address's middle, so its id stays visible), and one
+  address is one choice however many matches produced it. Suggested and contributed by
+  @mheyd (#138, #142).
 
 ### Security
 
 - A link action's captures are percent-encoded before they reach its template, and a capture
   of `.` or `..` drops the match rather than climbing out of the path the rule chose: a
-  subject is the sender's text. A template whose own path holds such a segment, written with dots or `%2e`, is refused
-  when the config loads, because an empty capture beside it climbs just as far.
+  subject is the sender's text. A template whose own path holds such a segment, written with
+  dots or `%2e`, is refused when the config loads, because an empty capture beside it climbs just as far.
 - The destination host comes from the config alone. A template whose scheme, credentials,
   host or port a match would decide is refused when the config loads, which Rail settles by
   filling the template twice and reading both with the parser that opens the link, so the
   check cannot disagree with what the address turns out to mean.
+- `mail-builder` 2.0 drops ASCII control characters in an address when writing it, so a CR LF
+  there could not inject header fields. Rail already refused these itself.
+
+### Changed
+
+- Updated dependencies: `mail-builder` 2.0, `rmcp` 3.8, `unicode-width` 0.2.3 and `rustix` 1.1.6.
 
 ## [0.5.1] - 2026-10-30
 
