@@ -5,7 +5,8 @@
 //! address it resolves to, the rest dropped before the connect (so a name cannot answer one
 //! address to the check and another to the connect), and each redirect (at most
 //! `MAX_REDIRECTS`) again the same way. No proxy (it would resolve names itself), no cookies,
-//! no referrer, a timeout, and a body cap; the type is read from the bytes, never from the
+//! no referrer, a timeout, a body cap, and at most `MAX_CONCURRENT_FETCHES` in flight across
+//! the daemon, however many readers ask; the type is read from the bytes, never from the
 //! server. With `Ipv6::Refused` (`remote_images_ipv6 = false`) no IPv6 address is fetched at
 //! all: on an IPv6-only network a NAT64 gateway's own prefix (inside `2000::/3`, so public to
 //! `public`) can be translated to a private IPv4 address, and only the network knows its
@@ -23,6 +24,8 @@ use crate::ops::{CONTENT_MISMATCH, ErrorCode, IMAGE_TYPES, OpError, content_matc
 
 /// The most redirects one picture may take.
 pub const MAX_REDIRECTS: usize = 3;
+/// The most pictures the daemon fetches at once, every reader's asks together; the rest wait.
+pub const MAX_CONCURRENT_FETCHES: usize = 8;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -165,6 +168,7 @@ pub struct RemoteFetch {
     client: reqwest::Client,
     rules: Rules,
     ipv4_only: reqwest::Client,
+    permits: Arc<tokio::sync::Semaphore>,
 }
 
 impl RemoteFetch {
@@ -188,6 +192,7 @@ impl RemoteFetch {
             client: client(rules)?,
             rules,
             ipv4_only: client(rules.without_ipv6())?,
+            permits: Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_FETCHES)),
         })
     }
 
@@ -220,6 +225,12 @@ impl RemoteFetch {
         if !rules.url(&parsed) {
             return Err(refused());
         }
+        // Held until the body is read: the slot is the whole fetch, not just its headers.
+        let _permit = self
+            .permits
+            .acquire()
+            .await
+            .map_err(|_| OpError::internal("the picture fetch limit was closed"))?;
         let mut response = client
             .get(parsed)
             .header(

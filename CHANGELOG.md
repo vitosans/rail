@@ -13,6 +13,13 @@ All notable changes to Rail are recorded here. The format follows
   public to Rail's address guard but can be translated to private IPv4 addresses; the README now
   says so (#134).
 
+### Fixed
+
+- The daemon fetches at most eight remote pictures at once, however many readers ask, and the
+  image cache (`cache/images/`) holds at most 512 MiB: the oldest pictures go to make room for a
+  new one, besides the weekly sweep. A mailbox of picture-heavy mail can no longer fill the disk
+  before the sweep (#132).
+
 ### Security
 
 - A trusted sender's remote pictures (`remote_images_from`, `I`) load by themselves only when

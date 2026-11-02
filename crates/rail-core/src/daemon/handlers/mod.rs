@@ -12,6 +12,8 @@ pub(super) mod draft_files;
 mod drafts;
 mod drafts_gmail;
 mod guide;
+#[cfg(test)]
+mod image_cache_tests;
 pub(super) mod inline_refresh;
 mod login;
 mod pending;

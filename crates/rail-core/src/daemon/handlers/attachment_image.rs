@@ -5,8 +5,9 @@
 //! picture fetch when the store still lists no such part, its type is not one the reader draws
 //! or its listed size is over the cap; refused after it when the bytes are over the cap or lack
 //! their type's signature, and nothing is written then. Each write is a temporary file renamed
-//! into place, after a sweep of pictures older than `IMAGE_STALE_AFTER`; a copy answered from
-//! disk has its age started again first. Logs carry error kinds only.
+//! into place, after a sweep of pictures older than `IMAGE_STALE_AFTER` and a trim of the oldest
+//! ones that keeps the cache under `MAX_IMAGE_CACHE_BYTES`; a copy answered from disk has its age
+//! started again first. Logs carry error kinds only.
 
 use std::path::Path;
 use std::time::SystemTime;
@@ -21,7 +22,8 @@ use crate::daemon::registry::Call;
 use crate::error::ErrorClass;
 use crate::ops::{
     AttachmentImageRequest, AttachmentImageResponse, CONTENT_MISMATCH, ErrorCode,
-    IMAGE_STALE_AFTER, MAX_IMAGE_BYTES, OpError, content_matches, image_extension,
+    IMAGE_STALE_AFTER, MAX_IMAGE_BYTES, MAX_IMAGE_CACHE_BYTES, OpError, content_matches,
+    image_extension,
 };
 use crate::paths::{Paths, create_private_dir};
 use crate::provider::http::{RetryPolicy, with_retry_policy};
@@ -124,13 +126,17 @@ fn cache_key(account_id: i64, request: &AttachmentImageRequest) -> String {
     hash.finalize().iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// Sweep, then write `bytes` to a temporary 0600 file in `images_dir()` and rename it to
-/// `path`, so a reader never sees half a picture.
+/// Sweep and trim, then write `bytes` to a temporary 0600 file in `images_dir()` and rename it
+/// to `path`, so a reader never sees half a picture.
 pub(super) fn write_cached(paths: &Paths, path: &Path, bytes: &[u8]) -> Result<(), OpError> {
     let dir = paths.images_dir();
     create_private_dir(&dir).map_err(|error| io_error("creating the image cache", &error))?;
     if let Err(error) = sweep(&dir, SystemTime::now()) {
         tracing::warn!(kind = ?error.kind(), "the cached pictures were not swept");
+    }
+    let incoming = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+    if let Err(error) = trim(&dir, MAX_IMAGE_CACHE_BYTES, incoming) {
+        tracing::warn!(kind = ?error.kind(), "the image cache was not trimmed");
     }
     let temporary = dir.join(format!(".{}.part", random_token()));
     let written = create_new_private(&temporary)
@@ -171,6 +177,62 @@ fn sweep(dir: &Path, now: SystemTime) -> std::io::Result<usize> {
     match now.checked_sub(IMAGE_STALE_AFTER) {
         Some(cutoff) => sweep_token(dir, cutoff),
         None => Ok(0),
+    }
+}
+
+/// Remove the oldest regular files directly in `dir` until they and `incoming` more bytes fit in
+/// `cap`; how many went. A symlink or a directory is never counted or removed, nor another
+/// write's temporary `.part` file. An entry it cannot read or remove does not stop the rest,
+/// the first such failure coming back at the end.
+pub(super) fn trim(dir: &Path, cap: u64, incoming: u64) -> std::io::Result<usize> {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(error) => return Err(error),
+    };
+    let mut failed = None;
+    let mut files = Vec::new();
+    for entry in entries {
+        match entry.and_then(|entry| cached_file(&entry)) {
+            Ok(Some(file)) => files.push(file),
+            Ok(None) => {}
+            Err(error) => keep_first(&mut failed, error),
+        }
+    }
+    files.sort_by_key(|(_, _, modified)| *modified);
+    let mut total = files.iter().map(|(_, len, _)| *len).sum::<u64>();
+    let mut removed = 0;
+    for (path, len, _) in files {
+        if total.saturating_add(incoming) <= cap {
+            break;
+        }
+        match std::fs::remove_file(&path) {
+            Ok(()) => removed += 1,
+            Err(error) => keep_first(&mut failed, error),
+        }
+        // A file another trim removed first is room made all the same.
+        total = total.saturating_sub(len);
+    }
+    failed.map_or(Ok(removed), Err)
+}
+
+/// A cached picture's path, size and last change, or `None` for an entry that is not one.
+fn cached_file(
+    entry: &std::fs::DirEntry,
+) -> std::io::Result<Option<(std::path::PathBuf, u64, SystemTime)>> {
+    let in_flight = entry.file_name().to_string_lossy().ends_with(".part");
+    if in_flight || !entry.file_type()?.is_file() {
+        return Ok(None);
+    }
+    let metadata = entry.metadata()?;
+    Ok(Some((entry.path(), metadata.len(), metadata.modified()?)))
+}
+
+/// Keep `error` as what the trim reports, unless the entry has gone (there is nothing left to
+/// do about it) or a failure is already kept.
+fn keep_first(failed: &mut Option<std::io::Error>, error: std::io::Error) {
+    if error.kind() != std::io::ErrorKind::NotFound && failed.is_none() {
+        *failed = Some(error);
     }
 }
 

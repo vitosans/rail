@@ -10,7 +10,9 @@ use url::Url;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use super::remote_fetch::{Guarded, Ipv6, MAX_REDIRECTS, RemoteFetch, Rules, public};
+use super::remote_fetch::{
+    Guarded, Ipv6, MAX_CONCURRENT_FETCHES, MAX_REDIRECTS, RemoteFetch, Rules, public,
+};
 use crate::error::ErrorClass;
 use crate::ops::{CONTENT_MISMATCH, ErrorCode};
 
@@ -323,5 +325,38 @@ async fn an_ipv6_address_is_refused_before_any_connect_when_ipv6_is_refused() {
         tried.code,
         ErrorCode::Network,
         "allowed, so it was tried: {tried:?}"
+    );
+}
+
+/// However many pictures the reader asks for at once, at most `MAX_CONCURRENT_FETCHES` are in
+/// flight: twice that many slow answers take at least two answers' time.
+#[tokio::test]
+async fn at_most_the_concurrent_limit_of_pictures_are_fetched_at_once() {
+    let delay = std::time::Duration::from_millis(300);
+    let server = MockServer::start().await;
+    Mock::given(path("/slow"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_bytes(PNG)
+                .set_delay(delay),
+        )
+        .mount(&server)
+        .await;
+    let fetch = std::sync::Arc::new(RemoteFetch::loopback().unwrap());
+    let url = format!("{}/slow", server.uri());
+    let started = std::time::Instant::now();
+    let asks: Vec<_> = (0..2 * MAX_CONCURRENT_FETCHES)
+        .map(|_| {
+            let (fetch, url) = (fetch.clone(), url.clone());
+            tokio::spawn(async move { fetch.fetch(&url, 1024).await })
+        })
+        .collect();
+    for ask in asks {
+        ask.await.unwrap().unwrap();
+    }
+    assert!(
+        started.elapsed() >= 2 * delay,
+        "took {:?}",
+        started.elapsed()
     );
 }

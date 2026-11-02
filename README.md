@@ -466,10 +466,12 @@ domain) passed. Other mail from that address waits with the hint, as an untruste
 and so does mail stored before Rail kept these results, until its body is fetched again; `i`
 loads it. `i` loads every remote picture of the thread, a tracking pixel too when the mail does not
 declare its size. The daemon fetches them (never the terminal), only over `https` from public
-addresses, with no cookies or referrer, at most 5 MiB each, and keeps them for a week in Rail's
-private image cache. On an IPv6-only network with NAT64, the gateway's own prefix looks public but
-can reach private IPv4 addresses, which Rail cannot tell; `remote_images_ipv6 = false` under
-`[general]` fetches remote pictures over IPv4 only. `remote_images = true` under `[general]` or `:remote-images` loads them in
+addresses, with no cookies or referrer, at most 5 MiB each and at most eight at once, and keeps
+them for a week in Rail's private image cache, which holds at most 512 MiB (the oldest pictures
+go first). On an IPv6-only network with NAT64, the gateway's own prefix looks public but can
+reach private IPv4 addresses, which Rail cannot tell; `remote_images_ipv6 = false` under
+`[general]` fetches remote pictures over IPv4 only. `remote_images = true` under `[general]` or
+`:remote-images` loads them in
 every thread.
 
 HTML mail is shown as Rail's own rendering of it, the same text Rail stores and searches, with
