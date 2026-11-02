@@ -206,6 +206,8 @@ impl MailScreen {
             | Action::ListTrashNow
             | Action::ListStar
             | Action::ListRead
+            | Action::ListMarkRead
+            | Action::ListMarkUnread
             | Action::ListLabels
             | Action::ListMove
             | Action::ListSnooze
@@ -271,6 +273,8 @@ impl MailScreen {
             Action::ListRead => MailAction::Read {
                 on: targets.iter().any(|(_, p)| p.unread),
             },
+            Action::ListMarkRead => MailAction::Read { on: true },
+            Action::ListMarkUnread => MailAction::Read { on: false },
             Action::ListLabels => {
                 return self.open_picker(crate::tui::modals::PickerKind::Labels, targets);
             }

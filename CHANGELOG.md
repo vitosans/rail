@@ -28,6 +28,8 @@ All notable changes to Rail are recorded here. The format follows
   @coko7's request for bash's editing keys in text fields (#152).
 - `F2` opens the palette in every preset, whatever `[keys]` says, so switching presets never
   hides the way back.
+- `list.mark_read` and `list.mark_unread`: mark read, or mark unread, whatever the threads show,
+  where `u` toggles. Neither has a key in the `rail` preset; bind them in `[keys]` (#153).
 - `list.trash_now`: move to the trash without asking, still undoable and still asked about for a
   large selection (`bulk_confirm`) and in Drafts. It has no key in the `rail` preset; `vim` binds
   it to `D`.

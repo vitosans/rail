@@ -111,6 +111,8 @@ impl MailScreen {
             Action::ListArchive
             | Action::ListStar
             | Action::ListRead
+            | Action::ListMarkRead
+            | Action::ListMarkUnread
             | Action::ListLabels
             | Action::ListMove
             | Action::ListSnooze

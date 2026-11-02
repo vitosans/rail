@@ -31,13 +31,13 @@ expression: text
                                    │                       Move to the trash without asking (undo still works)    │
                                    │  s                    Star or unstar                                         │
                                    │  u                    Mark read or unread                                    │
+                                   │                       Mark read                                              │
+                                   │                       Mark unread                                            │
                                    │  l                    Add or remove labels (Gmail)                           │
                                    │  m                    Move to a label (Gmail) or a folder (Microsoft 365)    │
                                    │  h                    Snooze until later, or return a snoozed thread         │
                                    │  c                    Write a new message                                    │
                                    │  g t                  Open the link the subject names                        │
                                    │  r                    Reply to the latest message                            │
-                                   │  R                    Reply to everyone                                      │
-                                   │  f                    Forward the latest message                             │
                                    │↓ more                                                                        │
                                    └──────────────────────────────────────────────────────────────────────────────┘

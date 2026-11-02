@@ -123,6 +123,8 @@ actions! {
     ListTrashNow => "list.trash_now", [List, Reader], [], "Move to the trash without asking (undo still works)";
     ListStar => "list.star", [List, Reader], ["s"], "Star or unstar";
     ListRead => "list.read", [List, Reader], ["u"], "Mark read or unread";
+    ListMarkRead => "list.mark_read", [List, Reader], [], "Mark read";
+    ListMarkUnread => "list.mark_unread", [List, Reader], [], "Mark unread";
     ListLabels => "list.labels", [List, Reader], ["l"], "Add or remove labels (Gmail)";
     ListMove => "list.move", [List, Reader], ["m"], "Move to a label (Gmail) or a folder (Microsoft 365)";
     ListSnooze => "list.snooze", [List, Reader], ["h"], "Snooze until later, or return a snoozed thread";
