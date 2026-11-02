@@ -114,6 +114,33 @@ const EMACS: Overrides = &[
     (Action::ComposePageUp, &["pageup", "alt-v"]),
 ];
 
+/// Gmail's web shortcuts: `o` opens, `u` goes back to the list, `Shift-i`/`Shift-u` mark read
+/// and unread, `#` trashes without asking, `v` moves, `b` snoozes, `x` selects, `a` replies to
+/// everyone, `Shift-n` syncs, `g i` goes to the inbox and `* n` clears the selection. `Ctrl-s`
+/// saves the draft. What those keys did in `rail` moves: the sidebar to `B`, a range to `V`,
+/// the attachments to `A` and trusting a sender's pictures to `T`. `d` still asks. Gmail has no
+/// read toggle, so `u` in the list does nothing.
+const GMAIL: Overrides = &[
+    (Action::ListOpen, &["enter", "o"]),
+    (Action::ListUnified, &["0", "g i"]),
+    (Action::ListRefresh, &["ctrl-r", "N"]),
+    (Action::ListSidebar, &["B"]),
+    (Action::ListRead, &[]),
+    (Action::ListMarkRead, &["I"]),
+    (Action::ListMarkUnread, &["U"]),
+    (Action::ListTrashNow, &["#"]),
+    (Action::ListMove, &["m", "v"]),
+    (Action::ListSnooze, &["b"]),
+    (Action::ListReplyAll, &["R", "a"]),
+    (Action::ListSelect, &["space", "x"]),
+    (Action::ListClearSelection, &["esc", "* n"]),
+    (Action::ListSelectRange, &["V"]),
+    (Action::ReaderAttachments, &["A"]),
+    (Action::ReaderTrustImages, &["T"]),
+    (Action::ReaderBack, &["q", "esc", "u"]),
+    (Action::ComposePush, &["s", "ctrl-s"]),
+];
+
 /// The keys `preset` gives in place of the defaults.
 pub fn overrides(preset: KeymapPreset) -> Overrides {
     match preset {
@@ -121,6 +148,7 @@ pub fn overrides(preset: KeymapPreset) -> Overrides {
         KeymapPreset::Vim => VIM,
         KeymapPreset::Mutt => MUTT,
         KeymapPreset::Emacs => EMACS,
+        KeymapPreset::Gmail => GMAIL,
     }
 }
 
@@ -132,5 +160,6 @@ pub fn summary(preset: KeymapPreset) -> &'static str {
         KeymapPreset::Vim => "h/l panes · u undo · U read · Z snooze · D trash",
         KeymapPreset::Mutt => "s move · g reply all · t tag · N read · u undo",
         KeymapPreset::Emacs => "C-n/C-p · C-v/M-v page · C-s filter · C-g back",
+        KeymapPreset::Gmail => "I/U read · # trash · v move · b snooze · x select",
     }
 }

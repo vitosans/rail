@@ -19,6 +19,11 @@ All notable changes to Rail are recorded here. The format follows
   filters, `Ctrl-g` backs out and `Alt-x` opens the palette; `Ctrl-x u` undoes and `Ctrl-x o`
   moves between the sidebar and the list. In the composer `Ctrl-x Ctrl-s` saves to Drafts,
   `Ctrl-x i` attaches and `Ctrl-x k` discards. `n`/`p` move through the list (#153).
+- **The `gmail` preset** (`keymap = "gmail"`) follows Gmail's web shortcuts: `o` opens, `u`
+  goes back to the list, `I`/`U` mark read and unread, `#` trashes without asking, `v` moves,
+  `b` snoozes, `x` selects, `* n` clears the selection, `a` replies to everyone, `N` syncs, `g i`
+  goes to the inbox and `Ctrl-s` saves the draft. The sidebar moves to `B`, a range to `V`, the
+  attachments to `A` and trusting a sender's pictures to `T` (#153).
 
 - **Key presets.** `keymap` under `[general]` chooses the keys every action starts from, and
   `[keys]` goes over it. `:keymap` lists the presets, switches at once and saves the choice; a

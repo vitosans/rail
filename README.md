@@ -75,7 +75,7 @@ so an AI coding agent can help you set it up without ever seeing your secrets.
   folded quotes, numbered (clickable) links, and HTML mail drawn with its styles and pictures
   (remote pictures only when you ask).
 - **Fast to drive.** Filter as you type, saved searches, a command palette, selections and bulk
-  actions with undo, snooze, and keys you can change (with `vim`, `mutt` and `emacs` presets).
+  actions with undo, snooze, and keys you can change (with `vim`, `mutt`, `emacs` and `gmail` presets).
 - **Writing in your own editor**, with a ten second undo send and drafts that sync to the
   account's Drafts.
 - **Gmail and Microsoft 365**, including organisation presets and Microsoft admin consent.
