@@ -24,6 +24,11 @@ All notable changes to Rail are recorded here. The format follows
   `b` snoozes, `x` selects, `* n` clears the selection, `a` replies to everyone, `N` syncs, `g i`
   goes to the inbox and `Ctrl-s` saves the draft. The sidebar moves to `B`, a range to `V`, the
   attachments to `A` and trusting a sender's pictures to `T` (#153).
+- **The `outlook` preset** (`keymap = "outlook"`) follows Outlook for Windows and on the web:
+  `Delete` trashes without asking, `Backspace` archives, `Insert` stars, `Ctrl-q`/`Ctrl-u` mark
+  read and unread, `Ctrl-z` undoes, `Ctrl-n` writes, `Ctrl-r` replies, `Ctrl-f` forwards, `v`
+  moves, `Ctrl-e` filters, `Ctrl-a` selects all and `F9` syncs; `Alt-s` sends and `Ctrl-s` saves
+  a draft. A range moves to `V` (#153).
 
 - **Key presets.** `keymap` under `[general]` chooses the keys every action starts from, and
   `[keys]` goes over it. `:keymap` lists the presets, switches at once and saves the choice; a

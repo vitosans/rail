@@ -9,7 +9,7 @@ then [Account setup](accounts.md).
 | [Reading mail](reading.md) | The mail screen: thread list, sidebar, header, reader, pictures, links, attachments, filtering, saved searches, the palette and themes. |
 | [Doing things to mail](actions.md) | Archive, trash, star, read, labels and moving, selections, undo, how actions reach the server, and snooze. |
 | [Writing mail](writing.md) | New messages, replies and forwards: the editor, the review, sending with undo, drafts and limits. |
-| [Keys](keys.md) | Key names, changing keys with `[keys]`, the `rail`, `vim`, `mutt`, `emacs` and `gmail` presets, and every action with its default keys. |
+| [Keys](keys.md) | Key names, changing keys with `[keys]`, the `rail`, `vim`, `mutt`, `emacs`, `gmail` and `outlook` presets, and every action with its default keys. |
 | [Configuration](configuration.md) | Every `config.toml` setting, sync settings, `ai_send`, 1Password, file locations and the background daemon. |
 | [Commands](commands.md) | Every `rail` command, its flags and exit codes. |
 | [Using Rail from an AI agent (MCP)](mcp.md) | Connecting an agent, its tools, confirmations and limits. |
