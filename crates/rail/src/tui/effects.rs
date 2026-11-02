@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use rail_core::auth::{TokenSet, random_token};
-use rail_core::config::AccountConfig;
+use rail_core::config::{AccountConfig, KeymapPreset, load_text_or_empty};
 use rail_core::daemon::Connector;
 use rail_core::error::ErrorClass;
 use rail_core::onboarding::{Action, DoneReport, Event, Failure, Preset, PresetEntry};
@@ -25,6 +25,8 @@ use url::Url;
 
 use crate::cmd::account::{CANCEL_TIMEOUT, error_text};
 use crate::tui::app::{Effect, TaskResult, TaskSink};
+use crate::tui::keys::Keymap;
+use crate::tui::screens::mail::{Saved, write_general};
 use crate::{browser, daemon_link};
 
 mod in_flight;
@@ -117,7 +119,29 @@ pub fn to_effect(action: Action, ctx: &EffectContext) -> Effect {
         }
         Action::RunLogin(account) => job(move |sink| login(ctx, account, sink)),
         Action::Persist { .. } => job(move |sink| async move { persisted(&ctx, &sink) }),
+        Action::SaveKeymap {
+            preset,
+            config_path,
+        } => job(move |sink| async move {
+            let result = tokio::task::spawn_blocking(move || save_keymap(&config_path, preset))
+                .await
+                .unwrap_or_else(|e| Err(e.to_string()))
+                .map_err(|message| Failure::new(message, ErrorClass::Permanent));
+            send(&sink, Event::KeymapSaved(result));
+        }),
     }
+}
+
+/// Write `keymap = "<preset>"` to the config at `path`, refusing a preset its `[keys]` clash
+/// with: that config would stop Rail from starting.
+fn save_keymap(path: &Path, preset: KeymapPreset) -> Result<(), String> {
+    let (text, config) = load_text_or_empty(path).map_err(|e| e.to_string())?;
+    Keymap::from_config(&config.keys, preset, &text, path).map_err(|e| e.to_string())?;
+    write_general(
+        path,
+        "keymap",
+        Saved::Text(Some(preset.as_str().to_string())),
+    )
 }
 
 fn job<F, Fut>(run: F) -> Effect

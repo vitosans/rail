@@ -158,6 +158,7 @@ impl WizardScreen {
             Some(Busy::Consent) => Event::AdminConsentFinished(Err(failure)),
             Some(Busy::Login) => Event::LoginFinished(Err(failure)),
             Some(Busy::Persisting) => return Vec::new(),
+            Some(Busy::SavingKeys) => Event::KeymapSaved(Err(failure)),
             None => {
                 self.failure = Some(format!("Error: {}", failure.message));
                 return Vec::new();

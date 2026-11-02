@@ -12,7 +12,7 @@ use super::events::{Action, DoneReport, Failure, Input, Remedy};
 use super::instructions::portal_url;
 use super::preset::Preset;
 use crate::auth::TokenSet;
-use crate::config::{AccountKind, Config};
+use crate::config::{AccountKind, Config, KeymapPreset};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Step {
@@ -26,6 +26,8 @@ pub enum Step {
     ConsentTenant,
     AdminConsent,
     Login,
+    /// The first run's key preset, once its first account is saved; shown under "Done".
+    Keys,
     Done,
 }
 
@@ -44,6 +46,7 @@ pub enum Busy {
     Consent,
     Login,
     Persisting,
+    SavingKeys,
 }
 
 pub const START_CHOICES: [&str; 2] = ["Use a preset from my organisation", "Set up my own app"];
@@ -79,10 +82,16 @@ pub struct Wizard {
     pub(super) report: Option<DoneReport>,
     /// Names of the accounts saved in this session.
     pub(super) added: Vec<String>,
+    /// No account was configured when the wizard started: the first one saved is followed by
+    /// the Keys step.
+    pub(super) first_run: bool,
+    /// The preset chosen on the Keys step, once saved; `None` keeps Rail's own.
+    pub(super) keys: Option<KeymapPreset>,
 }
 
 impl Wizard {
     pub fn new(existing: Option<Config>, kind_hint: Option<AccountKind>) -> Self {
+        let first_run = existing.as_ref().is_none_or(|c| c.accounts.is_empty());
         Self {
             step: Step::Start,
             history: Vec::new(),
@@ -105,6 +114,8 @@ impl Wizard {
             tokens: None,
             report: None,
             added: Vec::new(),
+            first_run,
+            keys: None,
         }
     }
 
@@ -195,7 +206,9 @@ impl Wizard {
     /// Back one step, cancelling whatever was in flight. Not from Done, and not while
     /// saving: a half-cancelled persist is the one thing that could leave a trace.
     fn back(&mut self) -> Vec<Action> {
-        if self.step == Step::Done || self.busy == Some(Busy::Persisting) {
+        // The account is saved by the Keys step, and saving keys is as final as saving it.
+        let saved = matches!(self.step, Step::Keys | Step::Done);
+        if saved || matches!(self.busy, Some(Busy::Persisting | Busy::SavingKeys)) {
             return Vec::new();
         }
         let Some(previous) = self.history.pop() else {
@@ -293,6 +306,31 @@ impl Wizard {
                 Vec::new()
             }
             (Step::Done, 1) => vec![Action::Quit],
+            (Step::Keys, i) => self.choose_keys(i),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Rail's own keys need nothing written; any other preset is saved before Done.
+    fn choose_keys(&mut self, index: usize) -> Vec<Action> {
+        match KeymapPreset::ALL.get(index) {
+            Some(KeymapPreset::Rail) => {
+                self.go(Step::Done);
+                Vec::new()
+            }
+            Some(&preset) if self.busy.is_none() => {
+                let Some(report) = &self.report else {
+                    self.go(Step::Done);
+                    return Vec::new();
+                };
+                let config_path = report.config_path.clone();
+                self.keys = Some(preset);
+                self.busy = Some(Busy::SavingKeys);
+                vec![Action::SaveKeymap {
+                    preset,
+                    config_path,
+                }]
+            }
             _ => Vec::new(),
         }
     }
@@ -339,7 +377,7 @@ impl Wizard {
                 Vec::new()
             }
             Step::AdminConsent => self.consent_or_continue(),
-            Step::Start | Step::Provider | Step::Login | Step::Done => Vec::new(),
+            Step::Start | Step::Provider | Step::Login | Step::Keys | Step::Done => Vec::new(),
         }
     }
 

@@ -22,7 +22,7 @@ use rail_core::config::{KeymapPreset, Spanned, line_col};
 
 pub use actions::{Action, View};
 pub use names::{Binding, Key, parse_binding};
-pub use presets::{overrides, summary};
+pub use presets::overrides;
 
 use crate::cmd::text::escape_field;
 
