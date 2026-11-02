@@ -33,7 +33,7 @@ cat <<EOF
 | \`rail-${tag}-aarch64-apple-darwin.tar.gz\` | macOS 11 or newer on Apple Silicon |
 | \`rail-${tag}-x86_64-apple-darwin.tar.gz\` | macOS 11 or newer on Intel |
 
-Each archive holds the \`rail\` binary, the README, the changelog, the licences and
+Each archive holds the \`rail\` binary, the README and \`docs/\`, the changelog, the licences and
 \`BUILD-INFO.txt\`. Extract it and put \`rail\` in a directory on your \`PATH\`.
 
 Check an archive against \`SHA256SUMS\`, and check where it was built:

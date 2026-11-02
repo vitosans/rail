@@ -128,13 +128,16 @@ fn inputs_fill_their_placeholders_and_nothing_else() {
     );
 }
 
-/// The README documents the same steps: its setup sections carry the marker of this guide
+/// docs/accounts.md documents the same steps: its setup sections carry the marker of this guide
 /// version, every command of every `run` step verbatim (placeholders included), and every
 /// `browser` page up to its query string.
 #[test]
-fn the_readme_setup_sections_agree_with_the_guides() {
-    let readme = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../README.md"))
-        .expect("README.md at the workspace root");
+fn the_account_docs_setup_sections_agree_with_the_guides() {
+    let docs = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../docs/accounts.md"
+    ))
+    .expect("docs/accounts.md at the workspace root");
     let inputs = GuideInputs {
         admin: true,
         ..GuideInputs::default()
@@ -144,17 +147,17 @@ fn the_readme_setup_sections_agree_with_the_guides() {
         (AccountKind::M365, "microsoft"),
     ] {
         let tag = format!("<!-- guide:{marker} v{GUIDE_VERSION} -->");
-        assert!(readme.contains(&tag), "README lacks {tag}");
+        assert!(docs.contains(&tag), "docs/accounts.md lacks {tag}");
         for step in template(kind, &inputs) {
             if let Some(command) = &step.command {
                 assert!(
-                    readme.contains(command.as_str()),
-                    "README lacks `{command}`"
+                    docs.contains(command.as_str()),
+                    "docs/accounts.md lacks `{command}`"
                 );
             }
             if let Some(url) = &step.url {
                 let page = url.split('?').next().unwrap_or(url);
-                assert!(mentions_page(&readme, page), "README lacks {page}");
+                assert!(mentions_page(&docs, page), "docs/accounts.md lacks {page}");
             }
         }
     }
@@ -247,9 +250,9 @@ fn no_step_prints_a_token_or_a_secret() {
 }
 
 /// The page appears as a whole token, not as the prefix of a longer URL.
-fn mentions_page(readme: &str, page: &str) -> bool {
-    readme.match_indices(page).any(|(at, _)| {
-        readme[at + page.len()..]
+fn mentions_page(docs: &str, page: &str) -> bool {
+    docs.match_indices(page).any(|(at, _)| {
+        docs[at + page.len()..]
             .chars()
             .next()
             .is_none_or(|c| c.is_whitespace() || "`?)>".contains(c))

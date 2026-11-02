@@ -705,12 +705,13 @@ mod tests {
         );
     }
 
-    /// FR-20 and README's "your comments, formatting and other tables survive each write", on
-    /// the two lines a rename touches. Assigning `table["name"]`/`table["query"]` replaces the
-    /// item together with its decor, so the trailing comment on each line goes and a literal
-    /// query is re-quoted; `set_string` keeps the decor, and an unchanged query is not written
-    /// at all, which is the only thing that keeps its `'…'` form. A rename to the same name
-    /// writes nothing, so the file comes back byte for byte.
+    /// FR-20 and docs/configuration.md's "your comments, formatting and other tables survive
+    /// each write", on the two lines a rename touches. Assigning
+    /// `table["name"]`/`table["query"]` replaces the item together with its decor, so the
+    /// trailing comment on each line goes and a literal query is re-quoted; `set_string` keeps
+    /// the decor, and an unchanged query is not written at all, which is the only thing that
+    /// keeps its `'…'` form. A rename to the same name writes nothing, so the file comes back
+    /// byte for byte.
     #[test]
     fn a_rename_keeps_the_comments_and_quoting_of_its_lines() {
         let path = Path::new("c.toml");

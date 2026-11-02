@@ -10,7 +10,7 @@ use crate::provider::ProviderError;
 use crate::provider::limits::MAX_ERROR_TEXT;
 
 /// A 403 that names access or consent.
-pub const CONSENT_MESSAGE: &str = "Microsoft 365 refused access: an administrator may need to grant consent (see \"Work or school accounts and admin consent\" in the README)";
+pub const CONSENT_MESSAGE: &str = "Microsoft 365 refused access: an administrator may need to grant consent (see \"Work or school accounts and admin consent\" in docs/accounts.md)";
 /// A mailbox Graph cannot serve.
 pub const MAILBOX_MESSAGE: &str =
     "this mailbox cannot be reached through Microsoft Graph (on-premises, unlicensed or inactive)";

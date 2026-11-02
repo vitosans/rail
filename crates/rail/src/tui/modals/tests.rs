@@ -678,7 +678,7 @@ fn a_listing_taller_than_the_screen_keeps_the_question() {
     );
 }
 
-/// The README's own rules: two addresses that differ only in the id at their end.
+/// docs/configuration.md's own rules: two addresses that differ only in the id at their end.
 fn two_merge_requests() -> LinkPrompt {
     let address =
         |id: u32| format!("https://gitlab.example.com/group/project/-/merge_requests/{id}");

@@ -31,7 +31,7 @@ fn check_cli() -> GuideStep {
         ..step(
             StepKind::Run,
             "Check for the Azure CLI",
-            "If az is missing, the user can install it (https://learn.microsoft.com/cli/azure/install-azure-cli) or follow the portal steps in Rail's README instead.",
+            "If az is missing, the user can install it (https://learn.microsoft.com/cli/azure/install-azure-cli) or follow the portal steps in Rail's docs/accounts.md instead.",
         )
     }
 }

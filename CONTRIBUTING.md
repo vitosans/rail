@@ -5,8 +5,9 @@ never let a secret reach a log or the terminal.
 
 ## Before you start
 
-- Read the [README](README.md) first: it describes how Rail behaves today, and it is kept in step
-  with the binary. Where the code and the README disagree, that is a bug in one of them.
+- Read the [README](README.md) and the [documentation](docs/README.md) first: they describe how
+  Rail behaves today, and they are kept in step with the binary. Where the code and the docs
+  disagree, that is a bug in one of them.
 - Open an issue for anything bigger than a bug fix so the approach can be agreed first.
 
 ## Project layout
@@ -164,9 +165,16 @@ and record the `systemctl`/`launchctl` commands `rail daemon install` would run 
 generated systemd unit with `systemd-analyze verify` and is skipped where that is missing; the
 pseudo-terminal tests use util-linux `script` and are skipped where it is missing.
 
-`crates/rail-core/src/guide/tests.rs` checks that the README's setup sections carry the current
-guide marker (`<!-- guide:google v… -->`, `<!-- guide:microsoft v… -->`) and every guide command
-verbatim. Change the guide and the README together (`cargo test --workspace -- guide::`).
+`crates/rail-core/src/guide/tests.rs` checks that the setup sections of `docs/accounts.md` carry
+the current guide marker (`<!-- guide:google v… -->`, `<!-- guide:microsoft v… -->`) and every
+guide command verbatim. Change the guide and `docs/accounts.md` together
+(`cargo test --workspace -- guide::`).
+
+`crates/rail/src/tui/keys/docs_tests.rs` checks that the action table in `docs/keys.md` (between
+`<!-- actions:begin -->` and `<!-- actions:end -->`) lists every action of
+`crates/rail/src/tui/keys/actions.rs` in order, with its views, default keys and description
+(the description plus a full stop). The last column, *Notes*, is free text and is not checked.
+Change an action and its row together (`cargo test -p rail -- docs_tests`).
 
 ### Live tests
 
@@ -194,9 +202,9 @@ that does not by itself mean Rail is broken.
   written atomically.
 - Source files stay under 800 lines and functions under 50. Split before you cross either.
 - `unsafe` is forbidden workspace-wide.
-- The README tracks behaviour. Any change a user can see or type (a command, a flag, a config key,
-  an environment variable, an output line, an MCP tool) updates `README.md` in the same change, and
-  reviewers check the README against the binary.
+- The docs track behaviour. Any change a user can see or type (a command, a flag, a config key,
+  an environment variable, an output line, an MCP tool) updates `README.md` or the page under
+  `docs/` that covers it in the same change, and reviewers check the docs against the binary.
 - Every user operation is an operation in `rail-core::ops` that the daemon runs; the TUI, the flag
   commands and `rail mcp` only send requests. No capability exists only in one front end.
 - Store migrations are embedded and numbered; never edit a shipped migration's statements, add a

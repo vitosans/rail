@@ -1,4 +1,4 @@
-//! The portal steps the Instructions step shows. The README carries the same text.
+//! The portal steps the Instructions step shows. docs/accounts.md carries the same text.
 
 use url::Url;
 
