@@ -66,6 +66,8 @@ pub enum Command {
     Accent(AccentAnswer),
     /// `:keymap`'s answer: an index into `KeymapPreset::ALL`.
     Keymap(usize),
+    /// "Keep these keys?" was answered yes: save the preset being tried.
+    KeepKeymap,
     /// The account picker's answer: write a new message from account `n` (its position).
     Account(usize),
     /// The drafts picker's answer: open the row at this position.

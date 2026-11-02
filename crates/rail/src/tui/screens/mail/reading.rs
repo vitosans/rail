@@ -554,6 +554,7 @@ impl MailScreen {
             Command::Theme(index) => return self.keep_scheme(index),
             Command::Accent(answer) => return self.keep_accent(answer),
             Command::Keymap(index) => return self.switch_keymap(index),
+            Command::KeepKeymap => return self.keep_keymap(),
             Command::OpenAttachment(_)
             | Command::SaveAttachment(_)
             | Command::SaveAllAttachments(_) => return self.attachment_command(command),
@@ -601,7 +602,10 @@ impl MailScreen {
         self.modal = None;
         self.actions.picking = None;
         self.compose_modal_closed();
-        self.restore_theme()
+        let mut effects = self.restore_theme();
+        // "Keep these keys?" answered no.
+        effects.extend(self.revert_keymap());
+        effects
     }
 
     /// Run a palette action as if its own view had focus: global and reader actions leave the
