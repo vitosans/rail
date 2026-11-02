@@ -159,19 +159,28 @@ fn hint_for(error: &ThemeError) -> &'static str {
 
 /// How this terminal draws pictures (kitty, iTerm2 or sixel, and its cell size), asked once
 /// before the screen starts reading keys, since the answer comes on stdin. A terminal that
-/// does not answer gets half blocks, after the query's wait of up to 2 s; one that cannot
-/// answer (`asks_terminal`) is not asked, so start-up never waits on it and the query never
-/// reads the first keys.
+/// cannot answer (`asks_terminal`) is not asked, so start-up never waits on it. One that could
+/// but does not (a tmux session with no client, a pseudo-terminal nothing reads) gets half
+/// blocks after up to 2 s, and is never given the picture query: on a timeout that query leaves
+/// its reader behind, which takes every key and later turns raw mode off (#155).
 fn picker() -> Option<ratatui_image::picker::Picker> {
     if test_hooks::no_image_query() {
         return None;
     }
     let halfblocks = ratatui_image::picker::Picker::halfblocks;
-    if !asks_terminal(std::env::var("TERM").ok().as_deref()) {
+    if !asks_terminal(std::env::var("TERM").ok().as_deref()) || !answers_queries() {
         return Some(halfblocks());
     }
     let picker = ratatui_image::picker::Picker::from_query_stdio();
     Some(picker.unwrap_or_else(|_| halfblocks()))
+}
+
+/// Whether the terminal answers a query at all: crossterm's own probe (the keyboard
+/// enhancement query, then primary device attributes) waits up to 2 s on this thread and
+/// leaves nothing reading afterwards; keys typed meanwhile stay queued for the screen. Any
+/// answer will do, supported or not; only silence fails.
+fn answers_queries() -> bool {
+    crossterm::terminal::supports_keyboard_enhancement().is_ok()
 }
 
 /// Whether a terminal named `term` (`$TERM`) can answer the picture query: not when it is
