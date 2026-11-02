@@ -28,17 +28,14 @@ All notable changes to Rail are recorded here. The format follows
 - Messages that pointed to the README now name the page: the Microsoft 365 consent error says
   `see "Work or school accounts and admin consent" in docs/accounts.md`, and an unknown `[keys]`
   action says `(docs/keys.md lists them)`.
+- Updated `async-executor` to 1.14.1: 1.14.0, which `keyring`'s Linux Secret Service client
+  pulls in, was yanked.
 
 ### Upgrading
 
 - A `[keys]` entry that binds `F2` to another action now stops Rail from starting; move that
   action to another key.
 - An older Rail refuses a `config.toml` that contains `keymap`; remove it before going back.
-
-### Changed
-
-- Updated `async-executor` to 1.14.1: 1.14.0, which `keyring`'s Linux Secret Service client
-  pulls in, was yanked.
 
 ## [0.7.0] - 2026-11-02
 
