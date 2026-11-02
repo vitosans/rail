@@ -38,6 +38,14 @@ All notable changes to Rail are recorded here. The format follows
 - Updated `async-executor` to 1.14.1: 1.14.0, which `keyring`'s Linux Secret Service client
   pulls in, was yanked.
 
+### Fixed
+
+- Keys reach the mail screen when the terminal never answers Rail's picture query, as in a tmux
+  session with no client attached or a pseudo-terminal nothing reads. The unanswered query left
+  a reader behind that took every key and later turned raw mode off, so keys echoed and the
+  screen ignored them. Rail now asks only a terminal that answers, and only a tmux session with
+  a client attached; any other gets half-block pictures (#155).
+
 ### Upgrading
 
 - A `[keys]` entry that binds `F2` to another action now stops Rail from starting; move that

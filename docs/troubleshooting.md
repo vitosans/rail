@@ -111,8 +111,9 @@ See [Writing mail](writing.md).
 | Symptom | Fix |
 |---|---|
 | Colours look wrong or a theme does nothing inside tmux | Add `set -as terminal-features ",xterm-256color:RGB"` (tmux 3.2+) or `set -ga terminal-overrides ",*:Tc"` to `~/.tmux.conf`, and make sure `COLORTERM=truecolor` reaches the shell inside tmux. |
+| Pictures are drawn in coarse half blocks inside tmux | Rail was started in a tmux session with no client attached, so it did not ask the terminal how it draws pictures. Restart Rail from an attached session. |
 
-See [Themes](reading.md#themes).
+See [Themes](reading.md#themes) and [Pictures](reading.md#pictures).
 
 ## Microsoft sign-in errors
 
