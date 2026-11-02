@@ -31,6 +31,7 @@ mod compose_edges;
 mod compose_gmail;
 mod dim_read;
 mod drafts_folder;
+mod keymap;
 mod list;
 mod m365;
 mod pickers;
@@ -667,7 +668,8 @@ async fn an_override_in_the_keymap_drives_the_list() {
     let path = std::path::Path::new("/c/config.toml");
     let config = rail_core::config::parse(text, path).unwrap();
     let mut ctx = mail_ctx(&paths, Arc::new(FakeDaemon::default()));
-    ctx.keymap = Arc::new(Keymap::from_config(&config.keys, text, path).unwrap());
+    ctx.keymap =
+        Arc::new(Keymap::from_config(&config.keys, config.general.keymap, text, path).unwrap());
     let mut screen = MailScreen::new(ctx, work_and_home()[..1].to_vec());
     let effects = screen.start();
     settle(&mut screen, effects).await;

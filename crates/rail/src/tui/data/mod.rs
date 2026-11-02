@@ -141,6 +141,16 @@ pub enum MailEvent {
     ThemeSaved {
         result: Result<(), String>,
     },
+    /// `:keymap`'s keys were built from `config.toml`, or refused (a config or IO error's
+    /// text, or the clash `[keys]` has with the preset).
+    KeymapBuilt {
+        preset: rail_core::config::KeymapPreset,
+        result: Result<std::sync::Arc<crate::tui::keys::Keymap>, String>,
+    },
+    /// `config.toml` was written for `:keymap`; the error is a config or IO error's text.
+    KeymapSaved {
+        result: Result<(), String>,
+    },
     /// `config.toml` was written for `:hints`; the error is a config or IO error's text.
     HintsSaved {
         result: Result<(), String>,
@@ -373,6 +383,15 @@ impl fmt::Debug for MailEvent {
                 .finish(),
             Self::ThemeSaved { result } => f
                 .debug_struct("ThemeSaved")
+                .field("ok", &result.is_ok())
+                .finish(),
+            Self::KeymapBuilt { preset, result } => f
+                .debug_struct("KeymapBuilt")
+                .field("preset", preset)
+                .field("ok", &result.is_ok())
+                .finish(),
+            Self::KeymapSaved { result } => f
+                .debug_struct("KeymapSaved")
                 .field("ok", &result.is_ok())
                 .finish(),
             Self::HintsSaved { result } => f

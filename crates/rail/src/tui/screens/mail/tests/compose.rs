@@ -678,7 +678,8 @@ async fn the_review_names_the_users_keys() {
     let text = "[keys]\n\"compose.send\" = \"S\"\n";
     let path = std::path::Path::new("/c/config.toml");
     let config = rail_core::config::parse(text, path).unwrap();
-    f.screen.ctx.keymap = Arc::new(Keymap::from_config(&config.keys, text, path).unwrap());
+    f.screen.ctx.keymap =
+        Arc::new(Keymap::from_config(&config.keys, config.general.keymap, text, path).unwrap());
     editor_appends(&f, "");
     press(&mut f, KeyCode::Enter).await;
     press(&mut f, KeyCode::Char('r')).await;

@@ -247,6 +247,28 @@ list and the reader, so the reader's headers moved to `H`: an older `"reader.hea
 stops Rail from starting with `[keys] "list.snooze" (h) and "reader.headers" (h) cannot share a
 key in the reader view` until you remove it or bind `list.snooze` to another key.
 
+**Key presets.** `keymap` under `[general]` chooses the keys every action starts from, and your
+`[keys]` entries go over the preset you choose. `:keymap` in the palette lists the presets with
+what sets each apart, switches as soon as you press `Enter`, and saves the choice. A switch your
+own `[keys]` entries clash with is refused, with the message Rail would give at start-up, and the
+keys you had stay. `F2` opens the palette in every preset, whatever `[keys]` says, so a switch
+never hides the way back (`keys: vim · F2 opens the palette`); `[keys]` cannot bind `F2` to
+another action.
+
+- `rail` (the default): the keys in the table below.
+- `vim`: the table's keys, except:
+
+| Keys | vim preset |
+|---|---|
+| `h` / `l` | Go out / in: `l` opens a thread (list) or a mailbox (sidebar) and unfolds quoted text (reader); `h` goes to the sidebar (list), back to the list (sidebar) or closes the thread (reader). `Tab`, `Enter`, `q` and `Esc` work as before. |
+| `u` | Undo (`z` is unbound). |
+| `U` | Mark read or unread (`u` in `rail`). |
+| `Z` | Snooze (`h` in `rail`). |
+| `L` | Labels (`l` in `rail`). |
+| `D` | Move to the trash without asking (`list.trash_now`); `d` still asks, and undo still works. In Drafts it asks too, since a discarded draft cannot be undone. |
+| `Ctrl-f` / `Ctrl-b` | One page down / up, beside `PageDown`/`PageUp` and `Ctrl-d`/`Ctrl-u` (also in the reader and the composer). |
+| `N` | Previous message in the reader, beside `p`. |
+
 The `global.*`, `list.*`, `sidebar.*`, `reader.*` and `compose.*` actions below take effect in the
 mail screen and the `wizard.*` ones in the setup wizard. In the mail screen `?` lists the keys of the view you
 are in, with `*` after the ones set in `config.toml`.
@@ -254,7 +276,7 @@ are in, with `*` after the ones set in `config.toml`.
 | Action | Works in | Default keys | What it does |
 |---|---|---|---|
 | `global.quit` | global | `q` | Quit Rail. |
-| `global.palette` | global | `:` | Open the command palette. |
+| `global.palette` | global | `:`, `f2` | Open the command palette. `F2` stays whatever `[keys]` says. |
 | `global.help` | global | `?` | Show the keys for this view. |
 | `global.undo` | global | `z` | Undo the last action. |
 | `list.open` | list | `enter` | Open the thread. |
@@ -280,6 +302,7 @@ are in, with `*` after the ones set in `config.toml`.
 | `list.bottom` | list | `end` `G` | Oldest thread. |
 | `list.archive` | list, reader | `e` | Archive the thread or the selection. |
 | `list.trash` | list, reader | `d` | Move to the trash (asks first). |
+| `list.trash_now` | list, reader | (none; `D` in `vim`) | Move to the trash without asking (undo still works). |
 | `list.star` | list, reader | `s` | Star or unstar. |
 | `list.read` | list, reader | `u` | Mark read or unread. |
 | `list.labels` | list, reader | `l` | Add or remove labels (Gmail). |
@@ -683,7 +706,8 @@ mail in its Trash for 30 days, and on Microsoft 365 it `Moves to Deleted Items.`
 deletes mail for good), `s` stars or unstars (it stars unless every thread is already
 starred), `u` marks read or unread (it marks read if any thread is unread). An action applies to
 the whole thread, as in Gmail. Over 50 threads (`bulk_confirm` under `[general]`) `e`, `s` and `u`
-ask first too, naming the count, for example `Archive 1,234 threads?`; `d` always asks. The list
+ask first too, naming the count, for example `Archive 1,234 threads?`; `d` always asks, and
+trash without asking (`list.trash_now`, `D` in the vim preset) asks only over that count. The list
 changes at once; the daemon sends the change to the account's server (Gmail or
 Microsoft 365) in the background, so it also goes through if you quit Rail.
 
@@ -1422,10 +1446,11 @@ running syncs carry on unchanged.
 | `clock` | `true` | `false` hides the time of day at the right edge of the header. `:clock` in the palette toggles it and saves it. |
 | `time` | `"24h"` | `"24h"` writes times of day as `14:05`, `"12h"` as `2:05 pm` (the list, the header's `Synced` and its clock, the Drafts list, `:errors`, the reader's title block and cards (`04:32` today, `Thu 08:55` yesterday and this week), and the `Date:` header line `H` shows). `:time` in the palette toggles it and saves it. |
 | `dim_read` | `"dot"` | Read threads: `"dot"` keeps the small muted dot, `"subject"` also dims the subject, `"all"` dims the sender, subject, count and time. `:dim-read` cycles the modes and saves the choice. |
+| `keymap` | `"rail"` | The key preset every action starts from: `"rail"` or `"vim"` (see [Keys](#keys)). `[keys]` goes over it. `:keymap` switches and saves the choice. |
 | `thread_order` | `"oldest"` | How the reader lists a thread's older messages under the newest one: `"oldest"` first or `"newest"` first. `:thread-order` in the palette toggles it and saves it. |
 | `layout` | `"auto"` | Only `"auto"` works in this version; `"split"` and `"stack"` are accepted and act as `"auto"`. |
 | `editor` | unset | The command that writes mail, split like a shell command line (no shell runs), e.g. `"nvim"` or `"code --wait"`. Unset: `$VISUAL`, then `$EDITOR`, then `vi`. Read when the mail screen starts. |
-| `bulk_confirm` | `50` | How many threads an archive, star or mark-read may cover before Rail asks first; `0` never asks. Trash always asks. |
+| `bulk_confirm` | `50` | How many threads an archive, star, mark-read or trash without asking (`list.trash_now`) may cover before Rail asks first; `0` never asks. `d` always asks. |
 | `attachment_dir` | unset | Where `s`, `S` and `w` save attachments. Unset is your download directory (the `XDG_DOWNLOAD_DIR` entry of `~/.config/user-dirs.dirs` on Linux, else `~/Downloads`). `~` is expanded, and refused when there is no `$HOME` to expand it to; a relative path is refused, as is one inside Rail's own attachment cache (`attachments` in the cache directory, reached directly, through a symlink or through `..`), whose files Rail sweeps a day after it writes them. |
 | `saved_search_counts` | `true` | Unread counts beside each saved search in the sidebar. `false` leaves them out and skips the count queries, the one thing saved searches cost on a large mailbox. `:search-counts` toggles it and saves it. |
 | `rich_html` | `true` | The reader draws HTML mail's bold, italic, quoted and linked text in those styles. `false` shows the same text plain. `:rich-html` toggles it and saves it. |

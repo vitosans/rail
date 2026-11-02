@@ -411,7 +411,8 @@ fn a_rebound_wizard_key_moves_the_list_and_the_hint_follows() {
     let text = "[keys]\n\"wizard.down\" = \"s\"\n";
     let path = std::path::Path::new("/c/config.toml");
     let config = rail_core::config::parse(text, path).unwrap();
-    let keymap = Arc::new(Keymap::from_config(&config.keys, text, path).unwrap());
+    let keymap =
+        Arc::new(Keymap::from_config(&config.keys, config.general.keymap, text, path).unwrap());
     let mut screen = WizardScreen::new(
         Wizard::new(Some(crate::tui::test_util::existing_config()), None),
         crate::tui::test_util::test_ctx(),

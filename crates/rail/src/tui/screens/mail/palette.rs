@@ -10,7 +10,7 @@ use crate::tui::modals::{PaletteEntry, Target};
 
 impl MailScreen {
     /// Every palette entry: each key action of the active view and the global ones with its
-    /// key, `compose`, `drafts`, `errors`, `theme`, `accent`, `hints`, `time`, `thread-order`, `dim-read`,
+    /// key, `compose`, `drafts`, `errors`, `theme`, `accent`, `keymap`, `hints`, `time`, `thread-order`, `dim-read`,
     /// each account, merged mailbox and label.
     pub(crate) fn palette_entries(&self) -> Vec<PaletteEntry> {
         let key = |a: Action| self.ctx.keymap.label(a);
@@ -117,6 +117,12 @@ impl MailScreen {
                 "accent",
                 String::new(),
                 Target::Accent,
+            ),
+            (
+                "Change the key preset",
+                "keymap",
+                String::new(),
+                Target::Keymap,
             ),
         ];
         if self.has_filter_text() {

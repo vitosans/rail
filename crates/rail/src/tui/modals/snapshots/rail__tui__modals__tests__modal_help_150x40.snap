@@ -28,6 +28,7 @@ expression: text
                                    │  End, G               Oldest thread                                          │
                                    │  e                    Archive the thread or the selection                    │
                                    │  d                    Move to the trash (asks first)                         │
+                                   │                       Move to the trash without asking (undo still works)    │
                                    │  s                    Star or unstar                                         │
                                    │  u                    Mark read or unread                                    │
                                    │  l                    Add or remove labels (Gmail)                           │
@@ -38,6 +39,5 @@ expression: text
                                    │  r                    Reply to the latest message                            │
                                    │  R                    Reply to everyone                                      │
                                    │  f                    Forward the latest message                             │
-                                   │  Space                Select or unselect the thread                          │
                                    │↓ more                                                                        │
                                    └──────────────────────────────────────────────────────────────────────────────┘

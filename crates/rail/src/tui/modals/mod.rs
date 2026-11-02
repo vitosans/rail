@@ -27,6 +27,8 @@ pub use errors::{ErrorList, ErrorRow};
 pub use filter::FilterLine;
 pub use help::Help;
 pub use palette::{Palette, PaletteEntry, Target};
+#[cfg(test)]
+pub use picker::PICKER_WIDTH;
 pub use picker::{AccentAnswer, Picker, PickerItem, PickerKind};
 pub use prompt::TextPrompt;
 
@@ -62,6 +64,8 @@ pub enum Command {
     Theme(Option<usize>),
     /// `:accent`'s answer.
     Accent(AccentAnswer),
+    /// `:keymap`'s answer: an index into `KeymapPreset::ALL`.
+    Keymap(usize),
     /// The account picker's answer: write a new message from account `n` (its position).
     Account(usize),
     /// The drafts picker's answer: open the row at this position.

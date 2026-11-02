@@ -60,7 +60,7 @@ fn overridden_keymap() -> Keymap {
     let text = "[keys]\n\"list.filter\" = \"x\"\n";
     let path = std::path::Path::new("/c/config.toml");
     let config = rail_core::config::parse(text, path).unwrap();
-    Keymap::from_config(&config.keys, text, path).unwrap()
+    Keymap::from_config(&config.keys, config.general.keymap, text, path).unwrap()
 }
 
 fn typed(palette: &mut Palette, text: &str) {
@@ -252,7 +252,7 @@ fn a_confirmation_taller_than_the_screen_keeps_its_answer_line_and_cuts_with_an_
 fn keymap_with(text: &str) -> Keymap {
     let path = std::path::Path::new("/c/config.toml");
     let config = rail_core::config::parse(text, path).unwrap();
-    Keymap::from_config(&config.keys, text, path).unwrap()
+    Keymap::from_config(&config.keys, config.general.keymap, text, path).unwrap()
 }
 
 #[test]
@@ -354,7 +354,7 @@ fn help_hints_at_hidden_rows_and_keeps_the_legend_in_its_title() {
 #[test]
 fn help_closes_on_its_bound_key_esc_and_q() {
     let mut help = Help::new(
-        &keymap_with("[keys]\n\"global.help\" = \"f2\"\n"),
+        &keymap_with("[keys]\n\"global.help\" = \"f3\"\n"),
         &[View::List, View::Global],
         Icons::Unicode,
     );
@@ -363,7 +363,7 @@ fn help_closes_on_its_bound_key_esc_and_q() {
         ModalOutcome::Stay,
         "? is not the help key now"
     );
-    assert_eq!(help.key(key(KeyCode::F(2))), ModalOutcome::Close);
+    assert_eq!(help.key(key(KeyCode::F(3))), ModalOutcome::Close);
     assert_eq!(help.key(key(KeyCode::Esc)), ModalOutcome::Close);
     assert_eq!(help.key(key(KeyCode::Char('q'))), ModalOutcome::Close);
     let mut default = Help::new(&Keymap::defaults(), &[View::Global], Icons::Unicode);

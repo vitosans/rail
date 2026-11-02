@@ -11,7 +11,7 @@ const PATH: &str = "/home/me/.config/rail/config.toml";
 fn configured(text: &str) -> Result<Keymap, KeymapError> {
     let path = Path::new(PATH);
     let config = rail_core::config::parse(text, path).expect("valid TOML");
-    Keymap::from_config(&config.keys, text, path)
+    Keymap::from_config(&config.keys, config.general.keymap, text, path)
 }
 
 fn press(code: KeyCode) -> KeyEvent {

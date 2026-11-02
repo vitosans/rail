@@ -553,6 +553,7 @@ impl MailScreen {
         match command {
             Command::Theme(index) => return self.keep_scheme(index),
             Command::Accent(answer) => return self.keep_accent(answer),
+            Command::Keymap(index) => return self.switch_keymap(index),
             Command::OpenAttachment(_)
             | Command::SaveAttachment(_)
             | Command::SaveAllAttachments(_) => return self.attachment_command(command),
@@ -642,6 +643,7 @@ impl MailScreen {
             Target::Drafts => self.drafts_picker(),
             Target::Theme => self.open_theme_picker(),
             Target::Accent => self.open_accent_picker(),
+            Target::Keymap => self.open_keymap_picker(),
             Target::Hints => self.toggle_hints(),
             Target::Clock => self.toggle_clock(),
             Target::Time => self.toggle_time(),

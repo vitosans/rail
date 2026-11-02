@@ -83,6 +83,8 @@ pub enum Effect {
     Copy(String),
     /// Replace the theme (a picker's preview, choice or cancel).
     Theme(Theme),
+    /// Replace the keymap the shell reads the quit key with (`:keymap`).
+    Keymap(Arc<Keymap>),
     /// Leave the terminal, run `command` on `path` until it exits, take the terminal back,
     /// then report `TaskResult::EditorDone`. Nothing else runs meanwhile.
     RunEditor {
@@ -99,6 +101,7 @@ impl std::fmt::Debug for Effect {
             Self::Spawn(_) => f.write_str("Spawn(..)"),
             Self::Copy(_) => f.write_str("Copy(..)"),
             Self::Theme(_) => f.write_str("Theme(..)"),
+            Self::Keymap(_) => f.write_str("Keymap(..)"),
             Self::RunEditor { .. } => f.write_str("RunEditor(..)"),
         }
     }
@@ -262,7 +265,7 @@ mod tests {
         let text = "[keys]\n\"global.quit\" = \"x\"\n";
         let path = std::path::Path::new("/c/config.toml");
         let config = rail_core::config::parse(text, path).unwrap();
-        let keymap = Keymap::from_config(&config.keys, text, path).unwrap();
+        let keymap = Keymap::from_config(&config.keys, config.general.keymap, text, path).unwrap();
         let mut app = app(false).with_keymap(Arc::new(keymap));
         assert!(update(&mut app, Msg::Key(key(KeyCode::Char('q')))).is_empty());
         assert!(!app.quit);

@@ -203,6 +203,7 @@ impl MailScreen {
             Action::ListOpenLink if thread_view => self.open_subject_link(),
             Action::ListArchive
             | Action::ListTrash
+            | Action::ListTrashNow
             | Action::ListStar
             | Action::ListRead
             | Action::ListLabels
@@ -263,6 +264,7 @@ impl MailScreen {
         let mail = match action {
             Action::ListArchive => MailAction::Archive {},
             Action::ListTrash => return self.confirm_trash(targets),
+            Action::ListTrashNow => return self.trash_now(targets),
             Action::ListStar => MailAction::Star {
                 on: !targets.iter().all(|(_, p)| p.starred),
             },
@@ -283,6 +285,17 @@ impl MailScreen {
             return self.confirm_action(mail, targets);
         }
         self.send_action(mail, &targets, true)
+    }
+
+    /// Trash without `d`'s question, but more than `bulk_confirm` threads are still asked
+    /// about (`needs_confirm` leaves trash out, since `d` asks at every size).
+    fn trash_now(&mut self, targets: Vec<(i64, Picked)>) -> Vec<Effect> {
+        let threshold = self.ctx.bulk_confirm;
+        let count = u64::try_from(targets.len()).unwrap_or(u64::MAX);
+        if threshold > 0 && count > u64::from(threshold) {
+            return self.confirm_action(MailAction::Trash {}, targets);
+        }
+        self.send_action(MailAction::Trash {}, &targets, true)
     }
 
     pub(super) fn account_name(&self, account_id: i64) -> Option<String> {
@@ -534,6 +547,8 @@ impl MailScreen {
             MailEvent::Sender { seq, result } => self.sender_read(seq, result),
             MailEvent::Labels { seq, result } => self.labels_read(seq, result),
             MailEvent::ThemeSaved { result } => self.setting_saved("theme", result),
+            MailEvent::KeymapBuilt { preset, result } => self.keymap_built(preset, result),
+            MailEvent::KeymapSaved { result } => self.setting_saved("key preset", result),
             MailEvent::HintsSaved { result } => self.setting_saved("hints setting", result),
             MailEvent::ClockSaved { result } => self.setting_saved("clock setting", result),
             MailEvent::SearchCountsSaved { result } => {

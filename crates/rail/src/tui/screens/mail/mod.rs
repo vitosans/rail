@@ -21,6 +21,7 @@ mod header_tests;
 mod hints;
 mod hints_toggle;
 mod images_toggle;
+mod keymap_switch;
 mod layout;
 mod list;
 mod list_view;
@@ -103,6 +104,8 @@ const COMPOSE_STALE_AFTER: std::time::Duration = std::time::Duration::from_secs(
 pub struct MailContext {
     pub paths: Paths,
     pub keymap: Arc<Keymap>,
+    /// The preset `keymap` was built from (`general.keymap`); `:keymap` replaces both.
+    pub keymap_preset: rail_core::config::KeymapPreset,
     pub store: StoreReader,
     pub link: DaemonLink,
     /// Starts the browser (`o`, `gx`).

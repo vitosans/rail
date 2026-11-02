@@ -108,8 +108,9 @@ pub(super) fn question(action: &MailAction, count: usize) -> String {
 }
 
 /// `action` over `count` threads asks first: more than `threshold` threads, which `0` turns
-/// off. Only `e`, `s` and `u` ask this way — trash asks at every size through its own question,
-/// and the label and move pickers' own `Enter` is their confirmation.
+/// off. Only `e`, `s` and `u` ask this way — `d` asks at every size through its own question,
+/// trash without asking applies the same threshold itself (`trash_now`), and the label and move
+/// pickers' own `Enter` is their confirmation.
 pub(super) fn needs_confirm(action: &MailAction, count: usize, threshold: u32) -> bool {
     let asks = matches!(
         action,
