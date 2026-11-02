@@ -6,6 +6,12 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-02
+
+Security hardening of remote pictures: a trusted sender's pictures load only for mail the
+receiving server vouched for, the daemon bounds its picture fetches and cache, and IPv6 can be
+turned off for them (#131, #132, #134).
+
 ### Added
 
 - `remote_images_ipv6` under `[general]` (default `true`). `false` makes the daemon fetch remote
