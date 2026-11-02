@@ -260,7 +260,7 @@ fn slot_name(n: u8) -> &'static str {
 /// What is saved: `theme`, `time` and `thread_order` are text, `accent` a number, `hints` a
 /// boolean; `None` removes the key. `InList` adds (`true`) or removes one entry of a list as
 /// the file has it, so entries written elsewhere stay.
-pub(super) enum Saved {
+pub(crate) enum Saved {
     Text(Option<String>),
     Number(Option<i64>),
     Bool(Option<bool>),
@@ -271,7 +271,7 @@ pub(super) enum Saved {
 /// config lock, which the daemon and other TUIs hold for their own edits. A symlinked file is
 /// replaced where it points, so the link survives. The directory is created when missing and
 /// otherwise left as it is.
-pub(super) fn write_general(path: &Path, key: &str, value: Saved) -> Result<(), String> {
+pub(crate) fn write_general(path: &Path, key: &str, value: Saved) -> Result<(), String> {
     let _lock = lock_config(path).map_err(|e| e.to_string())?;
     let is_link = std::fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink());
     let target = if is_link {

@@ -70,7 +70,8 @@ The defaults count too:
 ## Key presets
 
 `keymap` under `[general]` chooses the keys every action starts from. Your `[keys]` entries go
-over the preset you choose.
+over the preset you choose. The setup wizard offers the presets on the first run, once your first
+account is saved, and `:keymap` switches at any time.
 
 A preset changes keys only while you use it. Rail's own keys, the `rail` preset, stay as they
 are: choosing or adding a preset never moves them.

@@ -38,6 +38,7 @@ impl Wizard {
             Event::AdminConsentFinished(result) => self.consent_finished(result),
             Event::LoginFinished(result) => return self.login_finished(result),
             Event::Persisted(result) => self.persisted(result),
+            Event::KeymapSaved(result) => self.keymap_saved(result),
         }
         Vec::new()
     }
@@ -180,9 +181,30 @@ impl Wizard {
                 }
                 self.tokens = None;
                 self.report = Some(report);
-                self.go(Step::Done);
+                let next = if std::mem::take(&mut self.first_run) {
+                    Step::Keys
+                } else {
+                    Step::Done
+                };
+                self.go(next);
             }
             Err(failure) => self.failure = Some((failure, Remedy::Retry)),
+        }
+    }
+
+    /// The account is saved whatever happens here, so a failed save still finishes, saying
+    /// how to choose the keys later.
+    fn keymap_saved(&mut self, result: Result<(), Failure>) {
+        if !self.finish(Busy::SavingKeys) {
+            return;
+        }
+        self.go(Step::Done);
+        if let Err(failure) = result {
+            self.keys = None;
+            self.notice = Some(format!(
+                "Keys not saved: {}. Choose them later with :keymap.",
+                failure.message
+            ));
         }
     }
 }
@@ -193,11 +215,11 @@ mod tests {
 
     use super::*;
     use crate::auth::AuthError;
-    use crate::config::AccountKind;
+    use crate::config::{AccountKind, KeymapPreset};
     use crate::error::ErrorClass;
     use crate::onboarding::draft::Field;
     use crate::onboarding::events::Input;
-    use crate::onboarding::view::Primary;
+    use crate::onboarding::view::{Body, Primary};
     use crate::test_support::{
         contoso_preset, done_report, edit, gmail_details, m365_details, own_app, tokens, walk,
         wizard,
@@ -398,6 +420,112 @@ mod tests {
                 .any(|a| a.address == "me@gmail.com")
         );
         assert!(walk(&mut w, [Input::Back]).is_empty());
+        assert_eq!(w.step(), Step::Done);
+    }
+
+    /// A first run (no account in the config yet), its Gmail account saved.
+    fn first_run_saved() -> Wizard {
+        let mut w = Wizard::new(None, None);
+        walk(
+            &mut w,
+            [own_app(0), gmail_details("me@gmail.com"), vec![Input::Next]].concat(),
+        );
+        w.apply(Event::LoginFinished(Ok(tokens())));
+        assert!(w.apply(Event::Persisted(Ok(done_report()))).is_empty());
+        w
+    }
+
+    #[test]
+    fn a_first_run_asks_for_keys_after_the_account_is_saved() {
+        let mut w = first_run_saved();
+        assert_eq!(w.step(), Step::Keys);
+        let model = w.view_model();
+        assert_eq!(model.title, "Choose your keys");
+        let Body::Choices(choices) = &model.body else {
+            panic!("choices, got {:?}", model.body)
+        };
+        assert_eq!(choices.len(), KeymapPreset::ALL.len());
+        assert!(choices[0].starts_with("rail — "), "{choices:?}");
+        assert!(choices[1].starts_with("vim — "), "{choices:?}");
+        assert!(
+            walk(&mut w, [Input::Back]).is_empty(),
+            "the account is saved"
+        );
+        assert_eq!(w.step(), Step::Keys);
+
+        let actions = walk(&mut w, [Input::Choose(1)]);
+        assert_eq!(
+            actions,
+            vec![Action::SaveKeymap {
+                preset: KeymapPreset::Vim,
+                config_path: done_report().config_path,
+            }]
+        );
+        assert_eq!(w.busy(), Some(Busy::SavingKeys));
+        assert!(
+            walk(&mut w, [Input::Back]).is_empty(),
+            "no going back while saving"
+        );
+        assert!(w.apply(Event::KeymapSaved(Ok(()))).is_empty());
+        assert_eq!(w.step(), Step::Done);
+        let Body::Report { lines, .. } = w.view_model().body else {
+            panic!("the report")
+        };
+        assert!(
+            lines.contains(&("Keys".to_string(), "vim".to_string())),
+            "{lines:?}"
+        );
+    }
+
+    #[test]
+    fn rails_own_keys_need_nothing_saved() {
+        let mut w = first_run_saved();
+        assert!(walk(&mut w, [Input::Choose(0)]).is_empty());
+        assert_eq!(w.step(), Step::Done);
+        let Body::Report { lines, .. } = w.view_model().body else {
+            panic!("the report")
+        };
+        assert!(lines.iter().all(|(name, _)| name != "Keys"), "{lines:?}");
+    }
+
+    /// The account is saved either way, so a failed keys save finishes too and says how to
+    /// choose them later.
+    #[test]
+    fn a_failed_keys_save_still_finishes_and_says_so() {
+        let mut w = first_run_saved();
+        walk(&mut w, [Input::Choose(2)]);
+        let failure = Failure::new("config.toml is read-only", ErrorClass::Permanent);
+        w.apply(Event::KeymapSaved(Err(failure)));
+        assert_eq!(w.step(), Step::Done);
+        let notice = w.view_model().notice.unwrap_or_default();
+        assert!(notice.contains("config.toml is read-only"), "{notice}");
+        assert!(notice.contains(":keymap"), "{notice}");
+    }
+
+    /// Only the first run asks: a config that has an account, or a second account added in
+    /// the same session, goes straight to Done.
+    #[test]
+    fn only_the_first_account_of_a_first_run_asks_for_keys() {
+        let mut w = gmail_logging_in();
+        w.apply(Event::LoginFinished(Ok(tokens())));
+        w.apply(Event::Persisted(Ok(done_report())));
+        assert_eq!(w.step(), Step::Done);
+
+        let mut w = first_run_saved();
+        walk(&mut w, [Input::Choose(0)]);
+        walk(&mut w, [Input::Choose(0)]);
+        assert_eq!(w.step(), Step::Start, "add another");
+        walk(
+            &mut w,
+            [
+                own_app(0),
+                gmail_details("two@gmail.com"),
+                vec![Input::Next],
+            ]
+            .concat(),
+        );
+        w.apply(Event::LoginFinished(Ok(tokens())));
+        w.apply(Event::Persisted(Ok(done_report())));
         assert_eq!(w.step(), Step::Done);
     }
 

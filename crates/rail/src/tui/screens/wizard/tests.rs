@@ -384,7 +384,11 @@ async fn a_completed_login_leaves_no_token_or_code_in_the_tui() {
     let effects = drive(&mut screen, gmail_own_app_keys("me@example.com"));
     let events = settle_effects(&mut screen, effects).await;
     browser.await.unwrap();
-    assert_eq!(screen.wizard.step(), Step::Done, "{events:?}");
+    // A first run: the Keys step comes first, and Rail's own keys need nothing saved.
+    assert_eq!(screen.wizard.step(), Step::Keys, "{events:?}");
+    let effects = drive(&mut screen, vec![key(KeyCode::Enter)]);
+    assert!(effects.is_empty(), "{effects:?}");
+    assert_eq!(screen.wizard.step(), Step::Done);
     assert_eq!(screen.added(), ["me"]);
     let mut texts = vec![format!("{events:?}"), format!("{:?}", screen.wizard)];
     for event in &events {

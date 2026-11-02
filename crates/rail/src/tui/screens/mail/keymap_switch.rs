@@ -17,7 +17,7 @@ use super::MailScreen;
 use super::themes::Saved;
 use crate::tui::app::Effect;
 use crate::tui::data::{MailEvent, job, send};
-use crate::tui::keys::{Keymap, summary};
+use crate::tui::keys::Keymap;
 use crate::tui::modals::{Command, Confirm, Modal, Picker, PickerItem, PickerKind};
 use crate::tui::run::TICK;
 use crate::tui::text::escape;
@@ -44,7 +44,7 @@ impl MailScreen {
             .enumerate()
             .map(|(i, &preset)| PickerItem {
                 id: i64::try_from(i).unwrap_or(i64::MAX),
-                name: format!("{} — {}", preset.as_str(), summary(preset)),
+                name: preset.label(),
                 checked: preset == self.ctx.keymap_preset,
                 swatch: Vec::new(),
             })

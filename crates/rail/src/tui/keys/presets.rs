@@ -181,16 +181,3 @@ pub fn overrides(preset: KeymapPreset) -> Overrides {
         KeymapPreset::Outlook => OUTLOOK,
     }
 }
-
-/// What `:keymap` says about `preset` beside its name: the keys that differ from Rail's most,
-/// short enough that the line fits the picker (`preset_tests`).
-pub fn summary(preset: KeymapPreset) -> &'static str {
-    match preset {
-        KeymapPreset::Rail => "Rail's own keys",
-        KeymapPreset::Vim => "h/l panes · u undo · U read · Z snooze · D trash",
-        KeymapPreset::Mutt => "s move · g reply all · t tag · N read · u undo",
-        KeymapPreset::Emacs => "C-n/C-p · C-v/M-v page · C-s filter · C-g back",
-        KeymapPreset::Gmail => "I/U read · # trash · v move · b snooze · x select",
-        KeymapPreset::Outlook => "Del trash · Bksp archive · Ins flag · C-q read",
-    }
-}

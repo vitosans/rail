@@ -9,7 +9,7 @@ use url::Url;
 use super::draft::Field;
 use super::preset::Preset;
 use crate::auth::{AuthError, TokenSet};
-use crate::config::AccountConfig;
+use crate::config::{AccountConfig, KeymapPreset};
 use crate::error::ErrorClass;
 
 /// What the user does.
@@ -71,6 +71,12 @@ pub enum Action {
     Persist {
         account: AccountConfig,
         tokens: TokenSet,
+    },
+    /// Write `keymap` under `[general]` of the config the account was saved to, once checked
+    /// against that config's `[keys]`.
+    SaveKeymap {
+        preset: KeymapPreset,
+        config_path: PathBuf,
     },
     /// Abort whatever is in flight; the user went back.
     CancelPending,
@@ -142,4 +148,5 @@ pub enum Event {
     LoginUrl(Url),
     LoginFinished(Result<TokenSet, Failure>),
     Persisted(Result<DoneReport, Failure>),
+    KeymapSaved(Result<(), Failure>),
 }

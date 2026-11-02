@@ -80,6 +80,7 @@ pub use list::MAX_WINDOW;
 pub use list::{ListWindow, Place};
 pub use sidebar::Sidebar;
 pub use status::{DaemonState, StatusBar, Summary, error_line};
+pub(crate) use themes::{Saved, write_general};
 pub use view::Glyphs;
 pub(crate) use view::visible_offset;
 

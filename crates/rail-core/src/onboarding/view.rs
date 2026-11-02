@@ -8,7 +8,7 @@ use super::events::{Failure, Remedy};
 use super::instructions::{instructions, portal_url};
 use super::preset::Preset;
 use super::wizard::{Busy, Consent, DONE_CHOICES, PROVIDER_CHOICES, START_CHOICES, Step, Wizard};
-use crate::config::AccountKind;
+use crate::config::{AccountKind, KeymapPreset};
 use crate::error::ErrorClass;
 
 /// The step list the screen shows on the left.
@@ -164,6 +164,7 @@ impl Wizard {
             Step::ConsentTenant => "Which organisation are you approving Rail for?",
             Step::AdminConsent => "Grant admin consent",
             Step::Login => "Log in",
+            Step::Keys => "Choose your keys",
             Step::Done => "All set",
         };
         title.to_string()
@@ -191,6 +192,7 @@ impl Wizard {
             Step::ConsentTenant => Body::Fields(vec![self.consent_tenant_view()]),
             Step::AdminConsent => Body::Message(self.consent_message()),
             Step::Login => Body::Message(self.login_message()),
+            Step::Keys => Body::Choices(KeymapPreset::ALL.iter().map(|p| p.label()).collect()),
             Step::Done => self.report_body(),
         }
     }
@@ -302,6 +304,9 @@ impl Wizard {
         if let Some(name) = self.added.last() {
             lines.push(("Re-login".to_string(), format!("rail account login {name}")));
         }
+        if let Some(keys) = self.keys {
+            lines.push(("Keys".to_string(), keys.as_str().to_string()));
+        }
         Body::Report {
             lines,
             choices: strings(&DONE_CHOICES),
@@ -317,7 +322,7 @@ fn step_index(step: Step) -> usize {
         Step::Details => 3,
         Step::ConsentTenant | Step::AdminConsent => 4,
         Step::Login => 5,
-        Step::Done => 6,
+        Step::Keys | Step::Done => 6,
     }
 }
 
@@ -343,6 +348,7 @@ fn busy_label(busy: Busy) -> String {
         Busy::Consent => "Waiting for admin consent",
         Busy::Login => "Waiting for the browser login",
         Busy::Persisting => "Saving",
+        Busy::SavingKeys => "Saving the keys",
     };
     label.to_string()
 }

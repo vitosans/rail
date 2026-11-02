@@ -275,6 +275,24 @@ impl KeymapPreset {
             Self::Outlook => "outlook",
         }
     }
+
+    /// What `:keymap` and the setup wizard say beside the name: the keys that differ from
+    /// Rail's most, short enough that the line fits the picker (`preset_tests` in `rail`).
+    pub fn summary(self) -> &'static str {
+        match self {
+            Self::Rail => "Rail's own keys",
+            Self::Vim => "h/l panes · u undo · U read · Z snooze · D trash",
+            Self::Mutt => "s move · g reply all · t tag · N read · u undo",
+            Self::Emacs => "C-n/C-p · C-v/M-v page · C-s filter · C-g back",
+            Self::Gmail => "I/U read · # trash · v move · b snooze · x select",
+            Self::Outlook => "Del trash · Bksp archive · Ins flag · C-q read",
+        }
+    }
+
+    /// `as_str` and `summary` as one line: `vim — h/l panes · …`.
+    pub fn label(self) -> String {
+        format!("{} — {}", self.as_str(), self.summary())
+    }
 }
 
 /// `general.thread_order`: how the reader runs a thread's older messages under the newest one.
