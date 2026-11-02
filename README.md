@@ -1184,7 +1184,14 @@ Microsoft Graph.
   and `has:` do not. A search returns at most 1,000 results from the server.
 - **Attachments.** A OneDrive or SharePoint link attachment is listed, and when Rail is asked for
   its bytes it says `This attachment is a link (OneDrive or SharePoint); open the message in
-  Outlook on the web to reach it.` A message whose attachments are all inline lists none.
+  Outlook on the web to reach it.` A message whose attachments are all inline lists none. When
+  Microsoft refuses a message's attachment list, Rail keeps the list it already had rather than
+  losing it, and does not ask again. For mail stored before 0.4.0 that kept list can be out of
+  date: it may show an inline picture or an attached message as an ordinary file, so forwarding
+  that message, or attaching it as the original, may try to send that part as a file. Microsoft
+  rarely refuses the same list for good, and opening a picture that is missing fetches the
+  message's body again, which corrects the list whenever Microsoft gives it. If a forward of such a message goes wrong,
+  forward it from Outlook on the web.
 - **Marking read.** Opening an unread thread marks its unread messages read in Outlook; `u`
   marks them read, or the newest message unread.
 - **Acting on threads.** `e` archives to Outlook's Archive folder (a mailbox with no Archive
