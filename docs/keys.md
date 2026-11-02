@@ -77,6 +77,7 @@ are: choosing or adding a preset never moves them.
 | `rail` (the default) | The keys in [the action table](#every-action). |
 | `vim` | The table's keys, except those listed [below](#the-vim-preset). |
 | `mutt` | The table's keys, except those listed [below](#the-mutt-preset). |
+| `emacs` | The table's keys, plus those listed [below](#the-emacs-preset). |
 
 ### Switching presets
 
@@ -133,6 +134,31 @@ Keys follow mutt's index and pager. `d` still asks before trashing, as in `rail`
 
 `g` and `*` are single keys here, so no other key starts with them: that is why the top, bottom,
 link and select-all keys move.
+
+### The emacs preset
+
+Keys follow emacs's movement keys and its `Ctrl-x` prefix. The preset only adds keys: every key
+in the `rail` preset still works.
+
+| Keys | emacs preset |
+|---|---|
+| `Ctrl-n` / `Ctrl-p` | Next / previous line or item (list, sidebar, reader, composer). |
+| `n` / `p` | Next / previous thread in the list, as in mu4e and Gnus. In the reader they still go to the next and previous message. |
+| `Ctrl-v` / `Alt-v` | One page down / up (list, sidebar, reader, composer). |
+| `Alt-<` / `Alt->` | Newest / oldest thread in the list; first / last line in the reader. |
+| `Ctrl-s` | Filter the list, beside `/`. |
+| `Ctrl-g` | Back out: clear the selection (list), close the thread (reader), close the composer and keep the draft. |
+| `Alt-x` | Open the command palette, beside `:` and `F2`. |
+| `Ctrl-x u` | Undo, beside `z`. |
+| `Ctrl-x o` | Move between the sidebar and the list, beside `Tab`. |
+| `Ctrl-x Ctrl-s` | Save to Drafts in the composer, beside `s`. |
+| `Ctrl-x i` | Attach a file in the composer, beside `a`. |
+| `Ctrl-x k` | Discard the draft in the composer (asks first), beside `d`. |
+
+`Ctrl-c` quits Rail in every preset, so emacs's `Ctrl-c` chords (`Ctrl-c Ctrl-c` to send) are not
+bound: send with `y`. `Alt-` keys reach Rail as `Esc` followed by the key in most terminals; on
+macOS, set the terminal's Option key to send Esc+ (iTerm2: Profiles → Keys; Terminal: "Use Option
+as Meta key").
 
 ## Where actions work
 

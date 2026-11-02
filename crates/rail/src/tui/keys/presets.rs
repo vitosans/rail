@@ -74,12 +74,53 @@ const MUTT: Overrides = &[
     (Action::ComposeRemove, &["x", "D"]),
 ];
 
+/// emacs's habits, added beside Rail's keys rather than in place of them: `Ctrl-n`/`Ctrl-p`
+/// move, `Ctrl-v`/`Alt-v` page, `Alt-<`/`Alt->` go to the top and bottom, `Ctrl-s` filters,
+/// `Ctrl-g` backs out and `Alt-x` opens the palette. `Ctrl-x` starts the rest: `Ctrl-x u`
+/// undoes, `Ctrl-x o` moves between the sidebar and the list, and in the composer `Ctrl-x
+/// Ctrl-s` saves to Drafts, `Ctrl-x i` attaches and `Ctrl-x k` discards (asking first). In the
+/// list `n` and `p` go to the next and previous thread, as in mu4e and Gnus. `Ctrl-c` quits
+/// Rail everywhere, so no `Ctrl-c` chord is bound.
+const EMACS: Overrides = &[
+    (Action::GlobalPalette, &[":", "f2", "alt-x"]),
+    (Action::GlobalUndo, &["z", "ctrl-x u"]),
+    (Action::ListFilter, &["/", "ctrl-s"]),
+    (Action::ListDown, &["j", "down", "n", "ctrl-n"]),
+    (Action::ListUp, &["k", "up", "p", "ctrl-p"]),
+    (Action::ListPageDown, &["pagedown", "ctrl-d", "ctrl-v"]),
+    (Action::ListPageUp, &["pageup", "ctrl-u", "alt-v"]),
+    (Action::ListTop, &["home", "g g", "alt-<"]),
+    (Action::ListBottom, &["end", "G", "alt->"]),
+    (Action::ListClearSelection, &["esc", "ctrl-g"]),
+    (Action::SidebarFocus, &["tab", "ctrl-x o"]),
+    (Action::SidebarDown, &["j", "down", "ctrl-n"]),
+    (Action::SidebarUp, &["k", "up", "ctrl-p"]),
+    (Action::SidebarPageDown, &["pagedown", "ctrl-d", "ctrl-v"]),
+    (Action::SidebarPageUp, &["pageup", "ctrl-u", "alt-v"]),
+    (Action::ReaderBack, &["q", "esc", "ctrl-g"]),
+    (Action::ReaderDown, &["j", "down", "ctrl-n"]),
+    (Action::ReaderUp, &["k", "up", "ctrl-p"]),
+    (Action::ReaderPageDown, &["pagedown", "space", "ctrl-v"]),
+    (Action::ReaderPageUp, &["pageup", "alt-v"]),
+    (Action::ReaderTop, &["home", "g g", "alt-<"]),
+    (Action::ReaderBottom, &["end", "G", "alt->"]),
+    (Action::ComposePush, &["s", "ctrl-x ctrl-s"]),
+    (Action::ComposeAttach, &["a", "ctrl-x i"]),
+    (Action::ComposeClose, &["q", "esc", "ctrl-g"]),
+    (Action::ComposeDiscard, &["d", "ctrl-x k"]),
+    (Action::ComposeDown, &["j", "down", "ctrl-n"]),
+    (Action::ComposeUp, &["k", "up", "ctrl-p"]),
+    (Action::ComposePageDown, &["pagedown", "space", "ctrl-v"]),
+    (Action::ComposePageUp, &["pageup", "alt-v"]),
+];
+
 /// The keys `preset` gives in place of the defaults.
 pub fn overrides(preset: KeymapPreset) -> Overrides {
     match preset {
         KeymapPreset::Rail => &[],
         KeymapPreset::Vim => VIM,
         KeymapPreset::Mutt => MUTT,
+        KeymapPreset::Emacs => EMACS,
     }
 }
 
@@ -90,5 +131,6 @@ pub fn summary(preset: KeymapPreset) -> &'static str {
         KeymapPreset::Rail => "Rail's own keys",
         KeymapPreset::Vim => "h/l panes · u undo · U read · Z snooze · D trash",
         KeymapPreset::Mutt => "s move · g reply all · t tag · N read · u undo",
+        KeymapPreset::Emacs => "C-n/C-p · C-v/M-v page · C-s filter · C-g back",
     }
 }

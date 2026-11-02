@@ -245,18 +245,21 @@ pub enum KeymapPreset {
     Vim,
     /// mutt's: `s` saves (moves), `g` replies to everyone, `t` tags, `N` toggles new.
     Mutt,
+    /// emacs's: `Ctrl-n`/`Ctrl-p`, `Ctrl-v`/`Alt-v`, `Ctrl-g` and `Ctrl-x` chords.
+    Emacs,
 }
 
 impl KeymapPreset {
     /// Every preset, in the order `:keymap` lists them.
-    pub const ALL: &'static [KeymapPreset] = &[Self::Rail, Self::Vim, Self::Mutt];
+    pub const ALL: &'static [KeymapPreset] = &[Self::Rail, Self::Vim, Self::Mutt, Self::Emacs];
 
-    /// The config value: `rail`, `vim` or `mutt`.
+    /// The config value: `rail`, `vim`, `mutt` or `emacs`.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Rail => "rail",
             Self::Vim => "vim",
             Self::Mutt => "mutt",
+            Self::Emacs => "emacs",
         }
     }
 }

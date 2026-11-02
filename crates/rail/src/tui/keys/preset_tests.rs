@@ -262,3 +262,88 @@ fn the_mutt_preset_follows_mutts_index_and_pager_keys() {
         Resolved::Unbound
     );
 }
+
+fn alt(c: char) -> KeyEvent {
+    KeyEvent::new(KeyCode::Char(c), KeyModifiers::ALT)
+}
+
+#[test]
+fn the_emacs_preset_adds_emacs_keys_beside_rails_own() {
+    let map = configured("[general]\nkeymap = \"emacs\"\n").unwrap();
+    let cases = [
+        (View::List, vec![ctrl('n')], Action::ListDown),
+        (View::List, vec![ctrl('p')], Action::ListUp),
+        (View::List, vec![char_key('n')], Action::ListDown),
+        (View::List, vec![char_key('p')], Action::ListUp),
+        (View::List, vec![ctrl('v')], Action::ListPageDown),
+        (View::List, vec![alt('v')], Action::ListPageUp),
+        (View::List, vec![alt('<')], Action::ListTop),
+        (View::List, vec![alt('>')], Action::ListBottom),
+        (View::List, vec![ctrl('s')], Action::ListFilter),
+        (View::List, vec![ctrl('g')], Action::ListClearSelection),
+        (View::List, vec![alt('x')], Action::GlobalPalette),
+        (
+            View::List,
+            vec![ctrl('x'), char_key('u')],
+            Action::GlobalUndo,
+        ),
+        (
+            View::List,
+            vec![ctrl('x'), char_key('o')],
+            Action::SidebarFocus,
+        ),
+        (
+            View::Sidebar,
+            vec![ctrl('x'), char_key('o')],
+            Action::SidebarFocus,
+        ),
+        (View::Sidebar, vec![ctrl('n')], Action::SidebarDown),
+        (View::Sidebar, vec![alt('v')], Action::SidebarPageUp),
+        (View::Reader, vec![ctrl('n')], Action::ReaderDown),
+        (View::Reader, vec![ctrl('v')], Action::ReaderPageDown),
+        (View::Reader, vec![alt('>')], Action::ReaderBottom),
+        (View::Reader, vec![ctrl('g')], Action::ReaderBack),
+        (View::Reader, vec![char_key('n')], Action::ReaderNext),
+        (
+            View::Reader,
+            vec![ctrl('x'), char_key('u')],
+            Action::GlobalUndo,
+        ),
+        (
+            View::Compose,
+            vec![ctrl('x'), ctrl('s')],
+            Action::ComposePush,
+        ),
+        (
+            View::Compose,
+            vec![ctrl('x'), char_key('i')],
+            Action::ComposeAttach,
+        ),
+        (
+            View::Compose,
+            vec![ctrl('x'), char_key('k')],
+            Action::ComposeDiscard,
+        ),
+        (View::Compose, vec![ctrl('g')], Action::ComposeClose),
+        (View::Compose, vec![ctrl('p')], Action::ComposeUp),
+    ];
+    for (view, keys, action) in cases {
+        assert_eq!(
+            resolve(&map, view, &keys),
+            Resolved::Action(action),
+            "{view:?} {keys:?}"
+        );
+    }
+    // Every key of Rail's own preset is still there.
+    for &action in Action::ALL {
+        for name in action.default_keys() {
+            assert!(
+                map.bindings(action)
+                    .iter()
+                    .any(|b| Some(*b) == parse_binding(name)),
+                "{} lost {name}",
+                action.id()
+            );
+        }
+    }
+}
