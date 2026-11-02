@@ -67,7 +67,7 @@ use crate::config::SyncSettings;
 pub use actions::MOVE_TARGET_GONE;
 pub use attachment::REFERENCE_ATTACHMENT;
 pub use batch::{MAX_BATCH, MAX_ITEM_RETRY_AFTER};
-pub use body::HTML_BODY;
+pub use body::{BODY_FIELDS, HTML_BODY};
 pub use cursor::{MAX_CURSOR_BYTES, MAX_LINK_BYTES};
 pub use delta::{GRAPH_PAGES_PER_CALL, PAGE_SIZE};
 pub use folders::{MAX_FOLDER_DEPTH, MAX_FOLDERS, SKIPPED_ROOTS, WELL_KNOWN};

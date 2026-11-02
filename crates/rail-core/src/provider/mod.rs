@@ -1,6 +1,9 @@
 //! Mail providers: the read side of the `Provider` trait, the types it speaks, the HTTP layer
 //! providers share, and the Gmail and Microsoft Graph implementations.
 
+pub mod auth_results;
+#[cfg(test)]
+mod auth_results_tests;
 pub mod error;
 pub mod gmail;
 pub mod graph;

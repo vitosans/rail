@@ -12,6 +12,7 @@ use rusqlite::{OptionalExtension, params, params_from_iter};
 use super::filter::Filter;
 use super::snoozes::HELD;
 use super::{Store, StoreError};
+use crate::provider::auth_results::MAX_VOUCHED;
 use crate::provider::links::MAX_LINKS;
 use crate::provider::{FolderKind, Mailbox};
 use crate::sync::UNREADABLE_BODY;
@@ -210,6 +211,9 @@ pub struct MessageView {
     pub links: Vec<String>,
     pub attachments: Vec<AttachmentView>,
     pub has_html: bool,
+    /// The From domains the receiving server vouched for (`provider::auth_results`): empty
+    /// when it vouched for none, or the body was stored before Rail kept them.
+    pub vouched_domains: Vec<String>,
 }
 
 impl fmt::Debug for MessageView {
@@ -514,7 +518,8 @@ impl Store {
             "SELECT m.id, m.remote_id, m.from_json, m.to_json, m.cc_json, m.subject, m.date,
                     m.internal_date, m.is_read, m.is_starred, m.snippet,
                     substr(m.body_text, 1, ?2), length(m.body_text) > ?2,
-                    m.body_fetched_at IS NOT NULL, m.links, m.body_html IS NOT NULL
+                    m.body_fetched_at IS NOT NULL, m.links, m.body_html IS NOT NULL,
+                    m.vouched_domains
              FROM messages m WHERE m.thread_id = ?1
              ORDER BY m.internal_date DESC, m.id DESC LIMIT ?3",
         )?;
@@ -687,7 +692,26 @@ fn message_view(r: &rusqlite::Row<'_>) -> rusqlite::Result<MessageView> {
         links: links.map(|json| read_links(id, &json)).unwrap_or_default(),
         attachments: Vec::new(),
         has_html: r.get(15)?,
+        vouched_domains: r
+            .get::<_, Option<String>>(16)?
+            .map(|json| read_vouched(id, &json))
+            .unwrap_or_default(),
     })
+}
+
+/// The vouched domains column, at most `MAX_VOUCHED`. An unreadable one (a hand-edited store)
+/// is logged by message id and read as none: the sender's pictures then wait to be asked for.
+fn read_vouched(id: i64, json: &str) -> Vec<String> {
+    match serde_json::from_str::<Vec<String>>(json) {
+        Ok(mut domains) => {
+            domains.truncate(MAX_VOUCHED);
+            domains
+        }
+        Err(_) => {
+            tracing::warn!(message = id, "a message's vouched domains were unreadable");
+            Vec::new()
+        }
+    }
 }
 
 /// The links column, at most `MAX_LINKS`. An unreadable one (a hand-edited store) is logged

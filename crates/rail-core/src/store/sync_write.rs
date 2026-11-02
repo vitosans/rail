@@ -339,10 +339,12 @@ fn store_body(
         return Ok(());
     };
     let links = (!body.links.is_empty()).then(|| json(&body.links));
+    let vouched = (!body.vouched_domains.is_empty()).then(|| json(&body.vouched_domains));
     tx.execute(
-        "UPDATE messages SET body_text = ?2, body_html = ?3, body_fetched_at = ?4, links = ?5
+        "UPDATE messages SET body_text = ?2, body_html = ?3, body_fetched_at = ?4, links = ?5,
+                             vouched_domains = ?6
          WHERE id = ?1",
-        params![message, body.text, body.html, now, links],
+        params![message, body.text, body.html, now, links, vouched],
     )?;
     touched.insert(thread);
     // A list the provider could not give says nothing: the stored one stays.

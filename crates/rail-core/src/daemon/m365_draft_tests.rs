@@ -202,7 +202,7 @@ async fn an_outlook_draft_is_imported_bound_to_its_id_and_discarding_it_deletes_
         .await;
     Mock::given(method("GET"))
         .and(path(format!("{ROOT}/me/messages/g-od1")))
-        .and(query_param("$select", "id,body,hasAttachments"))
+        .and(query_param("$select", crate::provider::graph::BODY_FIELDS))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "id": "g-od1", "hasAttachments": false,
             "body": {"contentType": "text", "content": "written in Outlook"}

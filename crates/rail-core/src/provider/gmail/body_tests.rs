@@ -480,3 +480,40 @@ async fn an_inline_parts_content_id_is_kept_without_its_brackets_and_a_bad_one_i
         .collect();
     assert_eq!(ids, [Some("logo@x"), None]);
 }
+
+/// A message whose top-level headers are `headers`, with a short text body.
+fn with_headers(headers: serde_json::Value) -> serde_json::Value {
+    json!({
+        "partId": "", "mimeType": "text/plain", "filename": "", "headers": headers,
+        "body": {"size": 2, "data": b64(b"hi")}
+    })
+}
+
+#[tokio::test]
+async fn gmail_s_own_authentication_results_say_which_domains_it_vouched_for() {
+    let gmail = Gmail::start().await;
+    let headers = json!([
+        {"name": "Authentication-Results",
+         "value": "mx.google.com; dkim=pass header.i=@example.com; dmarc=pass header.from=example.com"},
+        {"name": "Authentication-Results",
+         "value": "mx.google.com; dmarc=pass header.from=forged.example"},
+        {"name": "Content-Type", "value": "text/plain"}
+    ]);
+    let body = body_of(&gmail, with_headers(headers)).await.unwrap();
+    assert_eq!(body.vouched_domains, ["example.com"]);
+}
+
+#[tokio::test]
+async fn results_a_sender_wrote_itself_vouch_for_nothing() {
+    let gmail = Gmail::start().await;
+    let headers = json!([
+        {"name": "Authentication-Results",
+         "value": "relay.example; dmarc=pass header.from=example.com"},
+        {"name": "Authentication-Results",
+         "value": "mx.google.com; dmarc=pass header.from=example.com"}
+    ]);
+    let body = body_of(&gmail, with_headers(headers)).await.unwrap();
+    assert!(body.vouched_domains.is_empty());
+    let none = body_of(&gmail, with_headers(json!([]))).await.unwrap();
+    assert!(none.vouched_domains.is_empty());
+}

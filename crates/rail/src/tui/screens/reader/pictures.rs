@@ -6,7 +6,8 @@
 //! `MAX_HIDDEN_PX` or less on a side is a tracking pixel or a spacer and takes no room.
 //! Fetching a remote picture tells its sender the mail was read, so a message's remote
 //! pictures are asked for only once they are loaded: `remote_images`, the key for this thread,
-//! or a sender in `remote_images_from`.
+//! or a sender in `remote_images_from` whose domain the receiving server vouched for (DMARC or
+//! aligned DKIM, `auth_results`), since a From line alone can be forged.
 //! A reader asks for at most `MAX_PICTURES_PER_READER`, `MAX_PICTURES_IN_FLIGHT` at a time,
 //! and keeps each shrunk to `MAX_KEPT_PIXELS`, so one mail cannot fill memory.
 
@@ -15,6 +16,7 @@ use std::path::Path;
 use std::rc::Rc;
 
 use image::{DynamicImage, ImageReader, Limits};
+use rail_core::provider::auth_results::aligned;
 use rail_core::provider::html::Image;
 use rail_core::store::view::{BodyState, MessageView};
 use ratatui::layout::Size;
@@ -162,9 +164,11 @@ fn sender(m: &MessageView) -> Option<String> {
     m.from.first().map(|p| p.address.to_lowercase())
 }
 
-/// `m`'s sender is one whose remote pictures are always fetched.
+/// `m`'s sender is one whose remote pictures are always fetched, and the receiving server
+/// vouched for the sender's domain: a From line alone can be forged.
 pub(super) fn trusts(trusted: &HashSet<String>, m: &MessageView) -> bool {
-    sender(m).is_some_and(|address| trusted.contains(&address))
+    sender(m)
+        .is_some_and(|address| trusted.contains(&address) && aligned(&address, &m.vouched_domains))
 }
 
 /// The picture at `path` decoded, within `MAX_DECODED_SIDE` and `MAX_DECODE_ALLOC`, and

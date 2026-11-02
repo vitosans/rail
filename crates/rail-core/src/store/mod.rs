@@ -63,6 +63,8 @@ mod view_targets_tests;
 mod view_tests;
 #[cfg(test)]
 mod view_unified_tests;
+#[cfg(test)]
+mod vouched_tests;
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;

@@ -51,7 +51,7 @@ async fn remote_body(c: &Corp, response: ResponseTemplate) {
         .await;
     Mock::given(method("GET"))
         .and(path(format!("{ROOT}/me/messages/g-od1")))
-        .and(query_param("$select", "id,body,hasAttachments"))
+        .and(query_param("$select", crate::provider::graph::BODY_FIELDS))
         .respond_with(response)
         .mount(&c.g.server)
         .await;
@@ -206,9 +206,9 @@ async fn reopening_an_imported_outlook_draft_keeps_local_edits() {
             .skip(before)
             .filter(|r| {
                 r.url.path() == format!("{ROOT}/me/messages/g-od1")
-                    && r.url
-                        .query_pairs()
-                        .any(|(key, value)| key == "$select" && value == "id,body,hasAttachments")
+                    && r.url.query_pairs().any(|(key, value)| {
+                        key == "$select" && value == crate::provider::graph::BODY_FIELDS
+                    })
             })
             .count();
     assert_eq!(bodies, 1, "only the first import refreshes the remote body");

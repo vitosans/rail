@@ -153,8 +153,14 @@ async fn a_mail_with_many_pictures_has_only_the_readers_cap_asked_for() {
 
 const SALE: &str = "https://cdn.example.com/sale.png";
 
-/// m1 shows a remote 160 by 64 picture, whose bytes the fake daemon has.
+/// m1 shows a remote 160 by 64 picture, whose bytes the fake daemon has, Tom's domain vouched
+/// for by the receiving server.
 async fn with_a_remote_picture() -> (Fixture, tempfile::TempDir) {
+    with_a_remote_picture_vouched(r#"["example.com"]"#).await
+}
+
+/// As `with_a_remote_picture`, the vouched domains column set to `vouched` (JSON, or NULL).
+async fn with_a_remote_picture_vouched(vouched: &str) -> (Fixture, tempfile::TempDir) {
     let (f, dir) = with_a_picture().await;
     let html = format!(
         r#"<p>Hi Dana,</p><img src="{SALE}" alt="Sale" width="160" height="64"><p>Tom</p>"#
@@ -163,8 +169,8 @@ async fn with_a_remote_picture() -> (Fixture, tempfile::TempDir) {
         .unwrap()
         .conn()
         .execute(
-            "UPDATE messages SET body_html = ?1 WHERE remote_id = 'm1'",
-            [html],
+            "UPDATE messages SET body_html = ?1, vouched_domains = ?2 WHERE remote_id = 'm1'",
+            [Some(html), (vouched != "NULL").then(|| vouched.to_string())],
         )
         .unwrap();
     let answer = f.fake.image_answers.lock().unwrap()["logo@x"].clone();
@@ -300,4 +306,26 @@ async fn capital_i_keeps_a_sender_added_to_the_file_while_rail_was_open() {
         text.contains(r#"remote_images_from = ["ann@example.com", "bob@example.com"] # by hand"#),
         "{text}"
     );
+}
+
+/// Mail whose From line the receiving server did not vouch for could be forged: `I` trusts the
+/// sender and loads this message's pictures, as asked, but the next time it waits with the hint.
+#[tokio::test]
+async fn capital_i_on_unvouched_mail_loads_it_now_but_not_by_itself_again() {
+    let (mut f, _dir) = with_a_remote_picture_vouched("NULL").await;
+    press(&mut f, KeyCode::Enter).await;
+    open_toms_card(&mut f).await;
+    press(&mut f, KeyCode::Char('I')).await;
+    assert!(
+        f.screen
+            .status_line()
+            .contains("remote pictures from tom@example.com: always")
+    );
+    assert_eq!(remote_calls(&f).len(), 1, "loaded as asked");
+
+    press(&mut f, KeyCode::Char('q')).await;
+    press(&mut f, KeyCode::Enter).await;
+    open_toms_card(&mut f).await;
+    assert_eq!(remote_calls(&f).len(), 1, "not again without the key");
+    assert!(has_hint(&f));
 }

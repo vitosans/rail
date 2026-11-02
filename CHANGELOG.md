@@ -6,6 +6,22 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Security
+
+- A trusted sender's remote pictures (`remote_images_from`, `I`) load by themselves only when
+  the receiving server vouched for the sender's domain: the topmost `Authentication-Results`
+  (Gmail's own, from `mx.google.com`, or Exchange Online's) shows DMARC passed for the From
+  domain, or a DKIM signature of it or a parent domain passed. Mail with a forged From line now
+  waits with the hint, as an untrusted sender's does, so its pictures no longer signal that you
+  read it. `I` still loads the open thread's pictures at once (#131).
+
+### Upgrading
+
+- This version adds a database migration (schema v12: `messages.vouched_domains`). An older
+  Rail refuses the upgraded store.
+- Mail stored before this version has no vouched domains until its body is fetched again, so a
+  trusted sender's older mail shows the hint; `i` loads it.
+
 ## [0.6.0] - 2026-11-01
 
 ### Added

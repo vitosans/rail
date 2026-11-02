@@ -244,6 +244,9 @@ pub struct Body {
     /// The addresses the text's `[n]` markers stand for (link `n` is `links[n - 1]`), at most
     /// `links::MAX_LINKS`. Outside text: validated again before use.
     pub links: Vec<String>,
+    /// The From domains the receiving server vouched for (`auth_results`), lower case: empty
+    /// when it vouched for none or did not say.
+    pub vouched_domains: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

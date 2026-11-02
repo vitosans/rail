@@ -106,13 +106,22 @@ pub(crate) struct BatchItem {
     pub body: Option<Value>,
 }
 
-/// A message's body, as `$select=id,body,hasAttachments` answers it.
+/// A message's body, as `$select=` `BODY_FIELDS` answers it.
 #[derive(Deserialize)]
 pub(crate) struct BodyWire {
     pub id: Option<String>,
     pub body: Option<ItemBody>,
     #[serde(rename = "hasAttachments")]
     pub has_attachments: Option<bool>,
+    #[serde(rename = "internetMessageHeaders")]
+    pub internet_message_headers: Option<Vec<HeaderWire>>,
+}
+
+/// One of `internetMessageHeaders`, in the order the message carries them.
+#[derive(Deserialize)]
+pub(crate) struct HeaderWire {
+    pub name: String,
+    pub value: String,
 }
 
 #[derive(Deserialize, Default)]

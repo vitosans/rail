@@ -15,7 +15,7 @@ use crate::store::Store;
 async fn serve_body(g: &Graph, answer: Value) {
     Mock::given(method("GET"))
         .and(path(format!("{ROOT}/me/messages/m1")))
-        .and(query_param("$select", "id,body,hasAttachments"))
+        .and(query_param("$select", crate::provider::graph::BODY_FIELDS))
         .respond_with(ResponseTemplate::new(200).set_body_json(answer))
         .expect(1)
         .mount(&g.server)
