@@ -391,3 +391,55 @@ fn the_gmail_preset_follows_gmails_web_shortcuts() {
         Resolved::Unbound
     );
 }
+
+#[test]
+fn the_outlook_preset_follows_outlooks_shortcuts() {
+    let map = configured("[general]\nkeymap = \"outlook\"\n").unwrap();
+    let named = |code| KeyEvent::new(code, KeyModifiers::NONE);
+    let cases = [
+        (
+            View::List,
+            vec![named(KeyCode::Delete)],
+            Action::ListTrashNow,
+        ),
+        (
+            View::Reader,
+            vec![named(KeyCode::Delete)],
+            Action::ListTrashNow,
+        ),
+        (
+            View::List,
+            vec![named(KeyCode::Backspace)],
+            Action::ListArchive,
+        ),
+        (View::List, vec![named(KeyCode::Insert)], Action::ListStar),
+        (View::List, vec![ctrl('q')], Action::ListMarkRead),
+        (View::List, vec![ctrl('u')], Action::ListMarkUnread),
+        (View::Reader, vec![ctrl('u')], Action::ListMarkUnread),
+        (View::List, vec![ctrl('z')], Action::GlobalUndo),
+        (View::List, vec![ctrl('n')], Action::ListCompose),
+        (View::Reader, vec![char_key('n')], Action::ReaderNext),
+        (View::List, vec![ctrl('r')], Action::ListReply),
+        (View::Reader, vec![ctrl('r')], Action::ListReply),
+        (View::List, vec![ctrl('f')], Action::ListForward),
+        (View::List, vec![char_key('F')], Action::ListForward),
+        (View::List, vec![char_key('v')], Action::ListMove),
+        (View::List, vec![char_key('V')], Action::ListSelectRange),
+        (View::List, vec![ctrl('e')], Action::ListFilter),
+        (View::List, vec![ctrl('a')], Action::ListSelectAll),
+        (View::List, vec![ctrl('o')], Action::ListOpen),
+        (View::List, vec![named(KeyCode::F(9))], Action::ListRefresh),
+        (View::List, vec![char_key('d')], Action::ListTrash),
+        (View::List, vec![char_key('u')], Action::ListRead),
+        (View::Sidebar, vec![ctrl('u')], Action::SidebarPageUp),
+        (View::Compose, vec![alt('s')], Action::ComposeSend),
+        (View::Compose, vec![ctrl('s')], Action::ComposePush),
+    ];
+    for (view, keys, action) in cases {
+        assert_eq!(
+            resolve(&map, view, &keys),
+            Resolved::Action(action),
+            "{view:?} {keys:?}"
+        );
+    }
+}

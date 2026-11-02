@@ -82,6 +82,7 @@ are: choosing or adding a preset never moves them.
 | `mutt` | The table's keys, except those listed [below](#the-mutt-preset). |
 | `emacs` | The table's keys, plus those listed [below](#the-emacs-preset). |
 | `gmail` | The table's keys, except those listed [below](#the-gmail-preset). |
+| `outlook` | The table's keys, except those listed [below](#the-outlook-preset). |
 
 ### Switching presets
 
@@ -189,6 +190,35 @@ before trashing.
 | `A` | List the attachments in the reader (`a` in `rail`). |
 | `T` | Always load this sender's remote pictures, or stop (`I` in `rail`). |
 
+### The outlook preset
+
+Keys follow Outlook's shortcuts, from Outlook for Windows and Outlook on the web. `d` still asks
+before trashing.
+
+| Keys | outlook preset |
+|---|---|
+| `Delete` | Move to the trash without asking (`list.trash_now`); undo still works. In Drafts it asks too. |
+| `Backspace` | Archive, beside `e`. |
+| `Insert` | Star or unstar (Outlook's flag), beside `s`. |
+| `Ctrl-q` / `Ctrl-u` | Mark read / mark unread (`list.mark_read`, `list.mark_unread`). `u` still toggles. |
+| `Ctrl-z` | Undo, beside `z`. |
+| `Ctrl-n` | Write a new message, beside `c`. |
+| `Ctrl-r` | Reply, beside `r`. |
+| `Ctrl-f` / `F` | Forward, beside `f`. |
+| `v` | Move to a label or folder, beside `m`. |
+| `Ctrl-e` | Filter the list, beside `/`. |
+| `Ctrl-a` | Select every matching thread, beside `* a`. |
+| `Ctrl-o` | Open the thread, beside `Enter`. |
+| `F9` | Sync now (`Ctrl-r` in `rail`). |
+| `V` | Select a range of threads (`v` in `rail`). |
+| `PageUp` | One page up in the list; `Ctrl-u` marks unread instead. |
+| `Alt-s` | Send in the composer, beside `y`. |
+| `Ctrl-s` | Save to Drafts in the composer, beside `s`. |
+
+Most terminals send `Ctrl-Shift-r` as `Ctrl-r` and `Ctrl-Enter` as `Enter`, so reply to everyone
+stays `R` and sending stays `y` or `Alt-s`. On a Mac keyboard the delete key is `Backspace`, so
+it archives; `fn`-delete trashes.
+
 ## Where actions work
 
 | Actions | Take effect in |
@@ -234,11 +264,11 @@ action's own description.
 | `list.bottom` | list | `end` `G` | Oldest thread. |  |
 | `list.archive` | list, reader | `e` | Archive the thread or the selection. |  |
 | `list.trash` | list, reader | `d` | Move to the trash (asks first). |  |
-| `list.trash_now` | list, reader | (none) | Move to the trash without asking (undo still works). | `D` in the `vim` and `mutt` presets, `#` in `gmail`. |
+| `list.trash_now` | list, reader | (none) | Move to the trash without asking (undo still works). | `D` in the `vim` and `mutt` presets, `#` in `gmail`, `Delete` in `outlook`. |
 | `list.star` | list, reader | `s` | Star or unstar. |  |
 | `list.read` | list, reader | `u` | Mark read or unread. |  |
-| `list.mark_read` | list, reader | (none) | Mark read. | Marks read even when nothing is unread, where `u` toggles. `I` in the `gmail` preset. |
-| `list.mark_unread` | list, reader | (none) | Mark unread. | Marks unread even when something is unread already. `U` in the `gmail` preset. |
+| `list.mark_read` | list, reader | (none) | Mark read. | Marks read even when nothing is unread, where `u` toggles. `I` in the `gmail` preset, `Ctrl-q` in `outlook`. |
+| `list.mark_unread` | list, reader | (none) | Mark unread. | Marks unread even when something is unread already. `U` in the `gmail` preset, `Ctrl-u` in `outlook`. |
 | `list.labels` | list, reader | `l` | Add or remove labels (Gmail). |  |
 | `list.move` | list, reader | `m` | Move to a label (Gmail) or a folder (Microsoft 365). |  |
 | `list.snooze` | list, reader | `h` | Snooze until later, or return a snoozed thread. | See [Snooze](actions.md#snooze). |
