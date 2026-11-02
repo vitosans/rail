@@ -199,10 +199,16 @@ async fn mount_the_sync(server: &MockServer) {
 
 /// Fake Gmail: the start-up sync's routes, plus m1 as a `multipart/mixed` message whose child
 /// parts are `parts` — each one's bytes inline, or behind the `attachments.get` path its
-/// `attachment_id` names.
+/// `attachment_id` names. Opening the thread marks it read, so t1's `modify` is answered too:
+/// unanswered, its failure notice could replace a save line before the test read it.
 async fn gmail(parts: &[Part]) -> MockServer {
     let server = MockServer::start().await;
     mount_the_sync(&server).await;
+    Mock::given(method("POST"))
+        .and(path(format!("{API}/threads/t1/modify")))
+        .respond_with(ok(json!({"id": "t1"})))
+        .mount(&server)
+        .await;
     let mut children = vec![json!({
         "partId": "0", "mimeType": "text/plain", "filename": "",
         "body": {"size": 18, "data": BODY_DATA}
