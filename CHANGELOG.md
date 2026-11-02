@@ -14,6 +14,11 @@ All notable changes to Rail are recorded here. The format follows
   and `Ctrl-b`, select all or by sender `T a` and `T f`; in the reader `h` shows the headers,
   `i` goes back, `v` lists the attachments and `P` loads the pictures. Rail's own keys are
   unchanged (#153).
+- **The `emacs` preset** (`keymap = "emacs"`) adds emacs's keys beside Rail's own: `Ctrl-n`/
+  `Ctrl-p` move, `Ctrl-v`/`Alt-v` page, `Alt-<`/`Alt->` go to the top and bottom, `Ctrl-s`
+  filters, `Ctrl-g` backs out and `Alt-x` opens the palette; `Ctrl-x u` undoes and `Ctrl-x o`
+  moves between the sidebar and the list. In the composer `Ctrl-x Ctrl-s` saves to Drafts,
+  `Ctrl-x i` attaches and `Ctrl-x k` discards. `n`/`p` move through the list (#153).
 
 - **Key presets.** `keymap` under `[general]` chooses the keys every action starts from, and
   `[keys]` goes over it. `:keymap` lists the presets, switches at once and saves the choice; a
