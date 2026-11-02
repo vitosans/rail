@@ -1,6 +1,6 @@
 //! Keys and their names. A name is a character (`a`, `O`, `/`), a named key (`enter`, `esc`,
 //! `tab`, `backtab`, `space`, `up`, `down`, `left`, `right`, `pageup`, `pagedown`, `home`,
-//! `end`, `f1` to `f12`), either with `ctrl-`, `alt-` and `shift-` before it, or two of those
+//! `end`, `delete`, `backspace`, `insert`, `f1` to `f12`), either with `ctrl-`, `alt-` and `shift-` before it, or two of those
 //! with one space between them (a chord: `g x`). Names are read without regard to case,
 //! except a character's own.
 
@@ -122,6 +122,9 @@ fn named(text: &str) -> Option<KeyCode> {
         "pagedown" => KeyCode::PageDown,
         "home" => KeyCode::Home,
         "end" => KeyCode::End,
+        "delete" => KeyCode::Delete,
+        "backspace" => KeyCode::Backspace,
+        "insert" => KeyCode::Insert,
         f => {
             let number: u8 = f.strip_prefix('f')?.parse().ok()?;
             if !(1..=12).contains(&number) {
@@ -186,6 +189,9 @@ impl fmt::Display for Key {
             KeyCode::PageDown => f.write_str("PgDn"),
             KeyCode::Home => f.write_str("Home"),
             KeyCode::End => f.write_str("End"),
+            KeyCode::Delete => f.write_str("Del"),
+            KeyCode::Backspace => f.write_str("Bksp"),
+            KeyCode::Insert => f.write_str("Ins"),
             KeyCode::F(n) => write!(f, "F{n}"),
             other => write!(f, "{other:?}"),
         }

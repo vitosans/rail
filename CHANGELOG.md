@@ -35,6 +35,8 @@ All notable changes to Rail are recorded here. The format follows
   hides the way back.
 - `list.mark_read` and `list.mark_unread`: mark read, or mark unread, whatever the threads show,
   where `u` toggles. Neither has a key in the `rail` preset; bind them in `[keys]` (#153).
+- `delete`, `backspace` and `insert` are key names for `[keys]`, shown as `Del`, `Bksp` and
+  `Ins` in help. No default key uses them.
 - `list.trash_now`: move to the trash without asking, still undoable and still asked about for a
   large selection (`bulk_confirm`) and in Drafts. It has no key in the `rail` preset; `vim` binds
   it to `D`.
@@ -63,6 +65,7 @@ All notable changes to Rail are recorded here. The format follows
 - A `[keys]` entry that binds `F2` to another action now stops Rail from starting; move that
   action to another key.
 - An older Rail refuses a `config.toml` that contains `keymap`; remove it before going back.
+  It also refuses `[keys]` entries naming `delete`, `backspace` or `insert`.
 
 ## [0.7.0] - 2026-11-02
 
