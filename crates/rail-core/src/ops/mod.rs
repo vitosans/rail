@@ -49,7 +49,7 @@ pub use actions::{
 pub use attachment_content::{Signature, content_matches};
 pub use attachment_image::{
     AttachmentImageRequest, AttachmentImageResponse, IMAGE_STALE_AFTER, IMAGE_TYPES,
-    MAX_IMAGE_BYTES, image_extension,
+    MAX_IMAGE_BYTES, MAX_IMAGE_CACHE_BYTES, image_extension,
 };
 pub use attachments::{
     AttachmentOpenRequest, AttachmentOpenResponse, AttachmentOutcome, AttachmentResult,

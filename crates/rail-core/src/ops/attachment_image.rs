@@ -21,6 +21,11 @@ pub const MAX_IMAGE_BYTES: i64 = 5 * 1024 * 1024;
 /// How long a cached picture is kept after it was written.
 pub const IMAGE_STALE_AFTER: Duration = Duration::from_secs(7 * 86_400);
 
+/// The most the image cache holds, in bytes: the oldest pictures go to make room for a new
+/// one. Well over one open thread's worth (32 pictures of `MAX_IMAGE_BYTES`), so a thread's
+/// own pictures are not evicted while the reader draws them.
+pub const MAX_IMAGE_CACHE_BYTES: u64 = 512 * 1024 * 1024;
+
 /// The types the reader draws and the extension each cached copy gets. Each is in `OPENABLE`
 /// too, so `content_matches` checks its signature. SVG is absent on purpose: it is a program,
 /// not a picture.
