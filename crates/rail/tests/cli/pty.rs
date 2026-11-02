@@ -798,9 +798,15 @@ fn keys_reach_the_mail_screen_when_the_terminal_never_answers_the_picture_query(
     keys.flush().unwrap();
     let shown = output.clone();
     wait_until("help after ?", &output, move || {
-        text(&shown).contains("Show the keys for this view")
+        screen(&text(&shown), 100, 30)
+            .iter()
+            .any(|row| row.contains("Open the thread"))
     });
-    keys.write_all(b"\x1bq").unwrap();
+    // Esc and q apart: together they read as Alt-q.
+    keys.write_all(b"\x1b").unwrap();
+    keys.flush().unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    keys.write_all(b"q").unwrap();
     keys.flush().unwrap();
     wait_for_exit(&mut child, &output);
 }
