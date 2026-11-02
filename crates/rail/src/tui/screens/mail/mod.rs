@@ -74,6 +74,8 @@ use unicode_segmentation::UnicodeSegmentation;
 #[cfg(test)]
 pub(crate) use actions::UNDO_TICKS;
 #[cfg(test)]
+use keymap_switch::KEEP_KEYS_TICKS;
+#[cfg(test)]
 pub use list::MAX_WINDOW;
 pub use list::{ListWindow, Place};
 pub use sidebar::Sidebar;
@@ -301,6 +303,8 @@ pub struct MailScreen {
     /// The store changed while a refresh ran: run once more when it ends.
     dirty_again: bool,
     chord: Chord,
+    /// A `:keymap` switch being tried, until "Keep these keys?" is answered or runs out.
+    keymap_trial: Option<keymap_switch::KeymapTrial>,
     tick: usize,
     panic_on_key: bool,
 }
@@ -368,6 +372,7 @@ impl MailScreen {
             refreshing: None,
             dirty_again: false,
             chord: Chord::default(),
+            keymap_trial: None,
             tick: 0,
             panic_on_key: false,
         }
@@ -730,7 +735,7 @@ impl Screen for MailScreen {
                 self.tick = self.tick.wrapping_add(1);
                 self.status.tick(self.tick);
                 self.opened_attachments.expire(self.tick);
-                Vec::new()
+                self.keymap_trial_tick()
             }
             Msg::Resize(..) => Vec::new(),
             Msg::Task(TaskResult::Mail(event)) => self.mail_event(event),

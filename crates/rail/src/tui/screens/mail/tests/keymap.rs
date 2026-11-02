@@ -1,6 +1,7 @@
 //! Keymap presets on the mail screen: `D` trashes without asking in the vim preset, `:keymap`
-//! switches, saves and says how to get back, and a switch that `[keys]` clashes with is
-//! refused, keeping the keys in force.
+//! switches and asks "Keep these keys?", saving only what is kept and going back by itself
+//! when nobody answers, and a switch that `[keys]` clashes with is refused, keeping the keys in
+//! force.
 
 use rail_core::config::KeymapPreset;
 use rail_core::ops::Action as MailAction;
@@ -96,11 +97,33 @@ async fn capital_d_still_asks_about_a_selection_over_bulk_confirm() {
     assert!(trashed(&f));
 }
 
+/// The "Keep these keys?" question, if it is open.
+fn keep_question(f: &Fixture) -> Option<Vec<String>> {
+    match &f.screen.modal {
+        Some(Modal::Confirm(confirm)) => Some(confirm.lines().to_vec()),
+        _ => None,
+    }
+}
+
+async fn tick(f: &mut Fixture, times: usize) {
+    for _ in 0..times {
+        let effects = f.screen.update(Msg::Tick);
+        settle(&mut f.screen, effects).await;
+    }
+}
+
 #[tokio::test]
 async fn keymap_switches_saves_and_says_how_to_reach_the_palette() {
     let mut f = fixture(3).await;
     write_config(&f, "[general]\nhints = true\n");
     choose(&mut f, "vim").await;
+    let lines = keep_question(&f).expect("asks to keep the keys");
+    assert!(lines.join(" ").contains("vim"), "{lines:?}");
+    assert!(
+        !config_text(&f).contains("keymap"),
+        "nothing saved before the answer"
+    );
+    press(&mut f, KeyCode::Char('y')).await;
     assert!(f.screen.modal.is_none());
     assert!(
         f.screen
@@ -122,9 +145,62 @@ async fn keymap_switches_saves_and_says_how_to_reach_the_palette() {
     );
 
     choose(&mut f, "rail").await;
+    press(&mut f, KeyCode::Enter).await;
     assert!(config_text(&f).contains("keymap = \"rail\""));
     press(&mut f, KeyCode::Char('z')).await;
     assert!(f.screen.status_line().contains("Nothing to undo"));
+}
+
+/// The new keys are tried while the question is open; `Esc` goes back to the keys before,
+/// and nothing is saved.
+#[tokio::test]
+async fn esc_on_keep_these_keys_goes_back_to_the_keys_before() {
+    let mut f = fixture(3).await;
+    write_config(&f, "[general]\nhints = true\n");
+    let rail = f.screen.ctx.keymap.clone();
+    choose(&mut f, "vim").await;
+    assert_eq!(
+        f.screen.ctx.keymap_preset,
+        KeymapPreset::Vim,
+        "tried at once"
+    );
+    press(&mut f, KeyCode::Esc).await;
+    assert!(f.screen.modal.is_none());
+    assert_eq!(f.screen.ctx.keymap_preset, KeymapPreset::Rail);
+    assert!(Arc::ptr_eq(&rail, &f.screen.ctx.keymap));
+    assert!(!config_text(&f).contains("keymap"), "nothing saved");
+    let line = f.screen.status_line();
+    assert!(line.contains("keys: rail kept"), "{line}");
+    press(&mut f, KeyCode::Char('z')).await;
+    assert!(f.screen.status_line().contains("Nothing to undo"));
+}
+
+/// Unanswered, the question counts down and then goes back by itself, so keys that leave
+/// someone stuck undo themselves.
+#[tokio::test]
+async fn an_unanswered_keep_these_keys_goes_back_when_the_time_is_up() {
+    let mut f = fixture(3).await;
+    write_config(&f, "");
+    choose(&mut f, "vim").await;
+    let first = keep_question(&f).unwrap().join(" ");
+    assert!(first.contains("15 s"), "{first}");
+    tick(&mut f, KEEP_KEYS_TICKS - 4).await;
+    let later = keep_question(&f).expect("still asking").join(" ");
+    assert!(later.contains("1 s"), "{later}");
+    tick(&mut f, 4).await;
+    assert!(keep_question(&f).is_none(), "the question closed");
+    assert_eq!(f.screen.ctx.keymap_preset, KeymapPreset::Rail);
+    assert!(!config_text(&f).contains("keymap"), "nothing saved");
+}
+
+/// Choosing the preset in force picks up `[keys]` as it is now, with nothing to ask.
+#[tokio::test]
+async fn choosing_the_preset_in_force_does_not_ask() {
+    let mut f = fixture(3).await;
+    write_config(&f, "");
+    choose(&mut f, "rail").await;
+    assert!(keep_question(&f).is_none());
+    assert_eq!(f.screen.ctx.keymap_preset, KeymapPreset::Rail);
 }
 
 #[tokio::test]
@@ -179,6 +255,16 @@ async fn a_switch_hands_the_shell_the_screens_new_keymap() {
     assert_eq!(handed.len(), 1);
     assert!(Arc::ptr_eq(&handed[0], &f.screen.ctx.keymap));
     assert!(Arc::ptr_eq(&handed[0], &vim));
+    // Going back hands the shell the keys from before.
+    let rail = keymap("");
+    f.screen.keymap_trial.as_mut().unwrap().previous = rail.clone();
+    let effects = f.screen.update(Msg::Key(key(KeyCode::Esc)));
+    assert!(effects.iter().any(|e| matches!(
+        e,
+        crate::tui::app::Effect::Keymap(k) if Arc::ptr_eq(k, &rail)
+    )));
+    f.screen.ctx.keymap = vim.clone();
+    f.screen.ctx.keymap_preset = KeymapPreset::Vim;
 
     let effects = f
         .screen

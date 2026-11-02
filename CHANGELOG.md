@@ -31,8 +31,9 @@ All notable changes to Rail are recorded here. The format follows
   a draft. A range moves to `V` (#153).
 
 - **Key presets.** `keymap` under `[general]` chooses the keys every action starts from, and
-  `[keys]` goes over it. `:keymap` lists the presets, switches at once and saves the choice; a
-  switch that `[keys]` clashes with is refused and the keys stay. The first preset besides
+  `[keys]` goes over it. `:keymap` lists the presets and switches at once, then asks **Keep these
+  keys?**: `y` saves them, and `n`, `Esc` or 15 s without an answer go back to the keys before.
+  A switch that `[keys]` clashes with is refused and the keys stay. The first preset besides
   `rail` is `vim`: `h`/`l` go out and in, `u` undoes, `U` marks read or unread, `Z` snoozes,
   `L` labels, `D` trashes without asking and `Ctrl-f`/`Ctrl-b` page (#153). Prompted by
   @coko7's request for bash's editing keys in text fields (#152).

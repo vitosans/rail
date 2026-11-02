@@ -86,8 +86,17 @@ are: choosing or adding a preset never moves them.
 
 ### Switching presets
 
-`:keymap` in the palette lists the presets with what sets each apart. It switches as soon as you
-press `Enter`, and saves the choice.
+`:keymap` in the palette lists the presets with what sets each apart. `Enter` switches at once,
+so you can try the new keys, and asks **Keep these keys?** with a countdown:
+
+| Answer | What happens |
+|---|---|
+| `y` or `Enter` | The new keys stay, and `keymap` is saved (`keys: vim · F2 opens the palette`). |
+| `n`, `Esc` or `q` | Back to the keys you had (`keys: rail kept`). Nothing is saved. |
+| No answer in 15 s | The same as `n`: keys that leave you stuck undo themselves. |
+
+The question's own keys are the same in every preset. Choosing the preset already in force reads
+`[keys]` again and asks nothing.
 
 A switch your own `[keys]` entries clash with is refused, with the message Rail would give at
 start-up, and the keys you had stay.
