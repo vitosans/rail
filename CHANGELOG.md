@@ -20,6 +20,15 @@ All notable changes to Rail are recorded here. The format follows
   large selection (`bulk_confirm`) and in Drafts. It has no key in the `rail` preset; `vim` binds
   it to `D`.
 
+### Changed
+
+- The README is now a short overview, and the full documentation lives in `docs/`: account
+  setup, reading, acting on and writing mail, keys, configuration, commands, MCP, security and
+  troubleshooting, with `docs/README.md` as the index. Release archives carry `docs/` too.
+- Messages that pointed to the README now name the page: the Microsoft 365 consent error says
+  `see "Work or school accounts and admin consent" in docs/accounts.md`, and an unknown `[keys]`
+  action says `(docs/keys.md lists them)`.
+
 ### Upgrading
 
 - A `[keys]` entry that binds `F2` to another action now stops Rail from starting; move that

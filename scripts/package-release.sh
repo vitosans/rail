@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Package a release build of rail into rail-v<version>-<target>.tar.gz: the binary, the README,
-# the changelog, both licences and BUILD-INFO.txt. Run from the repository root after
+# the docs, the changelog, both licences and BUILD-INFO.txt. Run from the repository root after
 # `cargo build --release --locked --workspace` on the target itself.
 #
 # usage: scripts/package-release.sh <target> <out-dir>
@@ -64,6 +64,7 @@ runtime_requirement() {
 
 mkdir -p "$stage"
 cp "$binary" README.md CHANGELOG.md LICENSE-APACHE LICENSE-MIT "$stage/"
+cp -R docs "$stage/"
 
 {
   echo "Rail ${version}"

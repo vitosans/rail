@@ -1,6 +1,6 @@
 //! Provider setup as data: the steps an agent walks a user through to register an OAuth app.
-//! Rail returns commands, pages and tool calls; it never runs them. The README's setup sections
-//! carry the same commands and pages, and a test keeps the two in step.
+//! Rail returns commands, pages and tool calls; it never runs them. The setup sections of
+//! docs/accounts.md carry the same commands and pages, and a test keeps the two in step.
 
 mod google;
 mod microsoft;
@@ -10,7 +10,7 @@ use crate::ops::{
     Audience, GuideInputs, GuideRequest, GuideResponse, GuideStep, OpError, StepKind,
 };
 
-/// Bumped whenever a step changes. The README marks the version it documents.
+/// Bumped whenever a step changes. docs/accounts.md marks the version it documents.
 pub const GUIDE_VERSION: u32 = 1;
 
 /// The steps for `request.kind`, with the inputs filled in. Anything not given stays as a

@@ -264,7 +264,7 @@ fn an_unknown_action_is_refused_with_path_and_line() {
     assert_eq!(
         error.to_string(),
         format!(
-            "{PATH}:6: [keys] \"list.write\" is not an action Rail knows (the README lists them)"
+            "{PATH}:6: [keys] \"list.write\" is not an action Rail knows (docs/keys.md lists them)"
         )
     );
 }
