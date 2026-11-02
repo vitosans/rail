@@ -25,6 +25,24 @@ fn microsoft_s_results_carry_no_server_name_and_a_domain_is_listed_once() {
     assert_eq!(vouched_domains(header, None), ["example.com"]);
 }
 
+/// The shape Exchange Online stamps on a notification relayed through Amazon SES.
+#[test]
+fn exchange_online_s_named_results_vouch_for_each_passing_signature() {
+    let header = "mx.microsoft.com 1; spf=pass (sender IP is 216.221.175.247) \
+                  smtp.mailfrom=atlassian-bounces.atlassian.net; dkim=pass (signature was \
+                  verified) header.d=atlassian.net;dkim=pass (signature was verified) \
+                  header.d=amazonses.com;dmarc=pass action=none \
+                  header.from=axonnetworks.atlassian.net;compauth=pass reason=100";
+    assert_eq!(
+        vouched_domains(header, None),
+        [
+            "atlassian.net",
+            "amazonses.com",
+            "axonnetworks.atlassian.net"
+        ]
+    );
+}
+
 #[test]
 fn a_result_that_did_not_pass_vouches_for_nothing() {
     let header = "mx.google.com; dkim=fail header.d=example.com; spf=pass \

@@ -50,8 +50,9 @@ fn meta(wire: AttachmentWire) -> AttachmentMeta {
     }
 }
 
-/// The domains the topmost `Authentication-Results` vouches for. Exchange Online's carries no
-/// server name, so none is asked for.
+/// The domains the topmost `Authentication-Results` vouches for. Exchange Online's names
+/// `mx.microsoft.com`, but other Microsoft clouds may name another server, so none is asked for:
+/// the topmost header is the receiving server's either way.
 fn vouched(headers: &[HeaderWire]) -> Vec<String> {
     headers
         .iter()
