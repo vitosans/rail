@@ -488,6 +488,7 @@ pub fn mail_ctx(paths: &Paths, fake: Arc<FakeDaemon>) -> MailContext {
         link_actions: Vec::new(),
         paths: paths.clone(),
         keymap: keymap(),
+        keymap_preset: rail_core::config::KeymapPreset::Rail,
         store: StoreReader::new(paths.db_file()),
         link: DaemonLink::fake(fake),
         opener: recording_opener().0,

@@ -30,6 +30,8 @@ pub enum Target {
     Theme,
     /// `:accent`: the accent slot picker.
     Accent,
+    /// `:keymap`: the key preset picker.
+    Keymap,
     /// `:hints`: turn the key hints off or on.
     Hints,
     /// `:clock`: show or hide the time of day in the header.

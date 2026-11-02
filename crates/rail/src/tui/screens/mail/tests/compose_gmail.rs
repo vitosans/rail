@@ -216,7 +216,8 @@ async fn the_review_names_the_push_key() {
     let text = "[keys]\n\"compose.push\" = \"S\"\n";
     let path = std::path::Path::new("/c/config.toml");
     let config = rail_core::config::parse(text, path).unwrap();
-    f.screen.ctx.keymap = Arc::new(Keymap::from_config(&config.keys, text, path).unwrap());
+    f.screen.ctx.keymap =
+        Arc::new(Keymap::from_config(&config.keys, config.general.keymap, text, path).unwrap());
     press(&mut f, KeyCode::Char('r')).await;
     expire_notice(&mut f).await;
     let hint = bottom(&f);

@@ -203,6 +203,7 @@ impl MailScreen {
             Action::ListOpenLink if thread_view => self.open_subject_link(),
             Action::ListArchive
             | Action::ListTrash
+            | Action::ListTrashNow
             | Action::ListStar
             | Action::ListRead
             | Action::ListLabels
@@ -263,6 +264,8 @@ impl MailScreen {
         let mail = match action {
             Action::ListArchive => MailAction::Archive {},
             Action::ListTrash => return self.confirm_trash(targets),
+            // As `d` without its question; a large selection is still asked about below.
+            Action::ListTrashNow => MailAction::Trash {},
             Action::ListStar => MailAction::Star {
                 on: !targets.iter().all(|(_, p)| p.starred),
             },
@@ -534,6 +537,7 @@ impl MailScreen {
             MailEvent::Sender { seq, result } => self.sender_read(seq, result),
             MailEvent::Labels { seq, result } => self.labels_read(seq, result),
             MailEvent::ThemeSaved { result } => self.setting_saved("theme", result),
+            MailEvent::KeymapSaved { result } => self.setting_saved("key preset", result),
             MailEvent::HintsSaved { result } => self.setting_saved("hints setting", result),
             MailEvent::ClockSaved { result } => self.setting_saved("clock setting", result),
             MailEvent::SearchCountsSaved { result } => {

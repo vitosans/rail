@@ -141,6 +141,10 @@ pub enum MailEvent {
     ThemeSaved {
         result: Result<(), String>,
     },
+    /// `config.toml` was written for `:keymap`; the error is a config or IO error's text.
+    KeymapSaved {
+        result: Result<(), String>,
+    },
     /// `config.toml` was written for `:hints`; the error is a config or IO error's text.
     HintsSaved {
         result: Result<(), String>,
@@ -373,6 +377,10 @@ impl fmt::Debug for MailEvent {
                 .finish(),
             Self::ThemeSaved { result } => f
                 .debug_struct("ThemeSaved")
+                .field("ok", &result.is_ok())
+                .finish(),
+            Self::KeymapSaved { result } => f
+                .debug_struct("KeymapSaved")
                 .field("ok", &result.is_ok())
                 .finish(),
             Self::HintsSaved { result } => f

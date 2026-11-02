@@ -481,7 +481,9 @@ mod tests {
         let text = "[keys]\n\"list.archive\" = \"A\"\n";
         let path = std::path::Path::new("/c/config.toml");
         let config = rail_core::config::parse(text, path).unwrap();
-        let km = crate::tui::keys::Keymap::from_config(&config.keys, text, path).unwrap();
+        let km =
+            crate::tui::keys::Keymap::from_config(&config.keys, config.general.keymap, text, path)
+                .unwrap();
         assert!(words(&hints(Pane::List, &km, true, "Gmail")).contains(&"A archive".to_string()));
     }
 

@@ -20,8 +20,8 @@ pub use link::{
 pub use load::{ConfigError, MAX_ADDRESS_CHARS, line_col, load, load_text_or_empty, parse};
 pub use model::{
     AccentSpec, AccountConfig, AccountKind, AiSend, Config, DAY_SECS, DimRead, FolderModel,
-    General, Icons, Layout, OnePasswordConfig, SecretsBackend, SyncSettings, ThreadOrder,
-    TimeFormat, is_format_char, is_plain, not_plain,
+    General, Icons, KeymapPreset, Layout, OnePasswordConfig, SecretsBackend, SyncSettings,
+    ThreadOrder, TimeFormat, is_format_char, is_plain, not_plain,
 };
 pub use saved::{
     MAX_SAVED_SEARCH_NAME_CHARS, MAX_SAVED_SEARCHES, NameProblem, SavedSearch, check_name,

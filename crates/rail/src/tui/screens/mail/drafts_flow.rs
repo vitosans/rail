@@ -97,7 +97,8 @@ impl MailScreen {
                 let row = pane.selected().cloned();
                 return Some(row.map_or_else(Vec::new, |row| self.open_draft_row(row)));
             }
-            Action::ListTrash => return Some(self.confirm_discard_row()),
+            // A discarded draft is gone for good, so trash without asking asks here too.
+            Action::ListTrash | Action::ListTrashNow => return Some(self.confirm_discard_row()),
             // Nothing is selected in the pane: extending moves, as `j`/`k` do.
             Action::ListDown | Action::ListExtendDown => pane.move_by(1),
             Action::ListUp | Action::ListExtendUp => pane.move_by(-1),

@@ -304,6 +304,22 @@ async fn a_stored_draft_with_stray_carriage_returns_opens_with_plain_line_ends()
     assert_eq!(composing(&f).body, "a\nb\n");
 }
 
+/// A discarded draft cannot be undone, so trash without asking (`D` in the vim preset) still
+/// asks in Drafts.
+#[tokio::test]
+async fn trash_without_asking_still_asks_before_discarding_a_draft() {
+    let mut f = drafts_fixture().await;
+    let text = "[general]\nkeymap = \"vim\"\n";
+    let path = std::path::Path::new("/c/config.toml");
+    let config = rail_core::config::parse(text, path).unwrap();
+    f.screen.ctx.keymap =
+        Arc::new(Keymap::from_config(&config.keys, config.general.keymap, text, path).unwrap());
+    open_drafts(&mut f).await;
+    press(&mut f, KeyCode::Char('D')).await;
+    assert!(matches!(f.screen.modal, Some(Modal::Confirm(_))));
+    assert!(discards(&f).is_empty(), "asks first");
+}
+
 #[tokio::test]
 async fn trash_asks_then_discards_each_kind() {
     let mut f = drafts_fixture().await;

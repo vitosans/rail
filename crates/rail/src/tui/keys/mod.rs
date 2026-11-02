@@ -1,9 +1,13 @@
-//! The keymap: every action's keys, the defaults with `[keys]` from `config.toml` over them,
-//! key resolution (view first, then global; two-key chords), and the help rows `?` shows.
-//! Built once at startup and handed to every screen.
+//! The keymap: every action's keys, the defaults with the chosen preset (`keymap`) over them
+//! and `[keys]` from `config.toml` over that, key resolution (view first, then global;
+//! two-key chords), and the help rows `?` shows. Built at startup and again by `:keymap`.
+//! `F2` opens the palette whatever the preset and `[keys]` say, so a switch never hides it.
 
 mod actions;
 mod names;
+#[cfg(test)]
+mod preset_tests;
+mod presets;
 #[cfg(test)]
 mod tests;
 
@@ -12,10 +16,11 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use rail_core::config::{Spanned, line_col};
+use rail_core::config::{KeymapPreset, Spanned, line_col};
 
 pub use actions::{Action, View};
 pub use names::{Binding, Key, parse_binding};
+pub use presets::{overrides, summary};
 
 use crate::cmd::text::escape_field;
 
@@ -89,6 +94,12 @@ const CTRL_C: Key = Key {
     mods: KeyModifiers::CONTROL,
 };
 
+/// Opens the palette in every preset, whatever `[keys]` says.
+const F2: Key = Key {
+    code: KeyCode::F(2),
+    mods: KeyModifiers::NONE,
+};
+
 /// Every action's keys.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Keymap {
@@ -122,14 +133,22 @@ impl Keymap {
         }
     }
 
-    /// The defaults with `[keys]` over them. `text` is `config.toml`'s text (for line
-    /// numbers) and `path` its path (for messages).
+    /// The defaults with `preset` over them, then `[keys]` over that, and `F2` on the palette.
+    /// `text` is `config.toml`'s text (for line numbers) and `path` its path (for messages).
     pub fn from_config(
         keys: &BTreeMap<String, Spanned<String>>,
+        preset: KeymapPreset,
         text: &str,
         path: &Path,
     ) -> Result<Self, KeymapError> {
         let mut map = Self::defaults();
+        for (action, names) in overrides(preset) {
+            let bindings = names
+                .iter()
+                .filter_map(|name| parse_binding(name))
+                .collect();
+            map.bindings.insert(*action, bindings);
+        }
         let mut lines = BTreeMap::new();
         for (id, value) in keys {
             let line = line_col(text, value.span().start).0;
@@ -142,6 +161,10 @@ impl Keymap {
             map.bindings.insert(action, vec![binding]);
             map.overridden.insert(action);
             lines.insert(action, line);
+        }
+        let palette = map.bindings.entry(Action::GlobalPalette).or_default();
+        if !palette.contains(&Binding::Single(F2)) {
+            palette.push(Binding::Single(F2));
         }
         map.check(&lines).map_err(|(line, message)| KeymapError {
             path: path.to_path_buf(),
@@ -270,6 +293,12 @@ fn read_entry(id: &str, value: &str) -> Result<(Action, Binding), String> {
     if binding.uses(CTRL_C) {
         return Err(format!(
             "[keys] {} is bound to Ctrl-C, which always quits Rail",
+            quoted(id)
+        ));
+    }
+    if action != Action::GlobalPalette && binding.uses(F2) {
+        return Err(format!(
+            "[keys] {} is bound to F2, but F2 always opens the palette",
             quoted(id)
         ));
     }

@@ -33,6 +33,7 @@ pub const MAIL_PIPE_HINT: &str = "rail: the mail screen needs an interactive ter
 pub async fn run(paths: &Paths, text: &str, config: &Config) -> color_eyre::Result<ExitCode> {
     let keymap = Arc::new(Keymap::from_config(
         &config.keys,
+        config.general.keymap,
         text,
         &paths.config_file(),
     )?);
@@ -75,6 +76,7 @@ fn context(
     MailContext {
         paths: paths.clone(),
         keymap,
+        keymap_preset: config.general.keymap,
         store: StoreReader::new(paths.db_file()),
         link: DaemonLink::new(daemon_link::connector(paths)),
         opener,
@@ -212,7 +214,9 @@ mod tests {
     fn built(paths: &Paths, text: &str) -> MailContext {
         let file = paths.config_file();
         let config = rail_core::config::parse(text, &file).unwrap();
-        let keymap = Arc::new(Keymap::from_config(&config.keys, text, &file).unwrap());
+        let keymap = Arc::new(
+            Keymap::from_config(&config.keys, config.general.keymap, text, &file).unwrap(),
+        );
         context(
             paths,
             &config,

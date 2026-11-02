@@ -78,6 +78,8 @@ pub enum PickerKind {
     Draft,
     /// When to snooze threads until (`id`: the time, Unix seconds; `RETURN_NOW`: back now).
     Snooze,
+    /// A keymap preset (`id`: its position in `KeymapPreset::ALL`).
+    Keymap,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -166,6 +168,12 @@ impl SnoozeParts {
 }
 
 impl Picker {
+    /// The items as given, for tests that check which one is marked.
+    #[cfg(test)]
+    pub fn items(&self) -> &[PickerItem] {
+        &self.items
+    }
+
     pub fn new(kind: PickerKind, items: Vec<PickerItem>) -> Self {
         let initial = items.iter().filter(|i| i.checked).map(|i| i.id).collect();
         let shown = (0..items.len()).collect();
@@ -314,6 +322,7 @@ impl Picker {
             )),
             PickerKind::Account => usize::try_from(item.id).ok().map(Command::Account),
             PickerKind::Draft => usize::try_from(item.id).ok().map(Command::DraftRow),
+            PickerKind::Keymap => usize::try_from(item.id).ok().map(Command::Keymap),
             PickerKind::Snooze if item.id == RETURN_NOW => Some(Command::SnoozeReturn),
             PickerKind::Snooze => Some(Command::Snooze {
                 until: item.id,
@@ -436,6 +445,11 @@ impl Picker {
                 "Drafts",
                 "Enter opens · Esc cancels · ↑↓ move",
                 "No draft matches.",
+            ),
+            PickerKind::Keymap => (
+                "Keys",
+                "Enter switches · Esc keeps · ↑↓ move",
+                "No preset matches.",
             ),
             PickerKind::Snooze => (
                 "Snooze until",

@@ -94,7 +94,7 @@ macro_rules! actions {
 
 actions! {
     GlobalQuit => "global.quit", [Global], ["q"], "Quit Rail";
-    GlobalPalette => "global.palette", [Global], [":"], "Open the command palette";
+    GlobalPalette => "global.palette", [Global], [":", "f2"], "Open the command palette";
     GlobalHelp => "global.help", [Global], ["?"], "Show the keys for this view";
     GlobalUndo => "global.undo", [Global], ["z"], "Undo the last action";
     ListOpen => "list.open", [List], ["enter"], "Open the thread";
@@ -120,6 +120,7 @@ actions! {
     ListBottom => "list.bottom", [List], ["end", "G"], "Oldest thread";
     ListArchive => "list.archive", [List, Reader], ["e"], "Archive the thread or the selection";
     ListTrash => "list.trash", [List, Reader], ["d"], "Move to the trash (asks first)";
+    ListTrashNow => "list.trash_now", [List, Reader], [], "Move to the trash without asking (undo still works)";
     ListStar => "list.star", [List, Reader], ["s"], "Star or unstar";
     ListRead => "list.read", [List, Reader], ["u"], "Mark read or unread";
     ListLabels => "list.labels", [List, Reader], ["l"], "Add or remove labels (Gmail)";

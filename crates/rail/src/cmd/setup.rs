@@ -41,6 +41,7 @@ pub async fn wizard(paths: &Paths, kind_hint: Option<AccountKind>) -> color_eyre
     let (text, config) = load_text_or_empty(&paths.config_file())?;
     let keymap = Arc::new(Keymap::from_config(
         &config.keys,
+        config.general.keymap,
         &text,
         &paths.config_file(),
     )?);

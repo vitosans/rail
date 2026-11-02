@@ -266,6 +266,7 @@ fn apply<S: Screen>(
         Effect::CancelAll => tasks.cancel_all(),
         Effect::Spawn(job) => tasks.spawn(job),
         Effect::Theme(theme) => app.theme = theme,
+        Effect::Keymap(keymap) => app.keymap = keymap,
         Effect::Copy(text) => {
             let result = app.clipboard.copy(&text).map_err(|e| e.to_string());
             if let Err(reason) = &result {
@@ -418,6 +419,27 @@ mod tests {
         };
         assert!(apply(Effect::Theme(theme), &mut app, &mut tasks, &mut ()).is_none());
         assert_eq!(app.theme, theme);
+    }
+
+    #[test]
+    fn a_keymap_effect_replaces_the_keys_the_shell_quits_with() {
+        let mut app = App::new(Hello::default(), Box::new(RecordingClipboard::default()));
+        let mut tasks = Tasks::new(mpsc::unbounded_channel().0);
+        let text = "[keys]\n\"global.quit\" = \"Q\"\n";
+        let path = std::path::Path::new("/c/config.toml");
+        let config = rail_core::config::parse(text, path).unwrap();
+        let keymap = Keymap::from_config(&config.keys, config.general.keymap, text, path).unwrap();
+        let keymap = std::sync::Arc::new(keymap);
+        assert!(
+            apply(
+                Effect::Keymap(keymap.clone()),
+                &mut app,
+                &mut tasks,
+                &mut ()
+            )
+            .is_none()
+        );
+        assert_eq!(app.keymap, keymap);
     }
 
     /// Dropping the listeners (when `run_loop` returns) must not make the signals deadly: the

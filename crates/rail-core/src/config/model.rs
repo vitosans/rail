@@ -77,6 +77,9 @@ pub struct General {
     pub thread_order: ThreadOrder,
     /// How read threads are dimmed in the list; `:dim-read` cycles the modes.
     pub dim_read: DimRead,
+    /// `general.keymap`: the preset the keys start from (`rail` by default). `:keymap`
+    /// switches it.
+    pub keymap: KeymapPreset,
     /// `general.bulk_confirm`: how many threads an archive, star or mark-read may cover before
     /// Rail asks first; `0` never asks. Trash asks at every size. A number, not a two-state
     /// choice, so it has no palette command (CONTRIBUTING's opinionated-defaults rule).
@@ -126,6 +129,7 @@ impl Default for General {
             time: TimeFormat::H24,
             thread_order: ThreadOrder::Oldest,
             dim_read: DimRead::Dot,
+            keymap: KeymapPreset::Rail,
             bulk_confirm: 50,
             attachment_dir: None,
             saved_search_counts: true,
@@ -225,6 +229,30 @@ impl DimRead {
             Self::Dot => "dot",
             Self::Subject => "subject",
             Self::All => "all",
+        }
+    }
+}
+
+/// `general.keymap`: the preset every action's keys start from, before `[keys]`.
+#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum KeymapPreset {
+    /// Rail's own keys.
+    #[default]
+    Rail,
+    /// vim's: `h`/`l` between panes, `u` undo.
+    Vim,
+}
+
+impl KeymapPreset {
+    /// Every preset, in the order `:keymap` lists them.
+    pub const ALL: &'static [KeymapPreset] = &[Self::Rail, Self::Vim];
+
+    /// The config value: `rail` or `vim`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Rail => "rail",
+            Self::Vim => "vim",
         }
     }
 }

@@ -6,6 +6,25 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Key presets.** `keymap` under `[general]` chooses the keys every action starts from, and
+  `[keys]` goes over it. `:keymap` lists the presets, switches at once and saves the choice; a
+  switch that `[keys]` clashes with is refused and the keys stay. The first preset besides
+  `rail` is `vim`: `h`/`l` go out and in, `u` undoes, `U` marks read or unread, `Z` snoozes,
+  `L` labels, `D` trashes without asking and `Ctrl-f`/`Ctrl-b` page (#153).
+- `F2` opens the palette in every preset, whatever `[keys]` says, so switching presets never
+  hides the way back.
+- `list.trash_now`: move to the trash without asking, still undoable and still asked about for a
+  large selection (`bulk_confirm`) and in Drafts. It has no key in the `rail` preset; `vim` binds
+  it to `D`.
+
+### Upgrading
+
+- A `[keys]` entry that binds `F2` to another action now stops Rail from starting; move that
+  action to another key.
+- An older Rail refuses a `config.toml` that contains `keymap`; remove it before going back.
+
 ## [0.7.0] - 2026-11-02
 
 Security hardening of remote pictures: a trusted sender's pictures load only for mail the
