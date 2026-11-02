@@ -159,6 +159,36 @@ fn events_are_normalised_like_names() {
     );
 }
 
+/// `delete`, `backspace` and `insert` name those keys, and help shows them as `Del`, `Bksp`
+/// and `Ins`. They are new names, so no default binds them.
+#[test]
+fn delete_backspace_and_insert_have_names() {
+    for (name, code, shown) in [
+        ("delete", KeyCode::Delete, "Del"),
+        ("backspace", KeyCode::Backspace, "Bksp"),
+        ("insert", KeyCode::Insert, "Ins"),
+    ] {
+        assert_eq!(
+            parse_binding(name),
+            Some(Binding::Single(key(code))),
+            "{name}"
+        );
+        assert_eq!(key(code).to_string(), shown);
+    }
+    assert_eq!(
+        parse_binding("ctrl-delete").unwrap().to_string(),
+        "Ctrl-Del"
+    );
+    let defaults = Keymap::defaults();
+    for &action in Action::ALL {
+        for binding in defaults.bindings(action) {
+            for code in [KeyCode::Delete, KeyCode::Backspace, KeyCode::Insert] {
+                assert!(!binding.uses(key(code)), "{} binds {code:?}", action.id());
+            }
+        }
+    }
+}
+
 #[test]
 fn shift_up_and_down_are_keys_of_their_own() {
     let shift = |code| Key::new(code, KeyModifiers::SHIFT);
