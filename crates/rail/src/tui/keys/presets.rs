@@ -141,6 +141,35 @@ const GMAIL: Overrides = &[
     (Action::ComposePush, &["s", "ctrl-s"]),
 ];
 
+/// Outlook's shortcuts, from Outlook for Windows and on the web: `Delete` trashes without
+/// asking, `Backspace` archives, `Insert` flags (stars), `Ctrl-q`/`Ctrl-u` mark read and unread,
+/// `Ctrl-z` undoes, `Ctrl-n` writes, `Ctrl-r` replies, `Ctrl-f` or `F` forwards, `v`
+/// moves, `Ctrl-e` searches, `Ctrl-a` selects all, `Ctrl-o` opens and `F9` syncs. In the
+/// composer `Alt-s` sends and `Ctrl-s` saves to Drafts. What those keys did in `rail` moves:
+/// sync from `Ctrl-r` to `F9`, a range from `v` to `V`, and the list's page up loses `Ctrl-u`.
+/// `d` still asks. `Ctrl-Shift` keys and `Ctrl-Enter` are left out: most terminals send them
+/// as the plain keys.
+const OUTLOOK: Overrides = &[
+    (Action::GlobalUndo, &["z", "ctrl-z"]),
+    (Action::ListOpen, &["enter", "ctrl-o"]),
+    (Action::ListFilter, &["/", "ctrl-e"]),
+    (Action::ListRefresh, &["f9"]),
+    (Action::ListPageUp, &["pageup"]),
+    (Action::ListArchive, &["e", "backspace"]),
+    (Action::ListTrashNow, &["delete"]),
+    (Action::ListStar, &["s", "insert"]),
+    (Action::ListMarkRead, &["ctrl-q"]),
+    (Action::ListMarkUnread, &["ctrl-u"]),
+    (Action::ListMove, &["m", "v"]),
+    (Action::ListCompose, &["c", "ctrl-n"]),
+    (Action::ListReply, &["r", "ctrl-r"]),
+    (Action::ListForward, &["f", "F", "ctrl-f"]),
+    (Action::ListSelectAll, &["* a", "ctrl-a"]),
+    (Action::ListSelectRange, &["V"]),
+    (Action::ComposeSend, &["y", "alt-s"]),
+    (Action::ComposePush, &["s", "ctrl-s"]),
+];
+
 /// The keys `preset` gives in place of the defaults.
 pub fn overrides(preset: KeymapPreset) -> Overrides {
     match preset {
@@ -149,6 +178,7 @@ pub fn overrides(preset: KeymapPreset) -> Overrides {
         KeymapPreset::Mutt => MUTT,
         KeymapPreset::Emacs => EMACS,
         KeymapPreset::Gmail => GMAIL,
+        KeymapPreset::Outlook => OUTLOOK,
     }
 }
 
@@ -161,5 +191,6 @@ pub fn summary(preset: KeymapPreset) -> &'static str {
         KeymapPreset::Mutt => "s move · g reply all · t tag · N read · u undo",
         KeymapPreset::Emacs => "C-n/C-p · C-v/M-v page · C-s filter · C-g back",
         KeymapPreset::Gmail => "I/U read · # trash · v move · b snooze · x select",
+        KeymapPreset::Outlook => "Del trash · Bksp archive · Ins flag · C-q read",
     }
 }

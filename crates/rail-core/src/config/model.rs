@@ -249,14 +249,22 @@ pub enum KeymapPreset {
     Emacs,
     /// Gmail's web shortcuts: `o`, `u` back, `I`/`U`, `#`, `v`, `b`, `x`.
     Gmail,
+    /// Outlook's: `Delete`, `Backspace` archive, `Insert` flag, `Ctrl-q`/`Ctrl-u`, `Ctrl-z`.
+    Outlook,
 }
 
 impl KeymapPreset {
     /// Every preset, in the order `:keymap` lists them.
-    pub const ALL: &'static [KeymapPreset] =
-        &[Self::Rail, Self::Vim, Self::Mutt, Self::Emacs, Self::Gmail];
+    pub const ALL: &'static [KeymapPreset] = &[
+        Self::Rail,
+        Self::Vim,
+        Self::Mutt,
+        Self::Emacs,
+        Self::Gmail,
+        Self::Outlook,
+    ];
 
-    /// The config value: `rail`, `vim`, `mutt`, `emacs` or `gmail`.
+    /// The config value: `rail`, `vim`, `mutt`, `emacs`, `gmail` or `outlook`.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Rail => "rail",
@@ -264,6 +272,7 @@ impl KeymapPreset {
             Self::Mutt => "mutt",
             Self::Emacs => "emacs",
             Self::Gmail => "gmail",
+            Self::Outlook => "outlook",
         }
     }
 }
