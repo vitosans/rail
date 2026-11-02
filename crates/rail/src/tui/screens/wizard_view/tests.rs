@@ -479,3 +479,54 @@ fn done_shows_the_report_and_both_choices() {
         );
     }
 }
+
+/// A first run: after the account is saved, the Keys step lists every preset with what sets it
+/// apart, under "Done" in the step list, and Enter on one starts saving it.
+#[test]
+fn a_first_run_shows_the_keys_step_and_enter_saves_the_preset() {
+    let mut screen = WizardScreen::new(
+        rail_core::onboarding::Wizard::new(None, None),
+        crate::tui::test_util::test_ctx(),
+        crate::tui::test_util::keymap(),
+    );
+    for k in gmail_own_app_keys("me@gmail.com") {
+        screen.update(Msg::Key(k));
+    }
+    let tokens = rail_core::auth::TokenSet {
+        access_token: "tok-access-value".into(),
+        refresh_token: "tok-refresh-value".into(),
+        expires_at: 1,
+    };
+    feed(&mut screen, Event::LoginFinished(Ok(tokens)));
+    let report = rail_core::onboarding::DoneReport {
+        config_path: "/c/config.toml".into(),
+        token_backend: "file".into(),
+        token_location: "/d/secrets.json".into(),
+        store_path: "/d/rail.db".into(),
+    };
+    feed(&mut screen, Event::Persisted(Ok(report)));
+    for (width, height) in SIZES {
+        let text = draw(&screen, width, height);
+        for needle in [
+            "Choose your keys",
+            "rail — Rail's own keys",
+            "vim — h/l panes",
+            "outlook — ",
+            "▸ Done",
+        ] {
+            assert!(
+                text.contains(needle),
+                "{width}x{height} lacks {needle:?}:\n{text}"
+            );
+        }
+    }
+    press(&mut screen, KeyCode::Down);
+    let effects = press(&mut screen, KeyCode::Enter);
+    assert!(
+        matches!(effects.as_slice(), [Effect::Spawn(_)]),
+        "{effects:?}"
+    );
+    feed(&mut screen, Event::KeymapSaved(Ok(())));
+    let text = draw(&screen, 100, 30);
+    assert!(text.contains("All set") && text.contains("vim"), "{text}");
+}

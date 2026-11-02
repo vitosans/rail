@@ -540,3 +540,31 @@ fn outside_text_in_a_failure_is_escaped_and_labelled_on_its_own_line() {
     assert_eq!(lines[2], "hint: try again");
     assert!(!shown.message.contains('\u{1b}'));
 }
+
+/// The setup wizard's Keys step writes `keymap` and keeps the rest of the config.
+#[test]
+fn save_keymap_writes_the_preset_and_keeps_the_rest() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    std::fs::write(&path, "# mine\n[general]\nhints = true\n").unwrap();
+    super::save_keymap(&path, rail_core::config::KeymapPreset::Vim).unwrap();
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(text.contains("keymap = \"vim\""), "{text}");
+    assert!(
+        text.contains("# mine") && text.contains("hints = true"),
+        "{text}"
+    );
+}
+
+/// A preset the config's own `[keys]` clash with is refused, naming the entry, and the file
+/// is left alone: written, it would stop Rail from starting.
+#[test]
+fn save_keymap_refuses_a_preset_keys_clash_with() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    let text = "[keys]\n\"list.star\" = \"U\"\n";
+    std::fs::write(&path, text).unwrap();
+    let error = super::save_keymap(&path, rail_core::config::KeymapPreset::Vim).unwrap_err();
+    assert!(error.contains("list.star"), "{error}");
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), text);
+}
