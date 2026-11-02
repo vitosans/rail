@@ -347,3 +347,47 @@ fn the_emacs_preset_adds_emacs_keys_beside_rails_own() {
         }
     }
 }
+
+#[test]
+fn the_gmail_preset_follows_gmails_web_shortcuts() {
+    let map = configured("[general]\nkeymap = \"gmail\"\n").unwrap();
+    let chord = |a: char, b: char| vec![char_key(a), char_key(b)];
+    let cases = [
+        (View::List, vec![char_key('o')], Action::ListOpen),
+        (View::List, vec![char_key('I')], Action::ListMarkRead),
+        (View::List, vec![char_key('U')], Action::ListMarkUnread),
+        (View::Reader, vec![char_key('I')], Action::ListMarkRead),
+        (View::Reader, vec![char_key('U')], Action::ListMarkUnread),
+        (View::List, vec![char_key('#')], Action::ListTrashNow),
+        (View::List, vec![char_key('d')], Action::ListTrash),
+        (View::List, vec![char_key('v')], Action::ListMove),
+        (View::List, vec![char_key('b')], Action::ListSnooze),
+        (View::List, vec![char_key('B')], Action::ListSidebar),
+        (View::List, vec![char_key('x')], Action::ListSelect),
+        (View::List, vec![char_key('V')], Action::ListSelectRange),
+        (View::List, vec![char_key('a')], Action::ListReplyAll),
+        (View::Reader, vec![char_key('a')], Action::ListReplyAll),
+        (View::List, vec![char_key('N')], Action::ListRefresh),
+        (View::List, chord('g', 'i'), Action::ListUnified),
+        (View::List, chord('*', 'a'), Action::ListSelectAll),
+        (View::List, chord('*', 'n'), Action::ListClearSelection),
+        (View::List, vec![char_key('z')], Action::GlobalUndo),
+        (View::Reader, vec![char_key('u')], Action::ReaderBack),
+        (View::Reader, vec![char_key('A')], Action::ReaderAttachments),
+        (View::Reader, vec![char_key('T')], Action::ReaderTrustImages),
+        (View::Reader, vec![char_key('i')], Action::ReaderLoadImages),
+        (View::Compose, vec![ctrl('s')], Action::ComposePush),
+    ];
+    for (view, keys, action) in cases {
+        assert_eq!(
+            resolve(&map, view, &keys),
+            Resolved::Action(action),
+            "{view:?} {keys:?}"
+        );
+    }
+    // Gmail has no read toggle: `u` in the list is free.
+    assert_eq!(
+        resolve(&map, View::List, &[char_key('u')]),
+        Resolved::Unbound
+    );
+}
