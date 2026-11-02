@@ -58,7 +58,7 @@ fn upgrading_keeps_the_action_identity_after_its_reversal_is_restacked() {
         "add",
     );
     let read = enqueue(&mut store, Action::Read { on: true }, vec![t1], "read");
-    store.conn().execute_batch("ALTER TABLE outbox DROP COLUMN folder_remotes; ALTER TABLE attachments DROP COLUMN content_id; PRAGMA user_version = 8;
+    store.conn().execute_batch("ALTER TABLE outbox DROP COLUMN folder_remotes; ALTER TABLE attachments DROP COLUMN content_id; ALTER TABLE messages DROP COLUMN vouched_domains; PRAGMA user_version = 8;
         UPDATE folders SET remote_id = 'Label_other' WHERE remote_id = 'Label_1';
         INSERT INTO folders (account_id, remote_id, name, kind) VALUES (1, 'Label_1', 'Projects', 'user');").unwrap();
     let recreated = store.conn().last_insert_rowid();

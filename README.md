@@ -459,9 +459,12 @@ alt text shows `[image: …]` in its place, and `i` loads the open thread's remo
 loads them and remembers the sender of the message under the cursor, by address, so their mail
 shows its pictures from then on (`remote pictures from jira@example.com: always`, saved as
 `remote_images_from` under `[general]`); `I` on their mail again stops that
-(`…: ask first`). Trusting a sender trusts any mail whose From line carries that address, and a
-From line can be forged, so trust only senders whose pictures you would not mind loading for a
-stranger. `i` loads every remote picture of the thread, a tracking pixel too when the mail does not
+(`…: ask first`). A From line can be forged, so a trusted sender's mail loads its pictures by
+itself only when the receiving server vouched for the sender's domain: Gmail's or Microsoft 365's
+own `Authentication-Results` show DMARC passed for it, or a DKIM signature of it (or of a parent
+domain) passed. Other mail from that address waits with the hint, as an untrusted sender's does,
+and so does mail stored before Rail kept these results, until its body is fetched again; `i`
+loads it. `i` loads every remote picture of the thread, a tracking pixel too when the mail does not
 declare its size. The daemon fetches them (never the terminal), only over `https` from public
 addresses, with no cookies or referrer, at most 5 MiB each, and keeps them for a week in Rail's
 private image cache. `remote_images = true` under `[general]` or `:remote-images` loads them in
@@ -1417,7 +1420,7 @@ running syncs carry on unchanged.
 | `rich_html` | `true` | The reader draws HTML mail's bold, italic, quoted and linked text in those styles. `false` shows the same text plain. `:rich-html` toggles it and saves it. |
 | `images` | `true` | With `rich_html`, the reader draws the pictures an HTML message carries inline, through the terminal's image protocol (kitty, iTerm2 or sixel) or as coloured half blocks elsewhere. Rail asks the terminal which it speaks as it starts, waiting up to 2 s for one that does not answer; with `TERM` unset, empty or `dumb` it does not ask and draws half blocks. `false` leaves them out. `:images` toggles it and saves it. |
 | `remote_images` | `false` | With `images`, the reader fetches every HTML message's remote pictures, which tells their senders you opened the mail. `false` holds them back until `i` loads one thread's. `:remote-images` toggles it and saves it. |
-| `remote_images_from` | `[]` | Senders, by address, whose remote pictures the reader always fetches, such as `["jira@example.com"]`. The match is the From line's address, which a forged message can carry too. `I` on a message adds its sender or removes them, and saves the list. |
+| `remote_images_from` | `[]` | Senders, by address, whose remote pictures the reader always fetches, such as `["jira@example.com"]`: for mail whose From line the receiving server vouched for (DMARC, or DKIM aligned with the sender's domain), since a forged message can carry the address too. `I` on a message adds its sender or removes them, and saves the list. |
 
 ### `[[saved_searches]]`
 

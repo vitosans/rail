@@ -59,9 +59,11 @@ impl MailScreen {
         effects
     }
 
-    /// `I`: always load the cursor message's sender's remote pictures (fetching them now), or
-    /// stop, say so, and add or remove just that address in `remote_images_from` as the file
-    /// has it, so a sender added elsewhere stays (an empty list removes the key).
+    /// `I`: always load the cursor message's sender's remote pictures (fetching this thread's
+    /// now, as `i` does, whether or not its sender was vouched for), or stop, say so, and add
+    /// or remove just that address in `remote_images_from` as the file has it, so a sender
+    /// added elsewhere stays (an empty list removes the key). Later mail loads by itself only
+    /// when the receiving server vouched for the sender's domain.
     pub(super) fn trust_sender(&mut self) -> Vec<Effect> {
         let Some(address) = self.reader.as_ref().and_then(Reader::sender_at_cursor) else {
             return Vec::new();
@@ -81,6 +83,9 @@ impl MailScreen {
         let senders = self.trusted_senders();
         if let Some(reader) = &mut self.reader {
             reader.set_trusted(senders);
+            if trusted {
+                reader.load_remote();
+            }
         }
         let choice = if trusted { "always" } else { "ask first" };
         let notice = format!("remote pictures from {}: {choice}", escape(&address));

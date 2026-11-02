@@ -366,7 +366,9 @@ fn a_trusted_senders_remote_pictures_load_without_the_key_and_others_wait() {
     // Message 4 is David's; Tom's message 2 is collapsed.
     let html = r#"<p>a</p><img src="https://cdn.example.com/a.png" width="160" height="64">"#;
     let trusted = HashSet::from(["david@example.com".to_string()]);
-    let mut reader = reader_of(four(0), ThreadOrder::Oldest)
+    let mut detail = four(0);
+    detail.messages[3].vouched_domains = vec!["example.com".into()];
+    let mut reader = reader_of(detail, ThreadOrder::Oldest)
         .with_rich(true)
         .with_images(Some(Picker::halfblocks()))
         .with_remote(false, trusted, HINT.into());
@@ -380,6 +382,28 @@ fn a_trusted_senders_remote_pictures_load_without_the_key_and_others_wait() {
     reader.set_trusted(HashSet::from(["tom@example.com".to_string()]));
     assert!(reader.pictures_wanted().is_empty(), "David no longer is");
     assert!(reader.lines(100).iter().any(|l| l.text() == HINT));
+}
+
+/// A From line can be forged: a trusted sender's pictures load by themselves only when the
+/// receiving server vouched for the sender's domain. Otherwise the message waits with the hint,
+/// as an untrusted sender's does, and `i` still loads it.
+#[test]
+fn a_trusted_sender_whose_domain_was_not_vouched_for_waits_with_the_hint() {
+    let html = r#"<p>a</p><img src="https://cdn.example.com/a.png" width="160" height="64">"#;
+    let trusted = HashSet::from(["david@example.com".to_string()]);
+    for vouched in [vec![], vec!["other.example".to_string()]] {
+        let mut detail = four(0);
+        detail.messages[3].vouched_domains = vouched;
+        let mut reader = reader_of(detail, ThreadOrder::Oldest)
+            .with_rich(true)
+            .with_images(Some(Picker::halfblocks()))
+            .with_remote(false, trusted.clone(), HINT.into());
+        reader.rich_read(4, Some(from_html(html)));
+        assert!(reader.pictures_wanted().is_empty());
+        assert!(reader.lines(100).iter().any(|l| l.text() == HINT));
+        assert!(reader.load_remote(), "i still loads them");
+        assert_eq!(reader.pictures_wanted().len(), 1);
+    }
 }
 
 #[test]

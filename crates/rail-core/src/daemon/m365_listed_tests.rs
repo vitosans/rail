@@ -197,7 +197,7 @@ async fn an_imported_outlook_drafts_saves_upload_nothing_for_its_files() {
         .await;
     Mock::given(method("GET"))
         .and(path(format!("{ROOT}/me/messages/g-od1")))
-        .and(query_param("$select", "id,body,hasAttachments"))
+        .and(query_param("$select", crate::provider::graph::BODY_FIELDS))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "id": "g-od1", "hasAttachments": true,
             "body": {"contentType": "text", "content": "written in Outlook"}

@@ -4,16 +4,19 @@
 //! numbered link markers, which fetches nothing and runs in bounded time; plain text is
 //! decoded from its charset, and its bare addresses get markers too.
 //! The text keeps its lines and tabs and loses every other control and format character. A
-//! body over `MAX_BODY_BYTES` is cut and ends with `TRUNCATED_MARKER`.
+//! body over `MAX_BODY_BYTES` is cut and ends with `TRUNCATED_MARKER`. The topmost
+//! `Authentication-Results`, when it is Gmail's own (`GMAIL_AUTHSERV_ID`), says which From
+//! domains Gmail vouched for (`auth_results`).
 
 use base64::Engine as _;
 use base64::alphabet;
 use base64::engine::{DecodePaddingMode, GeneralPurpose, GeneralPurposeConfig};
 
 use super::metadata::{cut, one_line_capped};
-use super::wire::{AttachmentBody, Message, Part};
+use super::wire::{AttachmentBody, Header, Message, Part};
 use super::{COST_ATTACHMENT, COST_GET, GmailProvider, checked_id, safe_id};
 use crate::config::model::is_format_char;
+use crate::provider::auth_results::vouched_domains;
 use crate::provider::html::html_render;
 use crate::provider::limits::{MAX_ATTACHMENTS, MAX_FILENAME_CHARS};
 use crate::provider::links::{Rendered, plain_links};
@@ -92,10 +95,13 @@ impl GmailProvider {
         if message.id.as_deref() != Some(id) {
             return Err(unreadable());
         }
-        let walked = walk(&message.payload.ok_or_else(unreadable)?);
+        let payload = message.payload.ok_or_else(unreadable)?;
+        let vouched = vouched(&payload.headers);
+        let walked = walk(&payload);
         let Some(chosen) = walked.chosen else {
             return Ok(Body {
                 attachments: walked.attachments,
+                vouched_domains: vouched,
                 ..Body::default()
             });
         };
@@ -105,12 +111,14 @@ impl GmailProvider {
             (None, None) => String::new(),
         };
         let (kind, charset, attachments) = (chosen.kind, chosen.charset, walked.attachments);
-        tokio::task::spawn_blocking(move || {
+        let mut body = tokio::task::spawn_blocking(move || {
             let bytes = decode_base64(&data)?;
             render(kind, &bytes, charset.as_deref(), attachments)
         })
         .await
-        .map_err(|_| unreadable())?
+        .map_err(|_| unreadable())??;
+        body.vouched_domains = vouched;
+        Ok(body)
     }
 
     /// A body part Gmail sent separately (`messages.attachments.get`, read only).
@@ -126,6 +134,18 @@ impl GmailProvider {
         let body: AttachmentBody = self.api.get_json(&path, &[], COST_ATTACHMENT).await?;
         Ok(body.data.unwrap_or_default())
     }
+}
+
+/// The server name Gmail's own `Authentication-Results` start with.
+pub const GMAIL_AUTHSERV_ID: &str = "mx.google.com";
+
+/// The domains the topmost `Authentication-Results` vouches for, when it is Gmail's.
+fn vouched(headers: &[Header]) -> Vec<String> {
+    headers
+        .iter()
+        .find(|h| h.name.eq_ignore_ascii_case("Authentication-Results"))
+        .map(|h| vouched_domains(&h.value, Some(GMAIL_AUTHSERV_ID)))
+        .unwrap_or_default()
 }
 
 /// The part the body is made from, and every attachment.
@@ -280,6 +300,7 @@ pub(crate) fn render(
         attachments,
         attachments_unknown: false,
         links: rendered.links,
+        vouched_domains: Vec::new(),
     })
 }
 

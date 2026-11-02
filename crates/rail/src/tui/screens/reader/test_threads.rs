@@ -43,6 +43,7 @@ pub fn message(id: i64, from: Mailbox, secs: i64, text: &str) -> MessageView {
         links: Vec::new(),
         attachments: Vec::new(),
         has_html: false,
+        vouched_domains: Vec::new(),
     }
 }
 

@@ -8,7 +8,7 @@ use wiremock::matchers::{headers, method, path, query_param};
 use wiremock::{Mock, ResponseTemplate};
 
 use super::attachment::REFERENCE_ATTACHMENT;
-use super::body::HTML_BODY;
+use super::body::{BODY_FIELDS, HTML_BODY};
 use super::fixtures::{Graph, ROOT};
 use crate::provider::http::IMMUTABLE_IDS;
 use crate::provider::{AttachmentMeta, Provider, ProviderError};
@@ -21,7 +21,7 @@ const LISTED: &str = "id,name,contentType,size,isInline,microsoft.graph.fileAtta
 async fn serve_body(g: &Graph, id: &str, answer: Value) {
     Mock::given(method("GET"))
         .and(path(format!("{ROOT}/me/messages/{id}")))
-        .and(query_param("$select", "id,body,hasAttachments"))
+        .and(query_param("$select", BODY_FIELDS))
         .and(headers("Prefer", vec![IMMUTABLE_IDS, HTML_BODY]))
         .respond_with(ResponseTemplate::new(200).set_body_json(answer))
         .expect(1)
@@ -261,4 +261,31 @@ async fn an_upper_case_cid_lists_the_inline_parts_too() {
     let body = g.provider().body("m1").await.unwrap();
     assert_eq!(body.attachments.len(), 1);
     assert!(!body.attachments_unknown);
+}
+
+#[tokio::test]
+async fn the_topmost_authentication_results_say_which_domains_were_vouched_for() {
+    let g = Graph::start().await;
+    let answer = json!({"id": "m1", "hasAttachments": false,
+    "body": {"contentType": "text", "content": "hi"},
+    "internetMessageHeaders": [
+        {"name": "Received", "value": "from x"},
+        {"name": "Authentication-Results",
+         "value": "spf=pass smtp.mailfrom=example.com; dkim=pass header.d=example.com; dmarc=pass action=none header.from=example.com"},
+        {"name": "Authentication-Results",
+         "value": "dmarc=pass header.from=forged.example"}
+    ]});
+    serve_body(&g, "m1", answer).await;
+    let body = g.provider().body("m1").await.unwrap();
+    assert_eq!(body.vouched_domains, ["example.com"]);
+}
+
+#[tokio::test]
+async fn a_message_without_authentication_results_vouches_for_nothing() {
+    let g = Graph::start().await;
+    let answer = json!({"id": "m1", "hasAttachments": false,
+                        "body": {"contentType": "text", "content": "hi"}});
+    serve_body(&g, "m1", answer).await;
+    let body = g.provider().body("m1").await.unwrap();
+    assert!(body.vouched_domains.is_empty());
 }

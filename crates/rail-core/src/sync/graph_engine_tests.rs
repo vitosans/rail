@@ -176,7 +176,7 @@ async fn a_resync_keeps_what_graph_still_lists_with_its_body_and_drops_the_rest(
                       "body": {"contentType": "text", "content": "kept body"}});
     Mock::given(method("GET"))
         .and(path(format!("{ROOT}/me/messages/m1")))
-        .and(query_param("$select", "id,body,hasAttachments"))
+        .and(query_param("$select", crate::provider::graph::BODY_FIELDS))
         .respond_with(ResponseTemplate::new(200).set_body_json(body))
         .mount(&g.server)
         .await;

@@ -1,4 +1,4 @@
-//! One message's body: `GET me/messages/{id}?$select=id,body,hasAttachments` with
+//! One message's body: `GET me/messages/{id}?$select=` `BODY_FIELDS` with
 //! `Prefer: outlook.body-content-type="html"`, rendered as Gmail's are (`gmail::body::render`:
 //! HTML through `provider::html`, text as it is, both cut at `MAX_BODY_BYTES`). With
 //! `hasAttachments`, the attachment list comes with it, inline ones included, as Gmail lists
@@ -6,16 +6,22 @@
 //! kind a forward carries and an import fetches, and its Content-ID. Graph says
 //! `hasAttachments` is false when every attachment is inline: the list is then read only when
 //! the HTML names a `cid:` image (in any case). A list Graph refuses leaves the body readable
-//! and says its attachments are unknown, so the ones already stored are kept.
+//! and says its attachments are unknown, so the ones already stored are kept. The topmost
+//! `Authentication-Results` of `internetMessageHeaders`, the one Exchange Online adds, says
+//! which From domains it vouched for (`auth_results`).
 
 use super::reconcile::plain_file;
-use super::wire::{AttachmentWire, BodyWire, Page};
+use super::wire::{AttachmentWire, BodyWire, HeaderWire, Page};
 use super::{COST_REQUEST, GraphProvider, graph_id};
+use crate::provider::auth_results::vouched_domains;
 use crate::provider::gmail::body::{Kind, render};
 use crate::provider::gmail::metadata::one_line_capped;
 use crate::provider::limits::{MAX_ATTACHMENTS, MAX_FILENAME_CHARS};
 use crate::provider::types::content_id;
 use crate::provider::{AttachmentMeta, Body, ProviderError};
+
+/// What a body fetch selects.
+pub const BODY_FIELDS: &str = "id,body,hasAttachments,internetMessageHeaders";
 
 /// The preference that asks for the HTML body.
 pub const HTML_BODY: &str = "outlook.body-content-type=\"html\"";
@@ -44,6 +50,16 @@ fn meta(wire: AttachmentWire) -> AttachmentMeta {
     }
 }
 
+/// The domains the topmost `Authentication-Results` vouches for. Exchange Online's carries no
+/// server name, so none is asked for.
+fn vouched(headers: &[HeaderWire]) -> Vec<String> {
+    headers
+        .iter()
+        .find(|h| h.name.eq_ignore_ascii_case("Authentication-Results"))
+        .map(|h| vouched_domains(&h.value, None))
+        .unwrap_or_default()
+}
+
 /// Whether HTML names a `cid:` image, in any case (`CID:` is the same scheme).
 fn names_cid(html: &str) -> bool {
     html.as_bytes()
@@ -56,7 +72,7 @@ impl GraphProvider {
         if !graph_id(id) {
             return Err(unreadable());
         }
-        let query = [("$select", "id,body,hasAttachments".to_string())];
+        let query = [("$select", BODY_FIELDS.to_string())];
         let path = format!("me/messages/{id}");
         let wire: BodyWire = self
             .api
@@ -65,6 +81,7 @@ impl GraphProvider {
         if wire.id.as_deref() != Some(id) {
             return Err(unreadable());
         }
+        let vouched = vouched(wire.internet_message_headers.as_deref().unwrap_or_default());
         let body = wire.body.unwrap_or_default();
         let kind = match body.content_type.as_deref() {
             Some(text) if text.eq_ignore_ascii_case("text") => Kind::Plain,
@@ -88,6 +105,7 @@ impl GraphProvider {
         .await
         .map_err(|_| unreadable())??;
         body.attachments_unknown = unknown;
+        body.vouched_domains = vouched;
         Ok(body)
     }
 
