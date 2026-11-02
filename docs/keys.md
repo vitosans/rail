@@ -32,11 +32,14 @@ A key name is one of:
 | Form | Examples |
 |---|---|
 | A character | `a`, `O`, `/` |
-| A named key | `enter`, `esc`, `tab`, `backtab`, `space`, `up`, `down`, `left`, `right`, `pageup`, `pagedown`, `home`, `end`, `f1` to `f12` |
+| A named key | `enter`, `esc`, `tab`, `backtab`, `space`, `up`, `down`, `left`, `right`, `pageup`, `pagedown`, `home`, `end`, `delete`, `backspace`, `insert`, `f1` to `f12` |
 | Either of those with `ctrl-`, `alt-` or `shift-` in front | `ctrl-r`, `shift-tab`, `shift-down` |
 | Two keys with a space between them, for a sequence | `g x` |
 
 `shift-` goes on a letter, `tab`, `up` or `down`.
+
+On a Mac keyboard the key labelled delete, above Return, is `backspace`; `delete` is
+`fn`-delete. Text fields and dialogs keep both keys for editing, whatever `[keys]` says.
 
 ## When Rail refuses a `[keys]` entry
 
