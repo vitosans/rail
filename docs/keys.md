@@ -78,6 +78,7 @@ are: choosing or adding a preset never moves them.
 | `vim` | The table's keys, except those listed [below](#the-vim-preset). |
 | `mutt` | The table's keys, except those listed [below](#the-mutt-preset). |
 | `emacs` | The table's keys, plus those listed [below](#the-emacs-preset). |
+| `gmail` | The table's keys, except those listed [below](#the-gmail-preset). |
 
 ### Switching presets
 
@@ -160,6 +161,31 @@ bound: send with `y`. `Alt-` keys reach Rail as `Esc` followed by the key in mos
 macOS, set the terminal's Option key to send Esc+ (iTerm2: Profiles → Keys; Terminal: "Use Option
 as Meta key").
 
+### The gmail preset
+
+Keys follow Gmail's keyboard shortcuts on the web. Many of Rail's keys are Gmail's already
+(`j`/`k`, `n`/`p`, `e`, `s`, `r`, `f`, `c`, `l`, `/`, `z`, `* a`), so they stay. `d` still asks
+before trashing.
+
+| Keys | gmail preset |
+|---|---|
+| `o` | Open the thread, beside `Enter`. |
+| `u` | Close the thread in the reader (Gmail's back to the list), beside `q` and `Esc`. In the list `u` does nothing: Gmail has no read toggle. |
+| `I` / `U` | Mark read / mark unread (`list.mark_read`, `list.mark_unread`). |
+| `#` | Move to the trash without asking (`list.trash_now`); undo still works. In Drafts it asks too. |
+| `v` | Move to a label or folder, beside `m`. |
+| `b` | Snooze (`h` in `rail`). |
+| `x` | Select or unselect the thread, beside `Space`. |
+| `* n` | Clear the selection, beside `Esc`. |
+| `a` | Reply to everyone, beside `R`. |
+| `N` | Sync now, beside `Ctrl-r`. |
+| `g i` | Go to the unified inbox, beside `0`. |
+| `Ctrl-s` | Save to Drafts in the composer, beside `s`. |
+| `B` | Show or hide the sidebar (`b` in `rail`). |
+| `V` | Select a range of threads (`v` in `rail`). |
+| `A` | List the attachments in the reader (`a` in `rail`). |
+| `T` | Always load this sender's remote pictures, or stop (`I` in `rail`). |
+
 ## Where actions work
 
 | Actions | Take effect in |
@@ -205,11 +231,11 @@ action's own description.
 | `list.bottom` | list | `end` `G` | Oldest thread. |  |
 | `list.archive` | list, reader | `e` | Archive the thread or the selection. |  |
 | `list.trash` | list, reader | `d` | Move to the trash (asks first). |  |
-| `list.trash_now` | list, reader | (none) | Move to the trash without asking (undo still works). | `D` in the `vim` and `mutt` presets. |
+| `list.trash_now` | list, reader | (none) | Move to the trash without asking (undo still works). | `D` in the `vim` and `mutt` presets, `#` in `gmail`. |
 | `list.star` | list, reader | `s` | Star or unstar. |  |
 | `list.read` | list, reader | `u` | Mark read or unread. |  |
-| `list.mark_read` | list, reader | (none) | Mark read. | Marks read even when nothing is unread, where `u` toggles. |
-| `list.mark_unread` | list, reader | (none) | Mark unread. | Marks unread even when something is unread already. |
+| `list.mark_read` | list, reader | (none) | Mark read. | Marks read even when nothing is unread, where `u` toggles. `I` in the `gmail` preset. |
+| `list.mark_unread` | list, reader | (none) | Mark unread. | Marks unread even when something is unread already. `U` in the `gmail` preset. |
 | `list.labels` | list, reader | `l` | Add or remove labels (Gmail). |  |
 | `list.move` | list, reader | `m` | Move to a label (Gmail) or a folder (Microsoft 365). |  |
 | `list.snooze` | list, reader | `h` | Snooze until later, or return a snoozed thread. | See [Snooze](actions.md#snooze). |

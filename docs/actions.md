@@ -28,7 +28,8 @@ From the thread list or the reader:
 An action applies to the whole thread, as in Gmail.
 
 `u` toggles. To have one key that only marks read and another that only marks unread, bind
-`list.mark_read` and `list.mark_unread` in `[keys]` (they have no key by default):
+`list.mark_read` and `list.mark_unread` in `[keys]` (they have no key by default; the `gmail`
+preset puts them on `I` and `U`):
 
 ```toml
 [keys]
@@ -50,7 +51,7 @@ Rail never deletes mail for good.
 - Over 50 threads (`bulk_confirm` under `[general]`), `e`, `s`, `u`, `list.mark_read` and
   `list.mark_unread` ask first too, naming the count, for example `Archive 1,234 threads?`.
 - `d` always asks.
-- Trash without asking (`list.trash_now`, `D` in the vim and mutt presets) asks only over that count.
+- Trash without asking (`list.trash_now`, `D` in the vim and mutt presets, `#` in gmail) asks only over that count.
 
 ### What happens next
 

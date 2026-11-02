@@ -55,7 +55,7 @@ Where the file lives: [File locations](#file-locations).
 | `clock` | `true` | `false` hides the time of day at the right edge of the header. `:clock` in the palette toggles it and saves it. |
 | `time` | `"24h"` | `"24h"` writes times of day as `14:05`, `"12h"` as `2:05 pm` (the list, the header's `Synced` and its clock, the Drafts list, `:errors`, the reader's title block and cards (`04:32` today, `Thu 08:55` yesterday and this week), and the `Date:` header line `H` shows). `:time` in the palette toggles it and saves it. |
 | `dim_read` | `"dot"` | Read threads: `"dot"` keeps the small muted dot, `"subject"` also dims the subject, `"all"` dims the sender, subject, count and time. `:dim-read` cycles the modes and saves the choice. |
-| `keymap` | `"rail"` | The key preset every action starts from: `"rail"`, `"vim"`, `"mutt"` or `"emacs"` (see [Keys](keys.md#key-presets)). `[keys]` goes over it. `:keymap` switches and saves the choice. |
+| `keymap` | `"rail"` | The key preset every action starts from: `"rail"`, `"vim"`, `"mutt"`, `"emacs"` or `"gmail"` (see [Keys](keys.md#key-presets)). `[keys]` goes over it. `:keymap` switches and saves the choice. |
 | `thread_order` | `"oldest"` | How the reader lists a thread's older messages under the newest one: `"oldest"` first or `"newest"` first. `:thread-order` in the palette toggles it and saves it. |
 | `layout` | `"auto"` | Only `"auto"` works in this version; `"split"` and `"stack"` are accepted and act as `"auto"`. |
 | `editor` | unset | The command that writes mail, split like a shell command line (no shell runs), e.g. `"nvim"` or `"code --wait"`. Unset: `$VISUAL`, then `$EDITOR`, then `vi`. Read when the mail screen starts. |
