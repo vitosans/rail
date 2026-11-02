@@ -6,6 +6,13 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `remote_images_ipv6` under `[general]` (default `true`). `false` makes the daemon fetch remote
+  pictures over IPv4 only. On an IPv6-only network with NAT64, the gateway's own prefix looks
+  public to Rail's address guard but can be translated to private IPv4 addresses; the README now
+  says so (#134).
+
 ### Security
 
 - A trusted sender's remote pictures (`remote_images_from`, `I`) load by themselves only when
@@ -21,6 +28,8 @@ All notable changes to Rail are recorded here. The format follows
   Rail refuses the upgraded store.
 - Mail stored before this version has no vouched domains until its body is fetched again, so a
   trusted sender's older mail shows the hint; `i` loads it.
+- An older Rail refuses a `config.toml` that contains `remote_images_ipv6`; remove it before
+  going back.
 
 ## [0.6.0] - 2026-11-01
 

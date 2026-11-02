@@ -102,6 +102,10 @@ pub struct General {
     /// `general.remote_images_from`: the senders (addresses) whose remote pictures the reader
     /// always fetches. `I` on a message adds its sender, or removes them.
     pub remote_images_from: Vec<String>,
+    /// `general.remote_images_ipv6`: the daemon may fetch remote pictures over IPv6. `false`
+    /// refuses every IPv6 address, for an IPv6-only network whose NAT64 prefix could reach
+    /// private IPv4 space.
+    pub remote_images_ipv6: bool,
 }
 
 impl Default for General {
@@ -129,6 +133,7 @@ impl Default for General {
             images: true,
             remote_images: false,
             remote_images_from: Vec::new(),
+            remote_images_ipv6: true,
         }
     }
 }

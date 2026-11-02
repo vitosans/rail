@@ -97,3 +97,24 @@ async fn a_refused_or_overlong_address_writes_nothing() {
     assert!(!overlong.message.contains("example.com"));
     nothing_written(&h.paths.images_dir());
 }
+
+/// The daemon reads `remote_images_ipv6` from config.toml at each ask, so a change made while
+/// it runs applies to the next picture.
+#[tokio::test]
+async fn remote_images_ipv6_false_in_the_config_refuses_an_ipv6_address() {
+    let h = DaemonHarness::new().await;
+    let url = "http://[::1]:9/logo";
+    let tried = remote(&h, url).await.unwrap_err();
+    assert_eq!(
+        tried.code,
+        ErrorCode::Network,
+        "allowed by default: {tried:?}"
+    );
+
+    let config = std::fs::read_to_string(h.paths.config_file()).unwrap();
+    let off = config.replace("[general]\n", "[general]\nremote_images_ipv6 = false\n");
+    std::fs::write(h.paths.config_file(), off).unwrap();
+    let refused = remote(&h, url).await.unwrap_err();
+    assert_eq!(refused.code, ErrorCode::InvalidInput, "{refused:?}");
+    nothing_written(&h.paths.images_dir());
+}

@@ -6,7 +6,10 @@
 //! address to the check and another to the connect), and each redirect (at most
 //! `MAX_REDIRECTS`) again the same way. No proxy (it would resolve names itself), no cookies,
 //! no referrer, a timeout, and a body cap; the type is read from the bytes, never from the
-//! server. Errors and logs carry kinds, never the address.
+//! server. With `Ipv6::Refused` (`remote_images_ipv6 = false`) no IPv6 address is fetched at
+//! all: on an IPv6-only network a NAT64 gateway's own prefix (inside `2000::/3`, so public to
+//! `public`) can be translated to a private IPv4 address, and only the network knows its
+//! prefix. Errors and logs carry kinds, never the address.
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
@@ -29,20 +32,34 @@ const TIMEOUT: Duration = Duration::from_secs(15);
 pub(super) struct Rules {
     https_only: bool,
     loopback: bool,
+    ipv6: bool,
 }
 
 impl Rules {
     pub(super) const STRICT: Self = Self {
         https_only: true,
         loopback: false,
+        ipv6: true,
     };
     #[cfg(any(test, feature = "test-gates"))]
     pub(super) const LOOPBACK: Self = Self {
         https_only: false,
         loopback: true,
+        ipv6: true,
     };
 
+    /// These rules, refusing every IPv6 address (an IPv4-mapped one too).
+    pub(super) const fn without_ipv6(self) -> Self {
+        Self {
+            ipv6: false,
+            ..self
+        }
+    }
+
     fn address(self, ip: IpAddr) -> bool {
+        if ip.is_ipv6() && !self.ipv6 {
+            return false;
+        }
         public(ip) || (self.loopback && ip.is_loopback())
     }
 
@@ -135,10 +152,19 @@ impl Resolve for Guarded {
     }
 }
 
-/// The client `image.remote` fetches with.
+/// Whether a fetch may use IPv6 addresses (`remote_images_ipv6`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Ipv6 {
+    Allowed,
+    Refused,
+}
+
+/// The client `image.remote` fetches with: one HTTP client for each `Ipv6`, since the address
+/// rules are fixed into a client's name resolution and redirect policy.
 pub struct RemoteFetch {
     client: reqwest::Client,
     rules: Rules,
+    ipv4_only: reqwest::Client,
 }
 
 impl RemoteFetch {
@@ -158,40 +184,43 @@ impl RemoteFetch {
     }
 
     fn with_rules(rules: Rules) -> Result<Self, OpError> {
-        let redirects = reqwest::redirect::Policy::custom(move |attempt| {
-            if attempt.previous().len() > MAX_REDIRECTS {
-                attempt.error("too many redirects")
-            } else if !rules.url(attempt.url()) {
-                attempt.error("a redirect to an address Rail does not fetch")
-            } else {
-                attempt.follow()
-            }
-        });
-        let client = reqwest::Client::builder()
-            .no_proxy()
-            .dns_resolver(Arc::new(Guarded(rules)))
-            .redirect(redirects)
-            .referer(false)
-            .connect_timeout(CONNECT_TIMEOUT)
-            .timeout(TIMEOUT)
-            .build()
-            .map_err(|_| OpError::internal("could not build the picture client"))?;
-        Ok(Self { client, rules })
+        Ok(Self {
+            client: client(rules)?,
+            rules,
+            ipv4_only: client(rules.without_ipv6())?,
+        })
     }
 
-    /// The picture at `url`, at most `cap` bytes, and its type (one of `IMAGE_TYPES`).
+    /// `fetch_as` with IPv6 allowed.
+    ///
+    /// # Errors
+    /// As `fetch_as`.
+    pub async fn fetch(&self, url: &str, cap: usize) -> Result<(Vec<u8>, &'static str), OpError> {
+        self.fetch_as(url, cap, Ipv6::Allowed).await
+    }
+
+    /// The picture at `url`, at most `cap` bytes, and its type (one of `IMAGE_TYPES`), over
+    /// IPv6 only when `ipv6` allows it.
     ///
     /// # Errors
     /// `InvalidInput` for an address Rail does not fetch, before or after a redirect;
     /// `Network` when the server cannot be reached or refuses; `Unsupported` for bytes over
     /// `cap` or that are no picture Rail draws.
-    pub async fn fetch(&self, url: &str, cap: usize) -> Result<(Vec<u8>, &'static str), OpError> {
+    pub async fn fetch_as(
+        &self,
+        url: &str,
+        cap: usize,
+        ipv6: Ipv6,
+    ) -> Result<(Vec<u8>, &'static str), OpError> {
+        let (rules, client) = match ipv6 {
+            Ipv6::Allowed => (self.rules, &self.client),
+            Ipv6::Refused => (self.rules.without_ipv6(), &self.ipv4_only),
+        };
         let parsed = Url::parse(url).map_err(|_| refused())?;
-        if !self.rules.url(&parsed) {
+        if !rules.url(&parsed) {
             return Err(refused());
         }
-        let mut response = self
-            .client
+        let mut response = client
             .get(parsed)
             .header(
                 reqwest::header::ACCEPT,
@@ -237,6 +266,28 @@ impl RemoteFetch {
         };
         Ok((bytes, mime))
     }
+}
+
+/// The HTTP client for `rules`: names resolved by `Guarded`, redirects checked by the same rules.
+fn client(rules: Rules) -> Result<reqwest::Client, OpError> {
+    let redirects = reqwest::redirect::Policy::custom(move |attempt| {
+        if attempt.previous().len() > MAX_REDIRECTS {
+            attempt.error("too many redirects")
+        } else if !rules.url(attempt.url()) {
+            attempt.error("a redirect to an address Rail does not fetch")
+        } else {
+            attempt.follow()
+        }
+    });
+    reqwest::Client::builder()
+        .no_proxy()
+        .dns_resolver(Arc::new(Guarded(rules)))
+        .redirect(redirects)
+        .referer(false)
+        .connect_timeout(CONNECT_TIMEOUT)
+        .timeout(TIMEOUT)
+        .build()
+        .map_err(|_| OpError::internal("could not build the picture client"))
 }
 
 fn refused() -> OpError {
