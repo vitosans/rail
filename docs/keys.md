@@ -208,6 +208,8 @@ action's own description.
 | `list.trash_now` | list, reader | (none) | Move to the trash without asking (undo still works). | `D` in the `vim` and `mutt` presets. |
 | `list.star` | list, reader | `s` | Star or unstar. |  |
 | `list.read` | list, reader | `u` | Mark read or unread. |  |
+| `list.mark_read` | list, reader | (none) | Mark read. | Marks read even when nothing is unread, where `u` toggles. |
+| `list.mark_unread` | list, reader | (none) | Mark unread. | Marks unread even when something is unread already. |
 | `list.labels` | list, reader | `l` | Add or remove labels (Gmail). |  |
 | `list.move` | list, reader | `m` | Move to a label (Gmail) or a folder (Microsoft 365). |  |
 | `list.snooze` | list, reader | `h` | Snooze until later, or return a snoozed thread. | See [Snooze](actions.md#snooze). |
