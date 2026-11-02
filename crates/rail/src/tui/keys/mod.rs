@@ -4,6 +4,8 @@
 //! `F2` opens the palette whatever the preset and `[keys]` say, so a switch never hides it.
 
 mod actions;
+#[cfg(test)]
+mod docs_tests;
 mod names;
 #[cfg(test)]
 mod preset_tests;
@@ -279,7 +281,7 @@ impl Keymap {
 fn read_entry(id: &str, value: &str) -> Result<(Action, Binding), String> {
     let action = Action::from_id(id).ok_or_else(|| {
         format!(
-            "[keys] {} is not an action Rail knows (the README lists them)",
+            "[keys] {} is not an action Rail knows (docs/keys.md lists them)",
             quoted(id)
         )
     })?;
