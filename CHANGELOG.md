@@ -26,6 +26,11 @@ All notable changes to Rail are recorded here. The format follows
   action to another key.
 - An older Rail refuses a `config.toml` that contains `keymap`; remove it before going back.
 
+### Changed
+
+- Updated `async-executor` to 1.14.1: 1.14.0, which `keyring`'s Linux Secret Service client
+  pulls in, was yanked.
+
 ## [0.7.0] - 2026-11-02
 
 Security hardening of remote pictures: a trusted sender's pictures load only for mail the
