@@ -69,10 +69,14 @@ The defaults count too:
 `keymap` under `[general]` chooses the keys every action starts from. Your `[keys]` entries go
 over the preset you choose.
 
+A preset changes keys only while you use it. Rail's own keys, the `rail` preset, stay as they
+are: choosing or adding a preset never moves them.
+
 | Preset | Keys |
 |---|---|
 | `rail` (the default) | The keys in [the action table](#every-action). |
 | `vim` | The table's keys, except those listed [below](#the-vim-preset). |
+| `mutt` | The table's keys, except those listed [below](#the-mutt-preset). |
 
 ### Switching presets
 
@@ -97,6 +101,38 @@ back (`keys: vim · F2 opens the palette`). `[keys]` cannot bind `F2` to another
 | `D` | Move to the trash without asking (`list.trash_now`); `d` still asks, and undo still works. In Drafts it asks too, since a discarded draft cannot be undone. |
 | `Ctrl-f` / `Ctrl-b` | One page down / up, beside `PageDown`/`PageUp` and `Ctrl-d`/`Ctrl-u` (also in the reader and the composer). |
 | `N` | Previous message in the reader, beside `p`. |
+
+### The mutt preset
+
+Keys follow mutt's index and pager. `d` still asks before trashing, as in `rail`.
+
+| Keys | mutt preset |
+|---|---|
+| `s` | Move to a label or folder (mutt's save; `m` in `rail`). |
+| `F` | Star or unstar (mutt's flag; `s` in `rail`). |
+| `N` | Mark read or unread (mutt's toggle-new; `u` in `rail`). |
+| `u` | Undo (`z` is unbound). |
+| `D` | Move to the trash without asking (`list.trash_now`); `d` still asks, and undo still works. In Drafts it asks too. |
+| `t` | Select or unselect the thread (mutt's tag), beside `Space`. |
+| `T a` / `T f` | Select every matching thread / every thread from this sender (`* a` / `* f` in `rail`). |
+| `l` | Filter the list (mutt's limit), beside `/`. |
+| `g` | Reply to everyone (mutt's group reply), beside `R`. |
+| `m` | Write a new message (mutt's mail), beside `c`. |
+| `$` | Sync now, beside `Ctrl-r`. |
+| `=` / `*` | Newest / oldest thread, beside `Home` / `End` (`g g` / `G` in `rail`). In the reader `=` goes to the first line. |
+| `Ctrl-o` | Open the link the subject names (`g t` in `rail`). |
+| `Z` | Snooze (`h` in `rail`). |
+| `Y` | Labels (neomutt's edit-label; `l` in `rail`). |
+| `h` | Show or hide the headers in the reader (mutt's toggle-weed; `H` in `rail`). |
+| `i` | Close the thread in the reader (mutt's exit from the pager), beside `q` and `Esc`. |
+| `v` | List the attachments in the reader (mutt's view-attachments; `a` in `rail`). |
+| `P` | Load the thread's remote pictures in the reader (`i` in `rail`). |
+| `Ctrl-b` | Open a link in the reader (`g x` in `rail`). |
+| `-` | One page up in the reader, beside `PageUp`. |
+| `D` (composer) | Remove the highlighted attachment (mutt's detach), beside `x`. |
+
+`g` and `*` are single keys here, so no other key starts with them: that is why the top, bottom,
+link and select-all keys move.
 
 ## Where actions work
 
@@ -143,7 +179,7 @@ action's own description.
 | `list.bottom` | list | `end` `G` | Oldest thread. |  |
 | `list.archive` | list, reader | `e` | Archive the thread or the selection. |  |
 | `list.trash` | list, reader | `d` | Move to the trash (asks first). |  |
-| `list.trash_now` | list, reader | (none) | Move to the trash without asking (undo still works). | `D` in the `vim` preset. |
+| `list.trash_now` | list, reader | (none) | Move to the trash without asking (undo still works). | `D` in the `vim` and `mutt` presets. |
 | `list.star` | list, reader | `s` | Star or unstar. |  |
 | `list.read` | list, reader | `u` | Mark read or unread. |  |
 | `list.labels` | list, reader | `l` | Add or remove labels (Gmail). |  |

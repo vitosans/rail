@@ -41,7 +41,7 @@ Rail never deletes mail for good.
 - Over 50 threads (`bulk_confirm` under `[general]`), `e`, `s` and `u` ask first too, naming the
   count, for example `Archive 1,234 threads?`.
 - `d` always asks.
-- Trash without asking (`list.trash_now`, `D` in the vim preset) asks only over that count.
+- Trash without asking (`list.trash_now`, `D` in the vim and mutt presets) asks only over that count.
 
 ### What happens next
 

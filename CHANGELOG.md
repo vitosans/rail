@@ -8,6 +8,13 @@ All notable changes to Rail are recorded here. The format follows
 
 ### Added
 
+- **The `mutt` preset** (`keymap = "mutt"`): `s` moves, `F` stars, `N` marks read or unread,
+  `t` selects, `l` filters, `g` replies to everyone, `m` writes, `$` syncs and `u` undoes; `d`
+  still asks and `D` trashes without asking. Top and bottom are `=` and `*`, the links `Ctrl-o`
+  and `Ctrl-b`, select all or by sender `T a` and `T f`; in the reader `h` shows the headers,
+  `i` goes back, `v` lists the attachments and `P` loads the pictures. Rail's own keys are
+  unchanged (#153).
+
 - **Key presets.** `keymap` under `[general]` chooses the keys every action starts from, and
   `[keys]` goes over it. `:keymap` lists the presets, switches at once and saves the choice; a
   switch that `[keys]` clashes with is refused and the keys stay. The first preset besides
