@@ -101,6 +101,39 @@ async fn s_and_u_toggle_from_what_the_rows_show() {
     );
 }
 
+/// `list.mark_read` and `list.mark_unread` set one state each, whatever the rows show, where
+/// `u` toggles. They have no key in the `rail` preset, so `[keys]` binds them here.
+#[tokio::test]
+async fn mark_read_and_mark_unread_set_their_state_instead_of_toggling() {
+    let mut f = fixture(3).await;
+    let text = "[keys]\n\"list.mark_read\" = \"M\"\n\"list.mark_unread\" = \"N\"\n";
+    let path = std::path::Path::new("/c/config.toml");
+    let config = rail_core::config::parse(text, path).unwrap();
+    f.screen.ctx.keymap =
+        Arc::new(Keymap::from_config(&config.keys, config.general.keymap, text, path).unwrap());
+    applying(&f);
+    press(&mut f, KeyCode::Char('M')).await;
+    press(&mut f, KeyCode::Char('M')).await;
+    press(&mut f, KeyCode::Char('N')).await;
+    press(&mut f, KeyCode::Char('N')).await;
+    let actions: Vec<MailAction> = applies(&f)
+        .into_iter()
+        .map(|c| match c {
+            FakeCall::Apply { action, .. } => action,
+            _ => unreachable!(),
+        })
+        .collect();
+    assert_eq!(
+        actions,
+        [
+            MailAction::Read { on: true },
+            MailAction::Read { on: true },
+            MailAction::Read { on: false },
+            MailAction::Read { on: false }
+        ]
+    );
+}
+
 #[tokio::test]
 async fn a_selection_survives_a_requery_and_a_scope_change_and_an_action_clears_it() {
     let mut f = fixture(3).await;
