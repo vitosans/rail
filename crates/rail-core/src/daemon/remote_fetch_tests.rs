@@ -10,7 +10,7 @@ use url::Url;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use super::remote_fetch::{Guarded, MAX_REDIRECTS, RemoteFetch, Rules, public};
+use super::remote_fetch::{Guarded, Ipv6, MAX_REDIRECTS, RemoteFetch, Rules, public};
 use crate::error::ErrorClass;
 use crate::ops::{CONTENT_MISMATCH, ErrorCode};
 
@@ -282,4 +282,46 @@ async fn a_few_redirects_are_followed_and_a_longer_chain_is_refused() {
         .await
         .unwrap_err();
     assert_eq!(error.code, ErrorCode::InvalidInput);
+}
+
+/// `remote_images_ipv6 = false`: on an IPv6-only network with NAT64, a public-looking IPv6
+/// address can be translated to a private IPv4 one, so every IPv6 address is refused, mapped
+/// ones too, and names and public IPv4 addresses are fetched as before.
+#[test]
+fn without_ipv6_every_ipv6_address_is_refused_and_ipv4_is_not() {
+    let rules = Rules::STRICT.without_ipv6();
+    let url = |text: &str| Url::parse(text).unwrap();
+    for fetched in [
+        "https://cdn.example.com/a.png",
+        "https://93.184.215.14/a.png",
+    ] {
+        assert!(rules.url(&url(fetched)), "{fetched}");
+    }
+    for refused in [
+        "https://[2606:4700::1111]/a.png",
+        "https://[64:ff9b::5db8:d70e]/a.png",
+        "https://[::ffff:93.184.215.14]/a.png",
+    ] {
+        assert!(!rules.url(&url(refused)), "{refused}");
+    }
+    assert!(Rules::STRICT.url(&url("https://[2606:4700::1111]/a.png")));
+}
+
+#[tokio::test]
+async fn an_ipv6_address_is_refused_before_any_connect_when_ipv6_is_refused() {
+    let fetch = RemoteFetch::loopback().unwrap();
+    let refused = fetch
+        .fetch_as("http://[::1]:9/a.png", 1024, Ipv6::Refused)
+        .await
+        .unwrap_err();
+    assert_eq!(refused.code, ErrorCode::InvalidInput, "{refused:?}");
+    let tried = fetch
+        .fetch_as("http://[::1]:9/a.png", 1024, Ipv6::Allowed)
+        .await
+        .unwrap_err();
+    assert_eq!(
+        tried.code,
+        ErrorCode::Network,
+        "allowed, so it was tried: {tried:?}"
+    );
 }

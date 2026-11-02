@@ -467,7 +467,9 @@ and so does mail stored before Rail kept these results, until its body is fetche
 loads it. `i` loads every remote picture of the thread, a tracking pixel too when the mail does not
 declare its size. The daemon fetches them (never the terminal), only over `https` from public
 addresses, with no cookies or referrer, at most 5 MiB each, and keeps them for a week in Rail's
-private image cache. `remote_images = true` under `[general]` or `:remote-images` loads them in
+private image cache. On an IPv6-only network with NAT64, the gateway's own prefix looks public but
+can reach private IPv4 addresses, which Rail cannot tell; `remote_images_ipv6 = false` under
+`[general]` fetches remote pictures over IPv4 only. `remote_images = true` under `[general]` or `:remote-images` loads them in
 every thread.
 
 HTML mail is shown as Rail's own rendering of it, the same text Rail stores and searches, with
@@ -1421,6 +1423,7 @@ running syncs carry on unchanged.
 | `images` | `true` | With `rich_html`, the reader draws the pictures an HTML message carries inline, through the terminal's image protocol (kitty, iTerm2 or sixel) or as coloured half blocks elsewhere. Rail asks the terminal which it speaks as it starts, waiting up to 2 s for one that does not answer; with `TERM` unset, empty or `dumb` it does not ask and draws half blocks. `false` leaves them out. `:images` toggles it and saves it. |
 | `remote_images` | `false` | With `images`, the reader fetches every HTML message's remote pictures, which tells their senders you opened the mail. `false` holds them back until `i` loads one thread's. `:remote-images` toggles it and saves it. |
 | `remote_images_from` | `[]` | Senders, by address, whose remote pictures the reader always fetches, such as `["jira@example.com"]`: for mail whose From line the receiving server vouched for (DMARC, or DKIM aligned with the sender's domain), since a forged message can carry the address too. `I` on a message adds its sender or removes them, and saves the list. |
+| `remote_images_ipv6` | `true` | Whether the daemon may fetch remote pictures over IPv6. `false` refuses every IPv6 address, for an IPv6-only network whose NAT64 prefix (which looks public) could reach private IPv4 space. Read at each picture, so a change applies without a restart. |
 
 ### `[[saved_searches]]`
 

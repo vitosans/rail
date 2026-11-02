@@ -73,6 +73,6 @@ pub use connect::{
 #[cfg(any(test, feature = "test-gates"))]
 pub use context::{BeginGate, SaveGate};
 pub use context::{DaemonContext, Opener};
-pub use remote_fetch::RemoteFetch;
+pub use remote_fetch::{Ipv6, RemoteFetch};
 pub use server::{IDLE_TIMEOUT, SAVE_GRACE, ServeConfig, Server, peer_allowed};
 pub use wire::{MAX_FRAME_BYTES, PROTOCOL_VERSION};
