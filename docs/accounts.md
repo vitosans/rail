@@ -27,6 +27,10 @@ An AI agent connected over MCP can also do this for you; see [MCP](mcp.md).
    with `o`.
 3. It asks for the values the portal gave you.
 4. It logs you in through the browser.
+5. On the first run only (no account configured yet), it asks which keys to use: Rail's own,
+   or a preset such as `vim` or `gmail` (see [Key presets](keys.md#key-presets)). Choosing
+   `rail` writes nothing; any other choice saves `keymap` under `[general]`. `:keymap` changes
+   it later.
 
 The wizard needs an interactive terminal. In scripts, use
 [`rail account add` with flags](commands.md).

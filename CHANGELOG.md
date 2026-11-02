@@ -41,6 +41,9 @@ All notable changes to Rail are recorded here. The format follows
   hides the way back.
 - `list.mark_read` and `list.mark_unread`: mark read, or mark unread, whatever the threads show,
   where `u` toggles. Neither has a key in the `rail` preset; bind them in `[keys]` (#153).
+- The setup wizard's first run ends with **Choose your keys**: Rail's own keys or any preset,
+  saved as `keymap` (#153). A preset that the config's `[keys]` clash with is refused, and the
+  wizard still finishes, saying `:keymap` can choose the keys later.
 - `delete`, `backspace` and `insert` are key names for `[keys]`, shown as `Del`, `Bksp` and
   `Ins` in help. No default key uses them.
 - `list.trash_now`: move to the trash without asking, still undoable and still asked about for a
