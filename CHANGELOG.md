@@ -12,7 +12,8 @@ All notable changes to Rail are recorded here. The format follows
   `[keys]` goes over it. `:keymap` lists the presets, switches at once and saves the choice; a
   switch that `[keys]` clashes with is refused and the keys stay. The first preset besides
   `rail` is `vim`: `h`/`l` go out and in, `u` undoes, `U` marks read or unread, `Z` snoozes,
-  `L` labels, `D` trashes without asking and `Ctrl-f`/`Ctrl-b` page (#153).
+  `L` labels, `D` trashes without asking and `Ctrl-f`/`Ctrl-b` page (#153). Prompted by
+  @coko7's request for bash's editing keys in text fields (#152).
 - `F2` opens the palette in every preset, whatever `[keys]` says, so switching presets never
   hides the way back.
 - `list.trash_now`: move to the trash without asking, still undoable and still asked about for a
