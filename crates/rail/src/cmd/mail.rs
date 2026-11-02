@@ -158,20 +158,58 @@ fn hint_for(error: &ThemeError) -> &'static str {
 }
 
 /// How this terminal draws pictures (kitty, iTerm2 or sixel, and its cell size), asked once
-/// before the screen starts reading keys, since the answer comes on stdin. A terminal that
-/// does not answer gets half blocks, after the query's wait of up to 2 s; one that cannot
-/// answer (`asks_terminal`) is not asked, so start-up never waits on it and the query never
-/// reads the first keys.
+/// before the screen starts reading keys, since the answer comes on stdin. The picture query
+/// must never go unanswered: on a timeout it leaves its reader behind, which takes every key
+/// and later turns raw mode off (#155). So it is not sent to a terminal that cannot answer
+/// (`asks_terminal`), to one that answers nothing (`answers_queries`, after up to 2 s), nor
+/// inside tmux with no client attached, where tmux answers queries itself but passes the
+/// picture query through to an outer terminal that is not there (`tmux_has_client`). Each of
+/// those gets half blocks.
 fn picker() -> Option<ratatui_image::picker::Picker> {
     if test_hooks::no_image_query() {
         return None;
     }
     let halfblocks = ratatui_image::picker::Picker::halfblocks;
-    if !asks_terminal(std::env::var("TERM").ok().as_deref()) {
+    let in_tmux = std::env::var_os("TMUX").is_some();
+    if !asks_terminal(std::env::var("TERM").ok().as_deref())
+        || !answers_queries()
+        || (in_tmux && !tmux_has_client(tmux_clients_attached().as_deref()))
+    {
         return Some(halfblocks());
     }
     let picker = ratatui_image::picker::Picker::from_query_stdio();
     Some(picker.unwrap_or_else(|_| halfblocks()))
+}
+
+/// How many clients tmux says this session has (`#{session_attached}`), as tmux printed it;
+/// `None` when tmux could not be asked.
+fn tmux_clients_attached() -> Option<String> {
+    let output = std::process::Command::new("tmux")
+        .args(["display-message", "-p", "#{session_attached}"])
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    output
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// Whether tmux's answer (`tmux_clients_attached`) names at least one attached client. No
+/// answer, or one that is not a number, counts as none: half blocks are the safe side.
+fn tmux_has_client(attached: Option<&str>) -> bool {
+    attached
+        .and_then(|text| text.trim().parse::<u32>().ok())
+        .is_some_and(|clients| clients > 0)
+}
+
+/// Whether the terminal answers a query at all: crossterm's own probe (the keyboard
+/// enhancement query, then primary device attributes) waits up to 2 s on this thread and
+/// leaves nothing reading afterwards; keys typed meanwhile stay queued for the screen. Any
+/// answer will do, supported or not; only silence fails.
+fn answers_queries() -> bool {
+    crossterm::terminal::supports_keyboard_enhancement().is_ok()
 }
 
 /// Whether a terminal named `term` (`$TERM`) can answer the picture query: not when it is
@@ -183,6 +221,18 @@ fn asks_terminal(term: Option<&str>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #155: a tmux session with no client passes the picture query to nobody, so it gets half
+    /// blocks; an unreadable answer counts as no client.
+    #[test]
+    fn only_a_tmux_session_with_a_client_attached_is_given_the_picture_query() {
+        assert!(tmux_has_client(Some("1\n")));
+        assert!(tmux_has_client(Some("2")));
+        assert!(!tmux_has_client(Some("0\n")));
+        assert!(!tmux_has_client(Some("")));
+        assert!(!tmux_has_client(Some("attached")));
+        assert!(!tmux_has_client(None));
+    }
 
     fn error(text: &str) -> ThemeError {
         let config = rail_core::config::parse(text, std::path::Path::new("/c")).unwrap();

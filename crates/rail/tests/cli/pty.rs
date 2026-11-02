@@ -761,3 +761,52 @@ fn sigterm_after_the_mail_screen_closed_ends_rail() {
         "ended by the signal, not by a clean exit: {status:?}"
     );
 }
+
+/// #155: a terminal that never answers the picture query (here `script`'s pseudo-terminal, as a
+/// tmux session with no client) once left the query's reader behind, taking every key, and
+/// later turned raw mode off. With the query on and a real `TERM`, `?` opens help and `q`
+/// quits.
+#[test]
+fn keys_reach_the_mail_screen_when_the_terminal_never_answers_the_picture_query() {
+    if !script_available() {
+        eprintln!("skipping: util-linux `script` is not installed");
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let _daemon = StopsDaemon(&dir);
+    write_config(&dir, WORK_FILE_BACKEND);
+    let command = format!(
+        "stty cols 100 rows 30; exec '{}'",
+        env!("CARGO_BIN_EXE_rail")
+    );
+    let mut script = Command::new("script");
+    rail_env(&mut script, &dir)
+        .env_remove("RAIL_TEST_NO_IMAGE_QUERY")
+        .env("TERM", "xterm-256color")
+        .args(["-q", "-e", "-c", &command, "/dev/null"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+    let mut child = Running(script.spawn().unwrap());
+    let mut keys = child.0.stdin.take().unwrap();
+    let output = collect(child.0.stdout.take().unwrap());
+    let shown = output.clone();
+    wait_until("the mail screen", &output, move || {
+        text(&shown).contains("Run `rail sync`")
+    });
+    keys.write_all(b"?").unwrap();
+    keys.flush().unwrap();
+    let shown = output.clone();
+    wait_until("help after ?", &output, move || {
+        screen(&text(&shown), 100, 30)
+            .iter()
+            .any(|row| row.contains("Open the thread"))
+    });
+    // Esc and q apart: together they read as Alt-q.
+    keys.write_all(b"\x1b").unwrap();
+    keys.flush().unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    keys.write_all(b"q").unwrap();
+    keys.flush().unwrap();
+    wait_for_exit(&mut child, &output);
+}

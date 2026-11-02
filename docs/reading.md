@@ -274,6 +274,17 @@ The headers are `From:`, `To:` and `Cc:` with addresses, `Date: Fri 10 Oct 2025 
 
 The pictures a message carries itself are drawn as soon as it opens.
 
+Rail asks the terminal at start-up how it draws pictures (kitty, iTerm2 or sixel) and uses half
+blocks when the answer is none of those. It does not ask, and uses half blocks, when:
+
+| Case | Why |
+|---|---|
+| `TERM` is `dumb` or unset | The terminal cannot answer. |
+| The terminal answers nothing within 2 s | An unanswered query would keep reading keys (#155). |
+| Inside tmux with no client attached | tmux passes the query on to an outer terminal that is not there. |
+
+Start Rail in an attached tmux session to get full pictures there.
+
 ### Remote pictures
 
 **Remote pictures**, the ones an HTML message loads from the web, are held back, because fetching
