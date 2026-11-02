@@ -154,7 +154,9 @@ fn an_unknown_preset_is_a_config_error() {
     let error = rail_core::config::parse("[general]\nkeymap = \"vi\"\n", path).unwrap_err();
     let text = error.to_string();
     assert!(text.contains("config.toml:2:"), "{text}");
-    assert!(text.contains("expected `rail` or `vim`"), "{text}");
+    for &preset in KeymapPreset::ALL {
+        assert!(text.contains(&format!("`{}`", preset.as_str())), "{text}");
+    }
 }
 
 #[test]
@@ -202,4 +204,61 @@ fn every_preset_line_fits_the_keymap_picker() {
         let line = format!("{} — {}", preset.as_str(), summary(preset));
         assert!(crate::tui::text::width(&line) <= inside, "{line}");
     }
+}
+
+#[test]
+fn the_mutt_preset_follows_mutts_index_and_pager_keys() {
+    let map = configured("[general]\nkeymap = \"mutt\"\n").unwrap();
+    let chord = |a: char, b: char| [char_key(a), char_key(b)];
+    let cases = [
+        (View::List, vec![char_key('d')], Action::ListTrash),
+        (View::List, vec![char_key('D')], Action::ListTrashNow),
+        (View::List, vec![char_key('u')], Action::GlobalUndo),
+        (View::List, vec![char_key('N')], Action::ListRead),
+        (View::List, vec![char_key('s')], Action::ListMove),
+        (View::List, vec![char_key('F')], Action::ListStar),
+        (View::List, vec![char_key('m')], Action::ListCompose),
+        (View::List, vec![char_key('c')], Action::ListCompose),
+        (View::List, vec![char_key('g')], Action::ListReplyAll),
+        (View::Reader, vec![char_key('g')], Action::ListReplyAll),
+        (View::List, vec![char_key('t')], Action::ListSelect),
+        (View::List, vec![char_key('l')], Action::ListFilter),
+        (View::List, vec![char_key('Y')], Action::ListLabels),
+        (View::List, vec![char_key('Z')], Action::ListSnooze),
+        (View::List, vec![char_key('$')], Action::ListRefresh),
+        (View::List, vec![char_key('=')], Action::ListTop),
+        (View::List, vec![char_key('*')], Action::ListBottom),
+        (View::List, vec![ctrl('o')], Action::ListOpenLink),
+        (View::List, chord('T', 'a').to_vec(), Action::ListSelectAll),
+        (
+            View::List,
+            chord('T', 'f').to_vec(),
+            Action::ListSelectSender,
+        ),
+        (View::Reader, vec![char_key('h')], Action::ReaderHeaders),
+        (View::Reader, vec![char_key('i')], Action::ReaderBack),
+        (View::Reader, vec![char_key('P')], Action::ReaderLoadImages),
+        (View::Reader, vec![char_key('v')], Action::ReaderAttachments),
+        (View::Reader, vec![char_key('-')], Action::ReaderPageUp),
+        (View::Reader, vec![char_key('=')], Action::ReaderTop),
+        (View::Reader, vec![ctrl('b')], Action::ReaderFollowLink),
+        (View::Compose, vec![char_key('D')], Action::ComposeRemove),
+        (View::Compose, vec![char_key('y')], Action::ComposeSend),
+    ];
+    for (view, keys, action) in cases {
+        assert_eq!(
+            resolve(&map, view, &keys),
+            Resolved::Action(action),
+            "{view:?} {keys:?}"
+        );
+    }
+    // `g` replies to everyone, so nothing may start with it; `*` is the last thread.
+    assert_eq!(
+        resolve(&map, View::List, &chord('g', 'g')),
+        Resolved::Action(Action::ListReplyAll)
+    );
+    assert_eq!(
+        resolve(&map, View::List, &[char_key('h')]),
+        Resolved::Unbound
+    );
 }

@@ -39,11 +39,47 @@ const VIM: Overrides = &[
     (Action::ComposePageUp, &["pageup", "ctrl-b", "ctrl-u"]),
 ];
 
+/// mutt's index and pager habits: `s` saves (moves), `F` flags (stars), `N` toggles new
+/// (read or unread), `t` tags (selects), `l` limits (filters), `g` replies to everyone, `m`
+/// mails, `$` syncs and `u` undoes. `d` still asks, as Rail's does, and `D` trashes without
+/// asking. With `g` and `*` single keys, nothing may start with them: top and bottom are `=`
+/// and `*`, the links are `Ctrl-o` and `Ctrl-b`, and select all or by sender are `T a` and
+/// `T f`. In the reader `h` shows the headers, `i` goes back, `v` lists the attachments and
+/// `P` loads the pictures; snooze is `Z` and labels `Y` (neomutt's edit-label).
+const MUTT: Overrides = &[
+    (Action::GlobalUndo, &["u"]),
+    (Action::ListRefresh, &["ctrl-r", "$"]),
+    (Action::ListFilter, &["/", "l"]),
+    (Action::ListTop, &["home", "="]),
+    (Action::ListBottom, &["end", "*"]),
+    (Action::ListTrashNow, &["D"]),
+    (Action::ListStar, &["F"]),
+    (Action::ListRead, &["N"]),
+    (Action::ListLabels, &["Y"]),
+    (Action::ListMove, &["s"]),
+    (Action::ListSnooze, &["Z"]),
+    (Action::ListCompose, &["c", "m"]),
+    (Action::ListOpenLink, &["ctrl-o"]),
+    (Action::ListReplyAll, &["R", "g"]),
+    (Action::ListSelect, &["space", "t"]),
+    (Action::ListSelectAll, &["T a"]),
+    (Action::ListSelectSender, &["T f"]),
+    (Action::ReaderHeaders, &["h"]),
+    (Action::ReaderAttachments, &["v"]),
+    (Action::ReaderLoadImages, &["P"]),
+    (Action::ReaderFollowLink, &["ctrl-b"]),
+    (Action::ReaderBack, &["q", "esc", "i"]),
+    (Action::ReaderPageUp, &["pageup", "-"]),
+    (Action::ReaderTop, &["home", "="]),
+    (Action::ComposeRemove, &["x", "D"]),
+];
+
 /// The keys `preset` gives in place of the defaults.
 pub fn overrides(preset: KeymapPreset) -> Overrides {
     match preset {
         KeymapPreset::Rail => &[],
         KeymapPreset::Vim => VIM,
+        KeymapPreset::Mutt => MUTT,
     }
 }
 
@@ -53,5 +89,6 @@ pub fn summary(preset: KeymapPreset) -> &'static str {
     match preset {
         KeymapPreset::Rail => "Rail's own keys",
         KeymapPreset::Vim => "h/l panes · u undo · U read · Z snooze · D trash",
+        KeymapPreset::Mutt => "s move · g reply all · t tag · N read · u undo",
     }
 }
