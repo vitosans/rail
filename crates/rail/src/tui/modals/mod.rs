@@ -27,6 +27,8 @@ pub use errors::{ErrorList, ErrorRow};
 pub use filter::FilterLine;
 pub use help::Help;
 pub use palette::{Palette, PaletteEntry, Target};
+#[cfg(test)]
+pub use picker::PICKER_WIDTH;
 pub use picker::{AccentAnswer, Picker, PickerItem, PickerKind};
 pub use prompt::TextPrompt;
 

@@ -192,3 +192,14 @@ fn f2_cannot_be_bound_to_another_action() {
         "{error}"
     );
 }
+
+/// `:keymap` shows `<name> — <summary>`: each line fits the picker inside its border, so no
+/// preset's summary is cut short.
+#[test]
+fn every_preset_line_fits_the_keymap_picker() {
+    let inside = usize::from(crate::tui::modals::PICKER_WIDTH) - 2;
+    for &preset in KeymapPreset::ALL {
+        let line = format!("{} — {}", preset.as_str(), summary(preset));
+        assert!(crate::tui::text::width(&line) <= inside, "{line}");
+    }
+}

@@ -47,10 +47,11 @@ pub fn overrides(preset: KeymapPreset) -> Overrides {
     }
 }
 
-/// What `:keymap` says about `preset` beside its name: the keys that differ from Rail's.
+/// What `:keymap` says about `preset` beside its name: the keys that differ from Rail's most,
+/// short enough that the line fits the picker (`preset_tests`).
 pub fn summary(preset: KeymapPreset) -> &'static str {
     match preset {
         KeymapPreset::Rail => "Rail's own keys",
-        KeymapPreset::Vim => "h/l panes · u undo · U read · Z snooze · L labels · D trash now",
+        KeymapPreset::Vim => "h/l panes · u undo · U read · Z snooze · D trash",
     }
 }

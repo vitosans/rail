@@ -26,7 +26,7 @@ use crate::tui::widgets::text_input::TextInput;
 /// Rows of items shown.
 const SHOWN: usize = 12;
 /// The picker's width, its border included.
-const PICKER_WIDTH: u16 = 60;
+pub const PICKER_WIDTH: u16 = 60;
 /// One swatch colour's cells.
 const SWATCH: &str = "██";
 /// The theme and accent pickers' hint while the highlight is previewed.
