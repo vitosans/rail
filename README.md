@@ -706,7 +706,8 @@ mail in its Trash for 30 days, and on Microsoft 365 it `Moves to Deleted Items.`
 deletes mail for good), `s` stars or unstars (it stars unless every thread is already
 starred), `u` marks read or unread (it marks read if any thread is unread). An action applies to
 the whole thread, as in Gmail. Over 50 threads (`bulk_confirm` under `[general]`) `e`, `s` and `u`
-ask first too, naming the count, for example `Archive 1,234 threads?`; `d` always asks. The list
+ask first too, naming the count, for example `Archive 1,234 threads?`; `d` always asks, and
+trash without asking (`list.trash_now`, `D` in the vim preset) asks only over that count. The list
 changes at once; the daemon sends the change to the account's server (Gmail or
 Microsoft 365) in the background, so it also goes through if you quit Rail.
 
@@ -1449,7 +1450,7 @@ running syncs carry on unchanged.
 | `thread_order` | `"oldest"` | How the reader lists a thread's older messages under the newest one: `"oldest"` first or `"newest"` first. `:thread-order` in the palette toggles it and saves it. |
 | `layout` | `"auto"` | Only `"auto"` works in this version; `"split"` and `"stack"` are accepted and act as `"auto"`. |
 | `editor` | unset | The command that writes mail, split like a shell command line (no shell runs), e.g. `"nvim"` or `"code --wait"`. Unset: `$VISUAL`, then `$EDITOR`, then `vi`. Read when the mail screen starts. |
-| `bulk_confirm` | `50` | How many threads an archive, star or mark-read may cover before Rail asks first; `0` never asks. Trash always asks. |
+| `bulk_confirm` | `50` | How many threads an archive, star, mark-read or trash without asking (`list.trash_now`) may cover before Rail asks first; `0` never asks. `d` always asks. |
 | `attachment_dir` | unset | Where `s`, `S` and `w` save attachments. Unset is your download directory (the `XDG_DOWNLOAD_DIR` entry of `~/.config/user-dirs.dirs` on Linux, else `~/Downloads`). `~` is expanded, and refused when there is no `$HOME` to expand it to; a relative path is refused, as is one inside Rail's own attachment cache (`attachments` in the cache directory, reached directly, through a symlink or through `..`), whose files Rail sweeps a day after it writes them. |
 | `saved_search_counts` | `true` | Unread counts beside each saved search in the sidebar. `false` leaves them out and skips the count queries, the one thing saved searches cost on a large mailbox. `:search-counts` toggles it and saves it. |
 | `rich_html` | `true` | The reader draws HTML mail's bold, italic, quoted and linked text in those styles. `false` shows the same text plain. `:rich-html` toggles it and saves it. |

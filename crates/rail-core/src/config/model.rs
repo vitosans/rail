@@ -80,8 +80,9 @@ pub struct General {
     /// `general.keymap`: the preset the keys start from (`rail` by default). `:keymap`
     /// switches it.
     pub keymap: KeymapPreset,
-    /// `general.bulk_confirm`: how many threads an archive, star or mark-read may cover before
-    /// Rail asks first; `0` never asks. Trash asks at every size. A number, not a two-state
+    /// `general.bulk_confirm`: how many threads an archive, star, mark-read or trash without
+    /// asking (`list.trash_now`) may cover before Rail asks first; `0` never asks. `d` asks at
+    /// every size. A number, not a two-state
     /// choice, so it has no palette command (CONTRIBUTING's opinionated-defaults rule).
     pub bulk_confirm: u32,
     /// `general.attachment_dir`: where `s`, `S` and `w` save attachments. Read verbatim: the

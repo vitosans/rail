@@ -68,6 +68,34 @@ async fn capital_d_in_the_vim_preset_trashes_without_asking_and_can_be_undone() 
     );
 }
 
+/// `D` skips `d`'s question, not `bulk_confirm`'s: a selection over the limit is asked about,
+/// and one at the limit is not.
+#[tokio::test]
+async fn capital_d_still_asks_about_a_selection_over_bulk_confirm() {
+    let mut f = fixture(3).await;
+    f.screen.ctx.keymap = keymap("[general]\nkeymap = \"vim\"\n");
+    f.screen.ctx.bulk_confirm = 1;
+    press(&mut f, KeyCode::Char(' ')).await;
+    press(&mut f, KeyCode::Char(' ')).await;
+    press(&mut f, KeyCode::Char('D')).await;
+    assert!(
+        matches!(f.screen.modal, Some(Modal::Confirm(_))),
+        "two threads, limit one"
+    );
+    assert!(!trashed(&f), "nothing before the answer");
+    press(&mut f, KeyCode::Char('y')).await;
+    assert!(trashed(&f));
+
+    let mut f = fixture(3).await;
+    f.screen.ctx.keymap = keymap("[general]\nkeymap = \"vim\"\n");
+    f.screen.ctx.bulk_confirm = 2;
+    press(&mut f, KeyCode::Char(' ')).await;
+    press(&mut f, KeyCode::Char(' ')).await;
+    press(&mut f, KeyCode::Char('D')).await;
+    assert!(f.screen.modal.is_none(), "two threads, limit two");
+    assert!(trashed(&f));
+}
+
 #[tokio::test]
 async fn keymap_switches_saves_and_says_how_to_reach_the_palette() {
     let mut f = fixture(3).await;
@@ -132,4 +160,35 @@ async fn a_switch_that_keys_clashes_with_is_refused_and_keeps_the_keys() {
     // `z` still undoes: the rail keys are kept.
     press(&mut f, KeyCode::Char('z')).await;
     assert!(f.screen.status_line().contains("Nothing to undo"));
+}
+
+/// The shell reads the quit key with its own copy of the keymap: a switch hands it the very
+/// keymap the screen now uses, and a refused switch hands it nothing.
+#[tokio::test]
+async fn a_switch_hands_the_shell_the_screens_new_keymap() {
+    let mut f = fixture(3).await;
+    let vim = keymap("[general]\nkeymap = \"vim\"\n");
+    let effects = f.screen.keymap_built(KeymapPreset::Vim, Ok(vim.clone()));
+    let handed: Vec<_> = effects
+        .iter()
+        .filter_map(|e| match e {
+            crate::tui::app::Effect::Keymap(k) => Some(k.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(handed.len(), 1);
+    assert!(Arc::ptr_eq(&handed[0], &f.screen.ctx.keymap));
+    assert!(Arc::ptr_eq(&handed[0], &vim));
+
+    let effects = f
+        .screen
+        .keymap_built(KeymapPreset::Rail, Err("clash".into()));
+    assert!(
+        !effects
+            .iter()
+            .any(|e| matches!(e, crate::tui::app::Effect::Keymap(_))),
+        "a refused switch changes nothing"
+    );
+    assert!(Arc::ptr_eq(&vim, &f.screen.ctx.keymap));
+    assert_eq!(f.screen.ctx.keymap_preset, KeymapPreset::Vim);
 }
