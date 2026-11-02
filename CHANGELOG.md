@@ -6,8 +6,21 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-02
+
+Key presets: start from the keys you know. `keymap` chooses `rail`, `vim`, `mutt`, `emacs`,
+`gmail` or `outlook`; `:keymap` switches and asks whether to keep the new keys, and the setup
+wizard offers them on the first run (#153).
+
 ### Added
 
+- **Key presets.** `keymap` under `[general]` chooses the keys every action starts from, and
+  `[keys]` goes over it. `:keymap` lists the presets and switches at once, then asks **Keep these
+  keys?**: `y` saves them, and `n`, `Esc` or 15 s without an answer go back to the keys before.
+  A switch that `[keys]` clashes with is refused and the keys stay. The first preset besides
+  `rail` is `vim`: `h`/`l` go out and in, `u` undoes, `U` marks read or unread, `Z` snoozes,
+  `L` labels, `D` trashes without asking and `Ctrl-f`/`Ctrl-b` page (#153). Prompted by
+  @coko7's request for bash's editing keys in text fields (#152).
 - **The `mutt` preset** (`keymap = "mutt"`): `s` moves, `F` stars, `N` marks read or unread,
   `t` selects, `l` filters, `g` replies to everyone, `m` writes, `$` syncs and `u` undoes; `d`
   still asks and `D` trashes without asking. Top and bottom are `=` and `*`, the links `Ctrl-o`
@@ -29,26 +42,19 @@ All notable changes to Rail are recorded here. The format follows
   read and unread, `Ctrl-z` undoes, `Ctrl-n` writes, `Ctrl-r` replies, `Ctrl-f` forwards, `v`
   moves, `Ctrl-e` filters, `Ctrl-a` selects all and `F9` syncs; `Alt-s` sends and `Ctrl-s` saves
   a draft. A range moves to `V` (#153).
-
-- **Key presets.** `keymap` under `[general]` chooses the keys every action starts from, and
-  `[keys]` goes over it. `:keymap` lists the presets and switches at once, then asks **Keep these
-  keys?**: `y` saves them, and `n`, `Esc` or 15 s without an answer go back to the keys before.
-  A switch that `[keys]` clashes with is refused and the keys stay. The first preset besides
-  `rail` is `vim`: `h`/`l` go out and in, `u` undoes, `U` marks read or unread, `Z` snoozes,
-  `L` labels, `D` trashes without asking and `Ctrl-f`/`Ctrl-b` page (#153). Prompted by
-  @coko7's request for bash's editing keys in text fields (#152).
-- `F2` opens the palette in every preset, whatever `[keys]` says, so switching presets never
-  hides the way back.
-- `list.mark_read` and `list.mark_unread`: mark read, or mark unread, whatever the threads show,
-  where `u` toggles. Neither has a key in the `rail` preset; bind them in `[keys]` (#153).
 - The setup wizard's first run ends with **Choose your keys**: Rail's own keys or any preset,
   saved as `keymap` (#153). A preset that the config's `[keys]` clash with is refused, and the
   wizard still finishes, saying `:keymap` can choose the keys later.
+- `F2` opens the palette in every preset, whatever `[keys]` says, so switching presets never
+  hides the way back.
+- `list.trash_now`: move to the trash without asking, still undoable and still asked about for a
+  large selection (`bulk_confirm`) and in Drafts. It has no key in the `rail` preset: `D` in `vim`
+  and `mutt`, `#` in `gmail`, `Delete` in `outlook`.
+- `list.mark_read` and `list.mark_unread`: mark read, or mark unread, whatever the threads show,
+  where `u` toggles. Neither has a key in the `rail` preset: `I`/`U` in
+  `gmail`, `Ctrl-q`/`Ctrl-u` in `outlook` (#153).
 - `delete`, `backspace` and `insert` are key names for `[keys]`, shown as `Del`, `Bksp` and
   `Ins` in help. No default key uses them.
-- `list.trash_now`: move to the trash without asking, still undoable and still asked about for a
-  large selection (`bulk_confirm`) and in Drafts. It has no key in the `rail` preset; `vim` binds
-  it to `D`.
 
 ### Changed
 
