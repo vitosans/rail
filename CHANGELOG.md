@@ -6,6 +6,11 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-03
+
+Editing keys in text fields: every field takes bash's keys by default, and `field_keys` can
+switch them to vi's or to the arrow keys only. `:field-keys` cycles the modes (#152, #153).
+
 ### Added
 
 - **Bash's editing keys in text fields.** Every field you type in, from the `/` filter to the
