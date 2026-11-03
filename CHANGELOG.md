@@ -6,6 +6,15 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Far fewer 1Password prompts.** A token refresh no longer writes to the secret store unless
+  it must: a Gmail refresh (the refresh token never changes) writes nothing, and a Microsoft
+  365 refresh saves its rotated refresh token at most once a day. The access token stays in
+  memory and is refreshed again after a restart. With `secrets = "1password"` this takes the
+  daemon from about one prompt an hour per account to one when each account's sync starts. See
+  [Tokens in 1Password](docs/configuration.md#tokens-in-1password).
+
 ## [0.10.0] - 2026-11-03
 
 Trust a whole domain's remote pictures: `remote_images_from` takes `"@example.com"`, and `I`

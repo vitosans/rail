@@ -306,8 +306,17 @@ concealed fields. Values reach `op` only on its standard input, never as command
 - **Client secret in 1Password.** Give `client_secret = "op://Rail/Google client/client_secret"`
   (or pass an `op://` reference to `--client-secret`), or let Rail store it with
   `rail account add ... --client-secret <secret> --store-secret-in-1password`. Rail reads it with
-  `op read` only when a login needs it and never caches or logs it. This works with any token
-  backend.
+  `op read` only when a login or an account's sync starts, and never caches or logs it. This
+  works with any token backend.
+- **Prompts.** Each `op` call can bring up 1Password's authorisation prompt once the last one
+  has gone unused for 10 minutes, so Rail calls `op` as little as it can:
+
+  | When | `op` calls |
+  |---|---|
+  | An account's sync starts (daemon start, a config change, a retry after an error) | Reads the client secret and the tokens |
+  | A Gmail token refresh | None: Google keeps the refresh token, and the new access token stays in memory |
+  | A Microsoft 365 token refresh | None, except at most once a day to save the rotated refresh token (the stored one stays valid for weeks) |
+  | A login, `rail secrets set` | Writes the new tokens |
 - **`op_path`** is only ever read from `config.toml`. Rail refuses it when it is relative, not an
   executable, owned by another user, or writable by anyone but its owner, or when a directory
   above it is. A Homebrew-on-Linux `op` usually fails this check; prefer 1Password's own package

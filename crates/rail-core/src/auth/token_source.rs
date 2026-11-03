@@ -1,4 +1,10 @@
 //! Hands out a valid access token, refreshing it when needed. One refresh at a time per account.
+//!
+//! A refresh is written back to the secret store only when the store would otherwise lose
+//! something it needs: a new refresh token. The access token lives an hour and is kept in
+//! memory; after a restart Rail simply refreshes again. Each write to 1Password can mean an
+//! authorisation prompt, so a refresh token the provider rotates on every refresh (Microsoft
+//! does; the old one stays valid for weeks) is saved at most once per `ROTATED_SAVE_SECS`.
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -14,14 +20,36 @@ use super::secrets::{SecretStore, TokenSet};
 /// Refresh when fewer than this many seconds remain.
 const REFRESH_MARGIN_SECS: i64 = 60;
 
+/// The longest a rotated refresh token goes unsaved. A day keeps the stored one far inside
+/// Microsoft's 90-day lifetime while sparing the store (and 1Password's prompts) 23 writes.
+const ROTATED_SAVE_SECS: i64 = 24 * 60 * 60;
+
 /// Caches an account's tokens and refreshes them on demand, one refresh at a time.
 pub struct TokenSource {
     address: String,
     client: OAuthClient,
     http: reqwest::Client,
     secrets: Arc<dyn SecretStore>,
-    cached: Mutex<Option<TokenSet>>,
+    cached: Mutex<Cache>,
     clock: Box<dyn Fn() -> i64 + Send + Sync>,
+}
+
+/// What the source holds: the tokens in use, and the refresh token the store has.
+#[derive(Default)]
+struct Cache {
+    tokens: Option<TokenSet>,
+    stored: Option<Stored>,
+}
+
+/// The refresh token the secret store holds, and when this source last saw it there.
+struct Stored {
+    refresh_token: String,
+    at: i64,
+}
+
+/// Whether a refresh that produced `refresh_token` at `now` must be written to the store.
+fn must_save(stored: Option<&Stored>, refresh_token: &str, now: i64) -> bool {
+    stored.is_none_or(|s| s.refresh_token != refresh_token && now - s.at >= ROTATED_SAVE_SECS)
 }
 
 /// Current Unix time in seconds.
@@ -44,7 +72,7 @@ impl TokenSource {
             client,
             http,
             secrets,
-            cached: Mutex::new(None),
+            cached: Mutex::new(Cache::default()),
             clock: Box::new(unix_now),
         }
     }
@@ -63,46 +91,55 @@ impl TokenSource {
     /// A bearer token valid for at least `REFRESH_MARGIN_SECS`.
     pub async fn access_token(&self) -> Result<String, AuthError> {
         // Holding the lock across the refresh is the single-flight guarantee.
-        let mut cached = self.cached.lock().await;
+        let mut cache = self.cached.lock().await;
         let now = (self.clock)();
-        if let Some(tokens) = cached.as_ref().filter(|t| fresh(t, now)) {
+        if let Some(tokens) = cache.tokens.as_ref().filter(|t| fresh(t, now)) {
             return Ok(tokens.access_token.clone());
         }
-        let current = match cached.take() {
-            Some(tokens) => tokens,
-            None => self
-                .secrets
-                .get_tokens(&self.address)?
-                .ok_or_else(|| AuthError::NeedsAuth("no stored tokens".to_string()))?,
-        };
+        let current = self.current(&mut cache, now)?;
         let tokens = if fresh(&current, now) {
             current
         } else {
-            self.refresh(&current, now).await?
+            self.refresh(&mut cache, &current, now).await?
         };
         let access = tokens.access_token.clone();
-        *cached = Some(tokens);
+        cache.tokens = Some(tokens);
         Ok(access)
     }
 
     /// A new access token whatever the cached one's expiry says: the API refused it (HTTP 401).
     pub async fn force_refresh(&self) -> Result<String, AuthError> {
-        let mut cached = self.cached.lock().await;
+        let mut cache = self.cached.lock().await;
         let now = (self.clock)();
-        let current = match cached.take() {
-            Some(tokens) => tokens,
-            None => self
-                .secrets
-                .get_tokens(&self.address)?
-                .ok_or_else(|| AuthError::NeedsAuth("no stored tokens".to_string()))?,
-        };
-        let tokens = self.refresh(&current, now).await?;
+        let current = self.current(&mut cache, now)?;
+        let tokens = self.refresh(&mut cache, &current, now).await?;
         let access = tokens.access_token.clone();
-        *cached = Some(tokens);
+        cache.tokens = Some(tokens);
         Ok(access)
     }
 
-    async fn refresh(&self, current: &TokenSet, now: i64) -> Result<TokenSet, AuthError> {
+    /// The tokens in use, read from the store the first time (which records what it holds).
+    fn current(&self, cache: &mut Cache, now: i64) -> Result<TokenSet, AuthError> {
+        if let Some(tokens) = cache.tokens.take() {
+            return Ok(tokens);
+        }
+        let tokens = self
+            .secrets
+            .get_tokens(&self.address)?
+            .ok_or_else(|| AuthError::NeedsAuth("no stored tokens".to_string()))?;
+        cache.stored = Some(Stored {
+            refresh_token: tokens.refresh_token.clone(),
+            at: now,
+        });
+        Ok(tokens)
+    }
+
+    async fn refresh(
+        &self,
+        cache: &mut Cache,
+        current: &TokenSet,
+        now: i64,
+    ) -> Result<TokenSet, AuthError> {
         tracing::debug!(address = %self.address, "refreshing access token");
         let response = self
             .client
@@ -111,7 +148,13 @@ impl TokenSource {
             .await
             .map_err(map_token_error)?;
         let tokens = token_set_from_response(&response, Some(&current.refresh_token), now)?;
-        self.secrets.set_tokens(&self.address, &tokens)?;
+        if must_save(cache.stored.as_ref(), &tokens.refresh_token, now) {
+            self.secrets.set_tokens(&self.address, &tokens)?;
+            cache.stored = Some(Stored {
+                refresh_token: tokens.refresh_token.clone(),
+                at: now,
+            });
+        }
         Ok(tokens)
     }
 }
@@ -125,8 +168,9 @@ mod tests {
     use super::*;
     use crate::auth::client::{build_client, http_client};
     use crate::auth::endpoints::endpoints_for;
-    use crate::auth::secrets::MemorySecretStore;
+    use crate::auth::secrets::{MemorySecretStore, SecretError};
     use crate::config::{AccountConfig, AccountKind};
+    use std::sync::atomic::{AtomicI64, Ordering};
     use wiremock::matchers::{body_string_contains, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -207,9 +251,126 @@ mod tests {
         let secrets = stored(1_030); // expires in 30s, margin is 60s
         let src = source(&server.uri(), secrets.clone(), 1_000);
         assert_eq!(src.access_token().await.unwrap(), "new-access");
+        // The rotated token is not due for saving yet: the stored one still works.
         let saved = secrets.get_tokens(ADDRESS).unwrap().unwrap();
-        assert_eq!(saved.refresh_token, "new-refresh");
-        assert_eq!(saved.expires_at, 4_600);
+        assert_eq!(saved.refresh_token, "old-refresh");
+    }
+
+    /// Counts the writes that reach the store; each one may be a 1Password prompt.
+    #[derive(Default)]
+    struct CountingStore {
+        inner: MemorySecretStore,
+        writes: std::sync::atomic::AtomicUsize,
+    }
+
+    impl SecretStore for CountingStore {
+        fn get_tokens(&self, address: &str) -> Result<Option<TokenSet>, SecretError> {
+            self.inner.get_tokens(address)
+        }
+        fn set_tokens(&self, address: &str, tokens: &TokenSet) -> Result<(), SecretError> {
+            self.writes.fetch_add(1, Ordering::SeqCst);
+            self.inner.set_tokens(address, tokens)
+        }
+        fn delete_tokens(&self, address: &str) -> Result<(), SecretError> {
+            self.inner.delete_tokens(address)
+        }
+        fn backend_name(&self) -> &'static str {
+            "counting"
+        }
+    }
+
+    fn counting(expires_at: i64) -> Arc<CountingStore> {
+        let store = CountingStore::default();
+        store
+            .inner
+            .set_tokens(
+                ADDRESS,
+                &TokenSet {
+                    access_token: "old-access".into(),
+                    refresh_token: "old-refresh".into(),
+                    expires_at,
+                },
+            )
+            .unwrap();
+        Arc::new(store)
+    }
+
+    /// A source whose clock the test moves.
+    fn ticking(
+        server_uri: &str,
+        secrets: Arc<dyn SecretStore>,
+        clock: &Arc<AtomicI64>,
+    ) -> TokenSource {
+        let clock = clock.clone();
+        source(server_uri, secrets, 0).with_clock(move || clock.load(Ordering::SeqCst))
+    }
+
+    async fn token_server(body: serde_json::Value) -> MockServer {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(body))
+            .mount(&server)
+            .await;
+        server
+    }
+
+    /// Google keeps the refresh token: a day of hourly refreshes never writes to the store.
+    #[tokio::test]
+    async fn unchanged_refresh_token_is_never_written_back() {
+        let server = token_server(serde_json::json!({
+            "access_token": "new-access", "expires_in": 3600, "token_type": "Bearer"
+        }))
+        .await;
+        let store = counting(0);
+        let clock = Arc::new(AtomicI64::new(1_000));
+        let src = ticking(&server.uri(), store.clone(), &clock);
+        for hour in 0..30 {
+            clock.store(1_000 + hour * 3_600, Ordering::SeqCst);
+            assert_eq!(src.access_token().await.unwrap(), "new-access");
+        }
+        assert_eq!(store.writes.load(Ordering::SeqCst), 0);
+        assert_eq!(server.received_requests().await.unwrap().len(), 30);
+    }
+
+    /// Microsoft rotates the refresh token on every refresh: it is saved once a day.
+    #[tokio::test]
+    async fn rotated_refresh_token_is_saved_once_a_day() {
+        let server = token_server(serde_json::json!({
+            "access_token": "new-access", "refresh_token": "rotated",
+            "expires_in": 3600, "token_type": "Bearer"
+        }))
+        .await;
+        let store = counting(0);
+        let clock = Arc::new(AtomicI64::new(1_000));
+        let src = ticking(&server.uri(), store.clone(), &clock);
+        for hour in 0..24 {
+            clock.store(1_000 + hour * 3_600, Ordering::SeqCst);
+            src.access_token().await.unwrap();
+        }
+        assert_eq!(
+            store.writes.load(Ordering::SeqCst),
+            0,
+            "within the first day"
+        );
+        clock.store(1_000 + ROTATED_SAVE_SECS, Ordering::SeqCst);
+        src.force_refresh().await.unwrap();
+        assert_eq!(store.writes.load(Ordering::SeqCst), 1);
+        let saved = store.get_tokens(ADDRESS).unwrap().unwrap();
+        assert_eq!(saved.refresh_token, "rotated");
+        assert_eq!(saved.access_token, "new-access");
+    }
+
+    #[test]
+    fn must_save_rules() {
+        let stored = Stored {
+            refresh_token: "a".into(),
+            at: 100,
+        };
+        assert!(must_save(None, "a", 100), "nothing known about the store");
+        assert!(!must_save(Some(&stored), "a", 100 + 10 * ROTATED_SAVE_SECS));
+        assert!(!must_save(Some(&stored), "b", 100 + ROTATED_SAVE_SECS - 1));
+        assert!(must_save(Some(&stored), "b", 100 + ROTATED_SAVE_SECS));
     }
 
     #[tokio::test]
