@@ -57,24 +57,57 @@ impl TextInput {
     }
 
     /// Apply an editing key. Returns true when the text changed.
+    ///
+    /// The keys with Ctrl or Alt edit as bash does. Ctrl or Alt with an arrow moves by word,
+    /// with `Backspace` or `Delete` removes a word, and a word is letters and digits. In a
+    /// masked field the whole value is one word, so a word step never shows where a secret's
+    /// symbols are.
     pub fn handle_key(&mut self, key: KeyEvent) -> bool {
-        if key
-            .modifiers
-            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
-        {
-            return false;
-        }
+        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+        let alt = key.modifiers.contains(KeyModifiers::ALT);
         match key.code {
+            KeyCode::Char(c) if ctrl && !alt => self.control(c),
+            KeyCode::Char(c) if alt && !ctrl => self.meta(c),
+            KeyCode::Backspace if ctrl || alt => self.remove(self.word_start(), self.cursor),
+            KeyCode::Delete if ctrl || alt => self.remove(self.cursor, self.word_end()),
+            KeyCode::Left if ctrl || alt => self.move_to(self.word_start()),
+            KeyCode::Right if ctrl || alt => self.move_to(self.word_end()),
+            _ if ctrl || alt => false,
             KeyCode::Char(c) => {
                 self.insert(c);
                 true
             }
             KeyCode::Backspace => self.backspace(),
-            KeyCode::Delete => self.delete(),
+            KeyCode::Delete => self.remove(self.cursor, (self.cursor + 1).min(self.len())),
             KeyCode::Left => self.move_to(self.cursor.saturating_sub(1)),
             KeyCode::Right => self.move_to(self.cursor + 1),
             KeyCode::Home => self.move_to(0),
             KeyCode::End => self.move_to(self.len()),
+            _ => false,
+        }
+    }
+
+    /// Ctrl with a letter, as bash reads it. `Ctrl-h` is `Backspace`, as some terminals send
+    /// it for that key, even though others send it for `Ctrl-Backspace`.
+    fn control(&mut self, c: char) -> bool {
+        match c {
+            'a' => self.move_to(0),
+            'e' => self.move_to(self.len()),
+            'u' => self.remove(0, self.cursor),
+            'k' => self.remove(self.cursor, self.len()),
+            'w' => self.remove(self.unspaced_start(), self.cursor),
+            'h' => self.backspace(),
+            _ => false,
+        }
+    }
+
+    /// Alt with a letter, as bash reads it: also what macOS terminals send for Option with an
+    /// arrow or `Delete`.
+    fn meta(&mut self, c: char) -> bool {
+        match c {
+            'b' => self.move_to(self.word_start()),
+            'f' => self.move_to(self.word_end()),
+            'd' => self.remove(self.cursor, self.word_end()),
             _ => false,
         }
     }
@@ -112,23 +145,61 @@ impl TextInput {
     }
 
     fn backspace(&mut self) -> bool {
-        if self.cursor == 0 {
+        self.remove(self.cursor.saturating_sub(1), self.cursor)
+    }
+
+    /// Remove the characters from `start` to `end` and leave the cursor at `start`.
+    fn remove(&mut self, start: usize, end: usize) -> bool {
+        if start >= end {
             return false;
         }
-        self.cursor -= 1;
-        let at = self.byte_index(self.cursor);
-        self.value.remove(at);
+        let bytes = self.byte_index(start)..self.byte_index(end);
+        self.value.replace_range(bytes, "");
+        self.cursor = start;
         true
     }
 
-    fn delete(&mut self) -> bool {
-        if self.cursor >= self.len() {
-            return false;
-        }
-        let at = self.byte_index(self.cursor);
-        self.value.remove(at);
-        true
+    /// Where the word before the cursor starts, a word being letters and digits.
+    fn word_start(&self) -> usize {
+        let in_word = self.words(char::is_alphanumeric);
+        self.cursor - word_len(self.before().chars().rev(), in_word)
     }
+
+    /// Where the word after the cursor ends, a word being letters and digits.
+    fn word_end(&self) -> usize {
+        let after = &self.value[self.byte_index(self.cursor)..];
+        self.cursor + word_len(after.chars(), self.words(char::is_alphanumeric))
+    }
+
+    /// Where the word before the cursor starts, a word being anything but spaces.
+    fn unspaced_start(&self) -> usize {
+        let in_word = self.words(|c| !c.is_whitespace());
+        self.cursor - word_len(self.before().chars().rev(), in_word)
+    }
+
+    /// The characters words are made of: `in_word`'s, or every one in a masked field.
+    fn words(&self, in_word: fn(char) -> bool) -> fn(char) -> bool {
+        if self.masked { |_| true } else { in_word }
+    }
+
+    fn before(&self) -> &str {
+        &self.value[..self.byte_index(self.cursor)]
+    }
+}
+
+/// How many characters a word step crosses, reading away from the cursor: whatever is not
+/// `in_word` up to the next word, then that word. So in `me@example.com` a step back from
+/// the end stops before `com`, then `example`, then `me` when only letters and digits make a
+/// word, and goes to the start when anything but spaces does.
+fn word_len(chars: impl Iterator<Item = char>, in_word: fn(char) -> bool) -> usize {
+    let mut seen = false;
+    chars
+        .take_while(|&c| {
+            let inside = in_word(c);
+            seen |= inside;
+            inside || !seen
+        })
+        .count()
 }
 
 /// A labelled input: `label  value` on the first row, the error (or else the hint) below.
@@ -244,9 +315,175 @@ mod tests {
     #[test]
     fn control_keys_do_not_edit() {
         let mut input = typed("ab");
-        assert!(!input.handle_key(ctrl('a')));
+        assert!(!input.handle_key(ctrl('x')));
         assert!(!input.handle_key(key(KeyCode::Enter)));
         assert_eq!(input.value(), "ab");
+    }
+
+    fn with(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
+        KeyEvent::new(code, modifiers)
+    }
+
+    fn alt(c: char) -> KeyEvent {
+        with(KeyCode::Char(c), KeyModifiers::ALT)
+    }
+
+    #[test]
+    fn ctrl_w_removes_back_to_a_space_as_bash_does() {
+        let mut input = typed("to me@example.com  ");
+        assert!(input.handle_key(ctrl('w')));
+        assert_eq!(input.value(), "to ");
+        assert!(input.handle_key(ctrl('w')));
+        assert_eq!(input.value(), "");
+        assert!(!input.handle_key(ctrl('w')), "nothing before the cursor");
+
+        let mut input = typed("from:alice bob");
+        input.handle_key(key(KeyCode::Left));
+        assert!(input.handle_key(ctrl('w')));
+        assert_eq!(input.value(), "from:alice b");
+        assert_eq!(input.cursor(), 11);
+    }
+
+    #[test]
+    fn word_deletes_back_take_letters_and_digits_as_bash_does() {
+        let keys = [
+            with(KeyCode::Backspace, KeyModifiers::CONTROL),
+            with(KeyCode::Backspace, KeyModifiers::ALT),
+        ];
+        for pressed in keys {
+            let mut input = typed("to foo_bar me@example.com");
+            for left in [
+                "to foo_bar me@example.",
+                "to foo_bar me@",
+                "to foo_bar ",
+                "to foo_",
+                "to ",
+                "",
+            ] {
+                assert!(input.handle_key(pressed), "{pressed:?}");
+                assert_eq!(input.value(), left, "{pressed:?}");
+            }
+            assert!(!input.handle_key(pressed), "nothing before the cursor");
+        }
+    }
+
+    #[test]
+    fn word_deletes_forward_keep_the_cursor() {
+        for pressed in [with(KeyCode::Delete, KeyModifiers::CONTROL), alt('d')] {
+            let mut input = typed("from:alice bob");
+            input.handle_key(key(KeyCode::Home));
+            for left in [":alice bob", " bob", ""] {
+                assert!(input.handle_key(pressed), "{pressed:?}");
+                assert_eq!(input.value(), left, "{pressed:?}");
+                assert_eq!(input.cursor(), 0, "{pressed:?}");
+            }
+            assert!(!input.handle_key(pressed), "nothing after the cursor");
+        }
+    }
+
+    #[test]
+    fn line_keys_move_and_cut_as_bash_does() {
+        let mut input = typed("from:alice bob");
+        assert!(!input.handle_key(ctrl('a')));
+        assert_eq!(input.cursor(), 0);
+        assert!(!input.handle_key(ctrl('e')));
+        assert_eq!(input.cursor(), 14);
+
+        input.handle_key(ctrl('a'));
+        for _ in 0..5 {
+            input.handle_key(key(KeyCode::Right));
+        }
+        assert!(input.handle_key(ctrl('u')));
+        assert_eq!(input.value(), "alice bob");
+        assert_eq!(input.cursor(), 0);
+        assert!(!input.handle_key(ctrl('u')), "nothing before the cursor");
+
+        input.handle_key(key(KeyCode::Right));
+        assert!(input.handle_key(ctrl('k')));
+        assert_eq!(input.value(), "a");
+        assert_eq!(input.cursor(), 1);
+        assert!(!input.handle_key(ctrl('k')), "nothing after the cursor");
+    }
+
+    #[test]
+    fn word_moves_change_nothing_but_the_cursor() {
+        let backs = [
+            with(KeyCode::Left, KeyModifiers::CONTROL),
+            with(KeyCode::Left, KeyModifiers::ALT),
+            alt('b'),
+        ];
+        let forwards = [
+            with(KeyCode::Right, KeyModifiers::CONTROL),
+            with(KeyCode::Right, KeyModifiers::ALT),
+            alt('f'),
+        ];
+        for (back, forward) in backs.into_iter().zip(forwards) {
+            let mut input = typed("re: the plan");
+            for at in [8, 4, 0, 0] {
+                assert!(!input.handle_key(back), "{back:?}");
+                assert_eq!(input.cursor(), at, "{back:?}");
+            }
+            for at in [2, 7, 12, 12] {
+                assert!(!input.handle_key(forward), "{forward:?}");
+                assert_eq!(input.cursor(), at, "{forward:?}");
+            }
+            assert_eq!(input.value(), "re: the plan");
+        }
+    }
+
+    #[test]
+    fn word_editing_counts_characters_not_bytes() {
+        let mut input = typed("café über");
+        assert!(!input.handle_key(with(KeyCode::Left, KeyModifiers::CONTROL)));
+        assert_eq!(input.cursor(), 5);
+        assert!(input.handle_key(ctrl('w')));
+        assert_eq!(input.value(), "über");
+        assert_eq!(input.cursor(), 0);
+        input.handle_key(ctrl('e'));
+        assert!(input.handle_key(with(KeyCode::Backspace, KeyModifiers::ALT)));
+        assert_eq!(input.value(), "");
+    }
+
+    #[test]
+    fn ctrl_h_removes_one_character_as_backspace_does() {
+        let mut input = typed("me@x.io");
+        assert!(input.handle_key(ctrl('h')));
+        assert_eq!(input.value(), "me@x.i");
+        assert_eq!(input.cursor(), 6);
+        input.handle_key(key(KeyCode::Home));
+        assert!(!input.handle_key(ctrl('h')), "nothing before the cursor");
+    }
+
+    #[test]
+    fn masked_word_keys_take_the_whole_value_as_one_word() {
+        let mut input = typed("GOCSPX-ab cd");
+        input.set_masked(true);
+        assert!(!input.handle_key(with(KeyCode::Left, KeyModifiers::CONTROL)));
+        assert_eq!(input.cursor(), 0, "stopped inside the secret");
+        assert!(!input.handle_key(alt('f')));
+        assert_eq!(input.cursor(), 12, "stopped inside the secret");
+
+        input.handle_key(key(KeyCode::Left));
+        assert!(input.handle_key(ctrl('w')));
+        assert_eq!(input.value(), "d");
+        input.set_value("GOCSPX-ab cd");
+        assert!(input.handle_key(with(KeyCode::Backspace, KeyModifiers::CONTROL)));
+        assert_eq!(input.value(), "");
+        input.set_value("GOCSPX-ab cd");
+        input.handle_key(key(KeyCode::Home));
+        assert!(input.handle_key(with(KeyCode::Delete, KeyModifiers::CONTROL)));
+        assert_eq!(input.value(), "");
+    }
+
+    #[test]
+    fn ctrl_alt_letters_do_not_edit() {
+        let mut input = typed("ab");
+        let both = KeyModifiers::CONTROL | KeyModifiers::ALT;
+        assert!(!input.handle_key(with(KeyCode::Char('w'), both)));
+        assert!(!input.handle_key(with(KeyCode::Char('d'), both)));
+        assert!(!input.handle_key(alt('x')));
+        assert_eq!(input.value(), "ab");
+        assert_eq!(input.cursor(), 2);
     }
 
     #[test]
