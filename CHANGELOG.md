@@ -6,6 +6,12 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-03
+
+Gmail setup for a brand-new Google account: the MCP guide, the setup wizard and the docs now
+cover the Cloud terms, choosing the right Google account and browser profile, what Google needs
+before it publishes the app, and the one-time client download (#174).
+
 ### Changed
 
 - **The Gmail setup guide covers what a new Google account runs into.** `rail_provider_guide`
