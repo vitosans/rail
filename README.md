@@ -149,7 +149,7 @@ Every command and flag is in [Commands](docs/commands.md).
 | [Reading mail](docs/reading.md) | The mail screen, the reader, pictures, links, attachments, filtering, saved searches, the palette, themes. |
 | [Doing things to mail](docs/actions.md) | Archive, trash, star, labels, moving, selections, undo, snooze. |
 | [Writing mail](docs/writing.md) | The editor, the review, sending with undo, drafts, limits. |
-| [Keys](docs/keys.md) | Key names, `[keys]`, presets, and every action with its default keys. |
+| [Keys](docs/keys.md) | Key names, `[keys]`, presets, editing keys in text fields, and every action with its default keys. |
 | [Configuration](docs/configuration.md) | Every `config.toml` setting, sync, 1Password, file locations, the daemon. |
 | [Commands](docs/commands.md) | Every command, its flags and exit codes. |
 | [MCP](docs/mcp.md) | Using Rail from an AI agent. |
