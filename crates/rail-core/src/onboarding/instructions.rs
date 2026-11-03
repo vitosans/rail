@@ -9,7 +9,7 @@ use crate::config::AccountKind;
 /// providers accept any port for a loopback redirect.
 pub const REDIRECT_URI: &str = "http://127.0.0.1";
 
-const GOOGLE_CONSOLE: &str = "https://console.cloud.google.com/apis/credentials";
+const GOOGLE_CONSOLE: &str = "https://console.cloud.google.com/auth/overview";
 const AZURE_PORTAL: &str =
     "https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade";
 
@@ -30,9 +30,11 @@ pub fn instructions(kind: AccountKind) -> String {
 
 fn gmail() -> String {
     [
-        "1. In Google Cloud Console create a project and enable the Gmail API.".to_string(),
-        "2. OAuth consent screen: choose External, then set the publishing status to \"In production\". An app left in Testing expires refresh tokens after 7 days.".to_string(),
-        "3. Credentials: create an OAuth client ID of type Desktop app.".to_string(),
+        "Use the browser as the Google account that will own the client; with several signed in, check the account picker on each page.".to_string(),
+        String::new(),
+        "1. In Google Cloud Console create a project and enable the Gmail API. A Google account new to Google Cloud accepts its terms first.".to_string(),
+        "2. Google Auth Platform: Get started, audience External. Under Branding add a homepage URL and a privacy policy URL (their domain under Authorized domains) and no logo, which would need Google's verification. Then Audience, Publish app: the status must be \"In production\". An app left in Testing expires refresh tokens after 7 days.".to_string(),
+        "3. Clients: create an OAuth client of type Desktop app. Google shows its secret only in the dialog that follows.".to_string(),
         "4. Copy the client ID and the client secret into the next step.".to_string(),
         String::new(),
         "Scope Rail asks for:".to_string(),
@@ -70,6 +72,10 @@ mod tests {
         let text = instructions(AccountKind::Gmail);
         assert!(text.contains("Desktop app"), "{text}");
         assert!(text.contains("In production"), "{text}");
+        assert!(
+            text.contains("privacy policy URL") && text.contains("no logo"),
+            "{text}"
+        );
         assert!(text.contains(GMAIL_SCOPE), "{text}");
         assert_eq!(
             portal_url(AccountKind::Gmail).host_str(),

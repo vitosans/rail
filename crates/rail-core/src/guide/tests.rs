@@ -16,7 +16,9 @@ fn the_google_steps_are_pinned() {
     use StepKind::*;
     assert_eq!(
         kinds(&response.steps),
-        [Run, Run, Run, Run, Browser, Browser, Ask, Rail, Produce]
+        [
+            Run, Browser, Run, Run, Run, Browser, Browser, Ask, Rail, Produce
+        ]
     );
     let commands: Vec<_> = response
         .steps
@@ -32,11 +34,39 @@ fn the_google_steps_are_pinned() {
             "gcloud services enable gmail.googleapis.com",
         ]
     );
-    assert!(response.steps[4].explanation.contains("In production"));
-    assert!(response.steps[4].explanation.contains("7 days"));
-    assert!(response.steps[5].explanation.contains("Desktop app"));
-    assert_eq!(response.steps[7].tool.as_deref(), Some("rail_account_add"));
-    assert!(response.steps[8].optional);
+    let terms = &response.steps[1];
+    assert!(
+        terms.optional,
+        "only a new Google account must accept the terms"
+    );
+    assert!(terms.explanation.contains("TOS"));
+    let consent = &response.steps[5].explanation;
+    for needed in [
+        "In production",
+        "7 days",
+        "privacy policy URL",
+        "Authorized domains",
+        "logo",
+    ] {
+        assert!(consent.contains(needed), "consent step lacks {needed}");
+    }
+    let client = &response.steps[6].explanation;
+    assert!(client.contains("Desktop app") && client.contains("Download JSON"));
+    let add = &response.steps[8];
+    assert_eq!(add.tool.as_deref(), Some("rail_account_add"));
+    assert!(add.explanation.contains("store_secret_in_1password"));
+    assert!(add.explanation.contains("browser profile"));
+    assert!(response.steps[9].optional);
+}
+
+#[test]
+fn every_google_console_page_names_the_account_to_use() {
+    let steps = template(AccountKind::Gmail, &GuideInputs::default());
+    let pages: Vec<_> = steps.iter().filter_map(|s| s.url.as_deref()).collect();
+    assert_eq!(pages.len(), 3);
+    for page in pages {
+        assert!(page.contains("authuser=<address>"), "{page}");
+    }
 }
 
 #[test]
@@ -93,15 +123,15 @@ fn inputs_fill_their_placeholders_and_nothing_else() {
     };
     let google = guide(&request(AccountKind::Gmail, inputs.clone())).unwrap();
     assert_eq!(
-        google.steps[1].command.as_deref(),
+        google.steps[2].command.as_deref(),
         Some("gcloud projects create rail-mail-123")
     );
     assert!(
-        google.steps[4]
+        google.steps[5]
             .url
             .as_deref()
             .unwrap()
-            .ends_with("?project=rail-mail-123")
+            .ends_with("?project=rail-mail-123&authuser=<address>")
     );
     let microsoft = guide(&request(AccountKind::M365, inputs)).unwrap();
     assert!(

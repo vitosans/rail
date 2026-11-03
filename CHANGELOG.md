@@ -6,6 +6,27 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **The Gmail setup guide covers what a new Google account runs into.** `rail_provider_guide`
+  (guide version 2) and [Gmail / Google Workspace](docs/accounts.md#gmail--google-workspace)
+  now:
+  - say to check which account `gcloud` signed in, and how to keep a work account's setup apart;
+  - add an optional step to accept the Google Cloud terms, without which a new account cannot
+    create a project;
+  - open Google's current Auth Platform pages with `authuser`, so a browser signed in to several
+    accounts lands on the right one;
+  - list what Google now requires before publishing (a homepage and privacy policy URL with
+    their domain authorised), and warn that a logo forces Google's verification;
+  - say to click Download JSON straight away, as Google shows the client secret only once;
+  - tell the agent to offer 1Password for the client secret, and to hand over the login URL for
+    the right browser profile.
+
+### Upgrading
+
+- An agent that follows `rail_provider_guide` gets version 2. The Gmail steps gain an optional
+  step at index 1, so the steps after it move down one place.
+
 ## [0.9.0] - 2026-11-03
 
 Editing keys in text fields: every field takes bash's keys by default, and `field_keys` can

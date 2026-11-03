@@ -438,7 +438,7 @@ async fn the_setup_prompt_and_the_instructions() {
     )
     .await;
     assert_eq!(
-        structured(&guide)["steps"][1]["command"],
+        structured(&guide)["steps"][2]["command"],
         "gcloud projects create rail-p"
     );
     client.close().await;
