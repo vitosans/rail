@@ -57,17 +57,19 @@ header and attachment prompts and the setup wizard's fields) edits with bash's k
 | `Ctrl-Delete` | Remove the word after the cursor. |
 | `Ctrl-←` / `Ctrl-→` | Move a word back or forward. |
 
-For the last three a word is letters and digits, as bash's `Alt-b` and `Alt-f` read it, so they
-step over `@`, `.` and `_`. `Ctrl` and `Alt` are interchangeable in these three, and `Alt-b`,
-`Alt-f` and `Alt-d` (what macOS terminals send for Option with an arrow or `Delete`) move and
-remove words as in bash. In a masked field, such as a client secret in the wizard, the whole value
-is one word, so the cursor never shows where the secret's symbols are.
+Notes on the word keys:
 
-`Ctrl-Backspace` removes a word only where the terminal reports it as its own key. Most terminals
-send the same byte for it as for `Ctrl-h` or for `Backspace`, and both remove one character:
-`Ctrl-h` is `Backspace`, as in bash, because some terminals send it for that key. To make
-`Ctrl-Backspace` remove a word, bind it in your terminal to send what `Alt-Backspace` sends (`Esc`
-then `DEL`). In Ghostty, also under tmux:
+| Topic | Behaviour |
+|---|---|
+| What a word is | Letters and digits, as in bash, so `Alt-Backspace`, `Ctrl-Delete` and `Ctrl-←`/`Ctrl-→` stop at `@`, `.` and `_`. |
+| `Ctrl` or `Alt` | Interchangeable for those keys. |
+| macOS | `Alt-b`, `Alt-f` and `Alt-d` also work. Terminals send them for Option with an arrow or `Delete`. |
+| Masked fields | The whole value is one word, so the cursor never shows where a secret's symbols are. |
+| `Ctrl-h` | Removes one character, as `Backspace` does. Some terminals send it for `Backspace`. |
+
+`Ctrl-Backspace` removes a word only where the terminal sends it as its own key. Most terminals
+send `Ctrl-h` for it instead, which removes one character. To make it remove a word, bind it in
+your terminal to send `Esc` then `DEL`, as `Alt-Backspace` does. In Ghostty, also under tmux:
 
 ```
 keybind = ctrl+backspace=text:\x1b\x7f
