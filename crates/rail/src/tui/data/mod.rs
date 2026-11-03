@@ -171,6 +171,10 @@ pub enum MailEvent {
     DimReadSaved {
         result: Result<(), String>,
     },
+    /// `config.toml` was written for `:field-keys`; the error is a config or IO error's text.
+    FieldKeysSaved {
+        result: Result<(), String>,
+    },
     /// The refresh with this sequence number gave its last answer, or its job panicked.
     RefreshEnded {
         seq: u64,
@@ -412,6 +416,10 @@ impl fmt::Debug for MailEvent {
                 .finish(),
             Self::DimReadSaved { result } => f
                 .debug_struct("DimReadSaved")
+                .field("ok", &result.is_ok())
+                .finish(),
+            Self::FieldKeysSaved { result } => f
+                .debug_struct("FieldKeysSaved")
                 .field("ok", &result.is_ok())
                 .finish(),
             Self::RefreshEnded { seq } => f.debug_struct("RefreshEnded").field("seq", seq).finish(),

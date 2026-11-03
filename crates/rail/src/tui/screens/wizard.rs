@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use rail_core::config::FieldKeys;
 use rail_core::error::ErrorClass;
 use rail_core::onboarding::{
     Action as WizardAction, Body, Busy, Event, Failure, Field, FieldView, Input, PresetEntry,
@@ -53,6 +54,8 @@ pub struct WizardScreen {
     pub(super) model: ViewModel,
     /// Edit state (cursor, masking) per text field; the wizard owns the values.
     pub(super) inputs: BTreeMap<Field, TextInput>,
+    /// `general.field_keys`: how the fields edit.
+    field_keys: FieldKeys,
     pub(super) focus: usize,
     pub(super) select: Select,
     pub(super) scroll: ScrollPanel,
@@ -82,6 +85,7 @@ impl WizardScreen {
             chord: Chord::default(),
             model,
             inputs: BTreeMap::new(),
+            field_keys: FieldKeys::default(),
             focus: 0,
             select,
             scroll: ScrollPanel::default(),
@@ -202,9 +206,19 @@ impl WizardScreen {
     }
 
     /// Text the wizard changed itself (a derived name, a preset's tenant) reaches the inputs.
+    /// Edit the fields with `keys`, `general.field_keys` from the config being added to.
+    pub fn with_field_keys(mut self, keys: FieldKeys) -> Self {
+        self.field_keys = keys;
+        self.inputs
+            .values_mut()
+            .for_each(|input| input.set_keys(keys));
+        self
+    }
+
     fn sync_inputs(&mut self) {
         for view in text_fields(&self.model.body) {
             let input = self.inputs.entry(view.field).or_default();
+            input.set_keys(self.field_keys);
             input.set_masked(view.masked);
             if input.value() != view.value {
                 input.set_value(&view.value);

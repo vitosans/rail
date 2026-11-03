@@ -220,7 +220,10 @@ impl MailScreen {
             return self.act(action);
         }
         let outcome = match self.compose.as_mut() {
-            Some(composer) => composer.key(action, key),
+            Some(composer) => {
+                composer.use_field_keys(self.ctx.field_keys);
+                composer.key(action, key)
+            }
             None => return Vec::new(),
         };
         self.compose_outcome(outcome)

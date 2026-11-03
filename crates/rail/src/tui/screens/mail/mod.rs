@@ -15,6 +15,7 @@ mod dim_read_toggle;
 mod drafts_flow;
 mod drafts_pane;
 mod events;
+mod field_keys_toggle;
 mod header;
 #[cfg(test)]
 mod header_tests;
@@ -61,7 +62,7 @@ use std::sync::Arc;
 use crossterm::event::KeyEvent;
 use rail_core::config::CompiledLinkAction;
 use rail_core::config::SavedSearch;
-use rail_core::config::{AccountKind, Config, DimRead, Icons, ThreadOrder};
+use rail_core::config::{AccountKind, Config, DimRead, FieldKeys, Icons, ThreadOrder};
 use rail_core::ops::OpError;
 use rail_core::paths::Paths;
 use rail_core::store::filter::{Filter, parse};
@@ -143,6 +144,8 @@ pub struct MailContext {
     pub picker: Option<ratatui_image::picker::Picker>,
     /// How read list rows are dimmed; `:dim-read` cycles the modes.
     pub dim_read: DimRead,
+    /// How text fields edit; `:field-keys` cycles the modes.
+    pub field_keys: FieldKeys,
     /// The terminal shows OSC 8 hyperlinks.
     pub hyperlinks: bool,
     /// What the terminal can show; the theme picker needs it to preview.
@@ -509,6 +512,7 @@ impl MailScreen {
             panic!("rail test panic in the mail screen");
         }
         if let Some(modal) = self.modal.as_mut() {
+            modal.use_field_keys(self.ctx.field_keys);
             let outcome = modal.key(key);
             return self.modal_outcome(outcome);
         }

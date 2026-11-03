@@ -653,6 +653,7 @@ impl MailScreen {
             Target::Time => self.toggle_time(),
             Target::ThreadOrder => self.toggle_thread_order(),
             Target::DimRead => self.cycle_dim_read(),
+            Target::FieldKeys => self.cycle_field_keys(),
             Target::SaveSearch => self.save_search_prompt(),
             // Not the sidebar cursor's row: the palette has no cursor, so each entry names
             // its own search — and carries the name it showed, because the list can be

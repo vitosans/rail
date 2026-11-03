@@ -9,6 +9,7 @@ use std::collections::BTreeSet;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo_matcher::{Config, Matcher};
+use rail_core::config::FieldKeys;
 use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
 use ratatui::style::{Color, Style};
@@ -168,6 +169,11 @@ impl SnoozeParts {
 }
 
 impl Picker {
+    /// The editing keys of the line, handed over before each key.
+    pub(crate) fn use_field_keys(&mut self, keys: FieldKeys) {
+        self.input.set_keys(keys);
+    }
+
     /// The items as given, for tests that check which one is marked.
     #[cfg(test)]
     pub fn items(&self) -> &[PickerItem] {

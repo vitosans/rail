@@ -52,7 +52,7 @@ pub(super) fn editor_appends(f: &Fixture, text: &'static str) {
 }
 
 /// The fake editor types `text` at the top of the body (above a signature) and exits 0.
-fn editor_types_above(f: &Fixture, text: &'static str) {
+pub(super) fn editor_types_above(f: &Fixture, text: &'static str) {
     f.editor.set(move |path| {
         let current = std::fs::read_to_string(path).unwrap();
         std::fs::write(path, current.replacen("\n\n", &format!("\n\n{text}"), 1)).unwrap();

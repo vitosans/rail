@@ -1,7 +1,7 @@
 //! The `:` palette's entries: the active view's key actions and the global ones, Rail's own
 //! commands, each account, merged mailbox and label.
 
-use rail_core::config::{DimRead, ThreadOrder, TimeFormat};
+use rail_core::config::{DimRead, FieldKeys, ThreadOrder, TimeFormat};
 
 use super::MailScreen;
 use crate::tui::data::ScopeChoice;
@@ -10,8 +10,8 @@ use crate::tui::modals::{PaletteEntry, Target};
 
 impl MailScreen {
     /// Every palette entry: each key action of the active view and the global ones with its
-    /// key, `compose`, `drafts`, `errors`, `theme`, `accent`, `keymap`, `hints`, `time`, `thread-order`, `dim-read`,
-    /// each account, merged mailbox and label.
+    /// key, `compose`, `drafts`, `errors`, `theme`, `accent`, `keymap`, `hints`, `time`,
+    /// `thread-order`, `dim-read`, `field-keys`, each account, merged mailbox and label.
     pub(crate) fn palette_entries(&self) -> Vec<PaletteEntry> {
         let key = |a: Action| self.ctx.keymap.label(a);
         let views = self.views();
@@ -149,7 +149,7 @@ impl MailScreen {
     }
 
     /// Display settings, each saying what it will do next.
-    fn toggles(&self) -> [(&'static str, &'static str, Target); 9] {
+    fn toggles(&self) -> [(&'static str, &'static str, Target); 10] {
         let hints = if self.hints {
             "Turn the key hints off"
         } else {
@@ -172,6 +172,10 @@ impl MailScreen {
             DimRead::Dot => "Dim read subjects",
             DimRead::Subject => "Dim all read row text",
             DimRead::All => "Dim only the read dot",
+        };
+        let field_keys = match self.ctx.field_keys.next() {
+            FieldKeys::Readline => "Edit text fields with bash's keys",
+            FieldKeys::Basic => "Edit text fields with the arrow keys only",
         };
         let counts = if self.search_counts {
             "Hide saved-search counts"
@@ -196,6 +200,7 @@ impl MailScreen {
         [
             (dim_read, "dim-read", Target::DimRead),
             (hints, "hints", Target::Hints),
+            (field_keys, "field-keys", Target::FieldKeys),
             (time, "time", Target::Time),
             (order, "thread-order", Target::ThreadOrder),
             (clock, "clock", Target::Clock),

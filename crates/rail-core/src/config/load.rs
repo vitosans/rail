@@ -342,6 +342,22 @@ archive = "e"
     }
 
     #[test]
+    fn field_keys_default_to_readline_and_report_invalid_values_at_their_line() {
+        use crate::config::FieldKeys;
+        assert_eq!(p("").unwrap().general.field_keys, FieldKeys::Readline);
+        for mode in [FieldKeys::Readline, FieldKeys::Basic] {
+            let text = format!("[general]\nfield_keys = \"{}\"\n", mode.as_str());
+            assert_eq!(p(&text).unwrap().general.field_keys, mode);
+        }
+        for value in ["\"emacs\"", "true", "1"] {
+            let err = p(&format!("[general]\nfield_keys = {value}\n"))
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains(":2:"), "{err}");
+        }
+    }
+
+    #[test]
     fn icons_default_to_unicode_and_take_ascii() {
         assert_eq!(p("").unwrap().general.icons, crate::config::Icons::Unicode);
         let ascii = p("[general]\nicons = \"ascii\"\n").unwrap();

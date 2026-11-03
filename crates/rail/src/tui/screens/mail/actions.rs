@@ -568,6 +568,7 @@ impl MailScreen {
             MailEvent::DimReadSaved { result } => {
                 self.setting_saved("read dimming setting", result)
             }
+            MailEvent::FieldKeysSaved { result } => self.setting_saved("field keys", result),
             other => self.compose_event(other),
         }
     }

@@ -15,6 +15,7 @@ mod scroll;
 mod tests;
 
 use crossterm::event::KeyEvent;
+use rail_core::config::FieldKeys;
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;
@@ -151,6 +152,22 @@ impl Modal {
             Self::Help(help) => help.key(key),
             Self::Errors(list) => list.key(key),
             Self::Prompt(prompt) => prompt.key(key),
+        }
+    }
+
+    /// Hand the modal's text field `general.field_keys`, before a key; the other modals
+    /// have no field.
+    pub fn use_field_keys(&mut self, keys: FieldKeys) {
+        match self {
+            Self::Filter(line) => line.use_field_keys(keys),
+            Self::Palette(palette) => palette.use_field_keys(keys),
+            Self::Picker(picker) => picker.use_field_keys(keys),
+            Self::Prompt(prompt) => prompt.use_field_keys(keys),
+            Self::Confirm(_)
+            | Self::LinkNumber(_)
+            | Self::Attachments(_)
+            | Self::Help(_)
+            | Self::Errors(_) => {}
         }
     }
 

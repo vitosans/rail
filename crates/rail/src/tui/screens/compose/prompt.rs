@@ -3,6 +3,7 @@
 //! prompt with filesystem completion.
 
 use crossterm::event::{KeyCode, KeyEvent};
+use rail_core::config::FieldKeys;
 use rail_core::store::addresses::AddressEntry;
 use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
@@ -122,6 +123,11 @@ pub struct HeaderPrompt {
 }
 
 impl HeaderPrompt {
+    /// The editing keys of the line, handed over before each key.
+    pub(crate) fn use_field_keys(&mut self, keys: FieldKeys) {
+        self.input.set_keys(keys);
+    }
+
     pub fn new(label: &'static str, value: &str, completes: bool) -> Self {
         let mut input = TextInput::default();
         input.set_value(value);
@@ -308,6 +314,11 @@ pub struct PathPrompt {
 }
 
 impl PathPrompt {
+    /// The editing keys of the line, handed over before each key.
+    pub(crate) fn use_field_keys(&mut self, keys: FieldKeys) {
+        self.input.set_keys(keys);
+    }
+
     pub fn new(value: &str) -> Self {
         let mut input = TextInput::default();
         input.set_value(value);

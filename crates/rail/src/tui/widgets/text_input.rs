@@ -4,6 +4,7 @@
 use std::fmt;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use rail_core::config::FieldKeys;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Position, Rect};
 use ratatui::text::{Line, Span};
@@ -23,6 +24,8 @@ pub struct TextInput {
     /// In characters, not bytes.
     cursor: usize,
     masked: bool,
+    /// `general.field_keys`, which the screen hands over before each key.
+    keys: FieldKeys,
 }
 
 impl fmt::Debug for TextInput {
@@ -56,15 +59,25 @@ impl TextInput {
         self.masked = masked;
     }
 
+    /// Edit with `keys` from now on: the screen calls this before each key, so a change to
+    /// `general.field_keys` reaches fields that are already open.
+    pub fn set_keys(&mut self, keys: FieldKeys) {
+        self.keys = keys;
+    }
+
     /// Apply an editing key. Returns true when the text changed.
     ///
-    /// The keys with Ctrl or Alt edit as bash does. Ctrl or Alt with an arrow moves by word,
+    /// With `basic` keys, a key with Ctrl or Alt does nothing. With `readline`, the keys with
+    /// Ctrl or Alt edit as bash does. Ctrl or Alt with an arrow moves by word,
     /// with `Backspace` or `Delete` removes a word, and a word is letters and digits. In a
     /// masked field the whole value is one word, so a word step never shows where a secret's
     /// symbols are.
     pub fn handle_key(&mut self, key: KeyEvent) -> bool {
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         let alt = key.modifiers.contains(KeyModifiers::ALT);
+        if self.keys == FieldKeys::Basic && (ctrl || alt) {
+            return false;
+        }
         match key.code {
             KeyCode::Char(c) if ctrl && !alt => self.control(c),
             KeyCode::Char(c) if alt && !ctrl => self.meta(c),
@@ -78,9 +91,9 @@ impl TextInput {
                 true
             }
             KeyCode::Backspace => self.backspace(),
-            KeyCode::Delete => self.remove(self.cursor, (self.cursor + 1).min(self.len())),
-            KeyCode::Left => self.move_to(self.cursor.saturating_sub(1)),
-            KeyCode::Right => self.move_to(self.cursor + 1),
+            KeyCode::Delete => self.delete(),
+            KeyCode::Left => self.back(),
+            KeyCode::Right => self.forward(),
             KeyCode::Home => self.move_to(0),
             KeyCode::End => self.move_to(self.len()),
             _ => false,
@@ -97,6 +110,9 @@ impl TextInput {
             'k' => self.remove(self.cursor, self.len()),
             'w' => self.remove(self.unspaced_start(), self.cursor),
             'h' => self.backspace(),
+            'b' => self.back(),
+            'f' => self.forward(),
+            'd' => self.delete(),
             _ => false,
         }
     }
@@ -146,6 +162,18 @@ impl TextInput {
 
     fn backspace(&mut self) -> bool {
         self.remove(self.cursor.saturating_sub(1), self.cursor)
+    }
+
+    fn delete(&mut self) -> bool {
+        self.remove(self.cursor, (self.cursor + 1).min(self.len()))
+    }
+
+    fn back(&mut self) -> bool {
+        self.move_to(self.cursor.saturating_sub(1))
+    }
+
+    fn forward(&mut self) -> bool {
+        self.move_to(self.cursor + 1)
     }
 
     /// Remove the characters from `start` to `end` and leave the cursor at `start`.
@@ -452,6 +480,57 @@ mod tests {
         assert_eq!(input.cursor(), 6);
         input.handle_key(key(KeyCode::Home));
         assert!(!input.handle_key(ctrl('h')), "nothing before the cursor");
+    }
+
+    #[test]
+    fn ctrl_b_ctrl_f_and_ctrl_d_work_a_character_at_a_time_as_bash_does() {
+        let mut input = typed("abc");
+        assert!(!input.handle_key(ctrl('b')));
+        assert!(!input.handle_key(ctrl('b')));
+        assert_eq!(input.cursor(), 1);
+        assert!(input.handle_key(ctrl('d')));
+        assert_eq!(input.value(), "ac");
+        assert_eq!(input.cursor(), 1);
+        assert!(!input.handle_key(ctrl('f')));
+        assert_eq!(input.cursor(), 2);
+        assert!(!input.handle_key(ctrl('f')), "already at the end");
+        assert_eq!(input.cursor(), 2);
+        assert!(!input.handle_key(ctrl('d')), "nothing after the cursor");
+        input.handle_key(key(KeyCode::Home));
+        assert!(!input.handle_key(ctrl('b')), "already at the start");
+        assert_eq!(input.cursor(), 0);
+    }
+
+    /// `basic` is Rail before the readline keys: a key with Ctrl or Alt changes nothing.
+    #[test]
+    fn basic_keys_leave_ctrl_and_alt_alone() {
+        let mut input = typed("to me@example.com");
+        input.set_keys(FieldKeys::Basic);
+        let keys = [
+            ctrl('a'),
+            ctrl('w'),
+            ctrl('u'),
+            ctrl('h'),
+            ctrl('b'),
+            ctrl('d'),
+            alt('b'),
+            alt('d'),
+            with(KeyCode::Backspace, KeyModifiers::ALT),
+            with(KeyCode::Left, KeyModifiers::CONTROL),
+        ];
+        for pressed in keys {
+            assert!(!input.handle_key(pressed), "{pressed:?}");
+            assert_eq!(input.value(), "to me@example.com", "{pressed:?}");
+            assert_eq!(input.cursor(), 17, "{pressed:?}");
+        }
+        assert!(input.handle_key(key(KeyCode::Backspace)));
+        assert!(!input.handle_key(key(KeyCode::Home)));
+        assert!(input.handle_key(key(KeyCode::Delete)));
+        assert_eq!(input.value(), "o me@example.co");
+
+        input.set_keys(FieldKeys::Readline);
+        assert!(input.handle_key(ctrl('k')), "back to readline");
+        assert_eq!(input.value(), "");
     }
 
     #[test]

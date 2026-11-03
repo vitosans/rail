@@ -505,6 +505,7 @@ pub fn mail_ctx(paths: &Paths, fake: Arc<FakeDaemon>) -> MailContext {
         remote_images_from: Vec::new(),
         picker: Some(ratatui_image::picker::Picker::halfblocks()),
         dim_read: rail_core::config::DimRead::Dot,
+        field_keys: rail_core::config::FieldKeys::Readline,
         hyperlinks: false,
         depth: ColorDepth::TrueColor,
         theme_choice: ThemeChoice::default(),

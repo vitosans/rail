@@ -13,6 +13,7 @@ mod view;
 use std::cell::Cell;
 
 use crossterm::event::{KeyCode, KeyEvent};
+use rail_core::config::FieldKeys;
 use rail_core::ops::drafts::parse_recipient;
 use rail_core::store::addresses::AddressEntry;
 
@@ -214,6 +215,15 @@ impl Composer {
 
     /// `action` is the keymap's resolution of `key` in the `Compose` view (`None` while
     /// `captures_text`).
+    /// Hand the open prompt `general.field_keys`, before a key.
+    pub fn use_field_keys(&mut self, keys: FieldKeys) {
+        match &mut self.prompting {
+            Some(Prompting::Path(prompt)) => prompt.use_field_keys(keys),
+            Some(Prompting::Headers(state)) => state.prompt.use_field_keys(keys),
+            None => {}
+        }
+    }
+
     pub fn key(&mut self, action: Option<Action>, key: KeyEvent) -> ComposeOutcome {
         if self.confirm_discard {
             return self.confirm_key(key);
