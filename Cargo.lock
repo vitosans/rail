@@ -2810,7 +2810,7 @@ checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
 
 [[package]]
 name = "rail"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "clap",
  "color-eyre",
@@ -2846,7 +2846,7 @@ dependencies = [
 
 [[package]]
 name = "rail-core"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "async-trait",
  "base64 0.23.1",

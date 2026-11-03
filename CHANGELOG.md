@@ -6,6 +6,11 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-11-03
+
+Far fewer 1Password prompts: a token refresh writes back to the secret store only when it must
+(#178).
+
 ### Fixed
 
 - **Far fewer 1Password prompts.** A token refresh no longer writes to the secret store unless
