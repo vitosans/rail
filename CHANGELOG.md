@@ -6,6 +6,12 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-03
+
+Trust a whole domain's remote pictures: `remote_images_from` takes `"@example.com"`, and `I`
+asks whether to trust the sender or their domain, offering the domain only for mail its server
+vouched for (#176).
+
 ### Added
 
 - **Trust a whole domain's remote pictures.** `remote_images_from` takes `"@example.com"` for
