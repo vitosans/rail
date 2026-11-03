@@ -175,6 +175,7 @@ impl MailScreen {
         };
         let field_keys = match self.ctx.field_keys.next() {
             FieldKeys::Readline => "Edit text fields with bash's keys",
+            FieldKeys::Vi => "Edit text fields with vi's keys",
             FieldKeys::Basic => "Edit text fields with the arrow keys only",
         };
         let counts = if self.search_counts {

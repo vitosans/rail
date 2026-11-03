@@ -15,9 +15,11 @@ All notable changes to Rail are recorded here. The format follows
   [Editing keys in text fields](docs/keys.md#editing-keys-in-text-fields). Contributed by
   @coko7 (#152, #169).
 - **`field_keys`: choose how text fields edit.** `"readline"` (the default) is bash's keys, now
-  with `Ctrl-b`/`Ctrl-f` to move a character and `Ctrl-d` to remove one. `"basic"` keeps only the
-  arrows, `Home`/`End`, `Backspace` and `Delete`. It is the same in every keymap. `:field-keys`
-  switches and saves it (#153).
+  with `Ctrl-b`/`Ctrl-f` to move a character and `Ctrl-d` to remove one. `"vi"` edits as a
+  shell's `set -o vi`: fields open in insert mode, and `Esc` goes to normal mode for motions,
+  `d`/`c` operators, `x`, `r` and the rest; a second `Esc` closes the prompt. `"basic"` keeps
+  only the arrows, `Home`/`End`, `Backspace` and `Delete`. It is the same in every keymap.
+  `:field-keys` cycles and saves it (#153).
 
 ### Upgrading
 

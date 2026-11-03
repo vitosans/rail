@@ -37,7 +37,7 @@ impl FilterLine {
     pub(super) fn key(&mut self, key: KeyEvent) -> ModalOutcome {
         match key.code {
             KeyCode::Enter => ModalOutcome::Close,
-            KeyCode::Esc => ModalOutcome::Run(Command::ClearFilter),
+            KeyCode::Esc if !self.input.takes_esc() => ModalOutcome::Run(Command::ClearFilter),
             _ => {
                 let before = self.input.clone();
                 if !self.input.handle_key(key) {

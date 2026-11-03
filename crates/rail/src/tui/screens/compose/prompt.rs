@@ -198,7 +198,7 @@ impl HeaderPrompt {
 
     pub fn key(&mut self, key: KeyEvent) -> PromptOutcome {
         match key.code {
-            KeyCode::Esc => PromptOutcome::Cancel,
+            KeyCode::Esc if !self.input.takes_esc() => PromptOutcome::Cancel,
             KeyCode::Enter => {
                 self.take_highlighted("");
                 PromptOutcome::Done(self.input.value().to_string())
@@ -348,7 +348,7 @@ impl PathPrompt {
 
     pub fn key(&mut self, key: KeyEvent) -> PromptOutcome {
         match key.code {
-            KeyCode::Esc => PromptOutcome::Cancel,
+            KeyCode::Esc if !self.input.takes_esc() => PromptOutcome::Cancel,
             KeyCode::Enter => {
                 let expanded = self.value_expanded();
                 if expanded.is_empty() {

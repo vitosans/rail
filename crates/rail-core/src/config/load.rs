@@ -345,7 +345,7 @@ archive = "e"
     fn field_keys_default_to_readline_and_report_invalid_values_at_their_line() {
         use crate::config::FieldKeys;
         assert_eq!(p("").unwrap().general.field_keys, FieldKeys::Readline);
-        for mode in [FieldKeys::Readline, FieldKeys::Basic] {
+        for mode in [FieldKeys::Readline, FieldKeys::Vi, FieldKeys::Basic] {
             let text = format!("[general]\nfield_keys = \"{}\"\n", mode.as_str());
             assert_eq!(p(&text).unwrap().general.field_keys, mode);
         }

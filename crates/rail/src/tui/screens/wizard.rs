@@ -262,9 +262,19 @@ impl WizardScreen {
         }
     }
 
+    /// True when the focused field keeps `key` for itself: `Esc` in a vi field's insert
+    /// mode goes to normal mode, not back a step.
+    fn field_takes(&self, key: KeyEvent) -> bool {
+        key.code == KeyCode::Esc
+            && self
+                .focused_field()
+                .and_then(|view| self.inputs.get(&view.field))
+                .is_some_and(TextInput::takes_esc)
+    }
+
     /// The wizard action `key` means, unless it types text in the focused field.
     fn action(&mut self, key: KeyEvent) -> Option<Action> {
-        if self.captures_text() && is_text_key(key) {
+        if self.captures_text() && (is_text_key(key) || self.field_takes(key)) {
             return None;
         }
         match self.keymap.resolve(&[View::Wizard], &mut self.chord, key) {

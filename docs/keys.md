@@ -51,13 +51,15 @@ under `[general]` chooses how:
 | `field_keys` | Keys |
 |---|---|
 | `"readline"` (the default) | Bash's keys, below. |
+| `"vi"` | A shell's `set -o vi`: insert and normal mode. See [vi keys](#vi-keys). |
 | `"basic"` | `←`/`→`, `Home`/`End`, `Backspace` and `Delete` only. Keys with `Ctrl` or `Alt` do nothing. |
 
-`:field-keys` in the palette switches between them and saves the choice. It is the same in every
-keymap: the key presets never change how fields edit. `←`/`→`, `Home`/`End`, `Backspace` and
-`Delete` work a character at a time in both.
+`:field-keys` in the palette cycles `readline`, `vi` and `basic`, and saves the choice. It is the
+same in every keymap: the key presets never change how fields edit, so `vim` users choose `vi`
+here if they want it. `←`/`→`, `Home`/`End`, `Backspace` and `Delete` work a character at a time
+in every mode.
 
-The `readline` keys:
+### Readline keys
 
 | Key | Action |
 |---|---|
@@ -87,6 +89,23 @@ your terminal to send `Esc` then `DEL`, as `Alt-Backspace` does. In Ghostty, als
 ```
 keybind = ctrl+backspace=text:\x1b\x7f
 ```
+
+### vi keys
+
+A field opens in insert mode, so typing works at once. `Esc` goes to normal mode, where keys move
+and edit. In normal mode `Esc` belongs to the screen again, so a second `Esc` closes the prompt,
+clears the filter or goes back a step in the wizard. `Enter` submits in either mode.
+
+| Mode | Keys |
+|---|---|
+| Insert | Typing, the arrows, `Home`/`End`, `Backspace`, `Delete`. `Ctrl-w`, `Ctrl-u` and `Ctrl-h` as in readline. |
+| Normal: move | `h`/`l` (or `←`/`→`), `w`/`b`/`e` by word, `W`/`B`/`E` by space-separated word, `0`/`^`/`$` (or `Home`/`End`). |
+| Normal: edit | `x`/`X` a character, `D` to the end, `r` replaces one character, `~` flips its case. |
+| Normal: operators | `d` or `c` with a motion (`dw`, `cb`, `d$`), `dd`/`cc` for the whole line, `C` changes to the end. |
+| Normal: back to insert | `i`/`a` before or after the cursor, `I`/`A` at the start or end, `s`/`S` change a character or the line. |
+
+A word for `w`, `b` and `e` is letters, digits and `_`, or a run of other symbols, as in vi. There
+is no undo, no counts (`3w`) and no registers. In a masked field the whole value is one word.
 
 These keys are not actions: `[keys]` and the key presets never change them, and `Ctrl-C` still
 quits in every mode.

@@ -307,23 +307,27 @@ pub enum FieldKeys {
     /// Bash's default (emacs) keys: `Ctrl-a`/`Ctrl-e`, `Ctrl-w`, `Alt-b`/`Alt-f` and so on.
     #[default]
     Readline,
+    /// A shell's `set -o vi`: fields open in insert mode and `Esc` goes to normal mode.
+    Vi,
     /// Arrows, `Home`/`End`, `Backspace` and `Delete` only; Ctrl and Alt keys do nothing.
     Basic,
 }
 
 impl FieldKeys {
-    /// The config value: `readline` or `basic`.
+    /// The config value: `readline`, `vi` or `basic`.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Readline => "readline",
+            Self::Vi => "vi",
             Self::Basic => "basic",
         }
     }
 
-    /// The mode `:field-keys` switches to.
+    /// The mode `:field-keys` switches to: `readline`, `vi`, `basic`, then round again.
     pub fn next(self) -> Self {
         match self {
-            Self::Readline => Self::Basic,
+            Self::Readline => Self::Vi,
+            Self::Vi => Self::Basic,
             Self::Basic => Self::Readline,
         }
     }

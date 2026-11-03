@@ -24,7 +24,7 @@ async fn field_keys_palette_switches_and_saves_without_losing_comments() {
     let path = f.paths.config_file();
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(&path, "[general]\neditor = \"vi\" # mine\n").unwrap();
-    for expected in [FieldKeys::Basic, FieldKeys::Readline] {
+    for expected in [FieldKeys::Vi, FieldKeys::Basic, FieldKeys::Readline] {
         run_field_keys(&mut f).await;
         assert!(f.screen.modal.is_none());
         assert_eq!(f.screen.ctx.field_keys, expected);
@@ -84,4 +84,51 @@ async fn compose_prompts_edit_with_the_field_keys_in_force() {
             "{keys:?}: {saved:?}"
         );
     }
+}
+
+/// In a vi field the first `Esc` goes to normal mode, where keys are commands, and only the
+/// second closes the line, clearing the filter as `Esc` does.
+#[tokio::test]
+async fn esc_in_a_vi_filter_goes_to_normal_mode_before_it_closes() {
+    let mut f = fixture(3).await;
+    f.screen.ctx.field_keys = FieldKeys::Vi;
+    press(&mut f, KeyCode::Char('/')).await;
+    type_text(&mut f, "from:alice bob").await;
+    press(&mut f, KeyCode::Esc).await;
+    assert!(f.screen.modal.is_some(), "still open, in normal mode");
+    type_text(&mut f, "bdw").await;
+    assert_eq!(f.screen.filter_text, "from:alice ");
+    press(&mut f, KeyCode::Esc).await;
+    assert!(f.screen.modal.is_none());
+    assert!(f.screen.filter_text.is_empty(), "the second Esc clears it");
+}
+
+#[tokio::test]
+async fn esc_in_a_vi_palette_or_compose_prompt_closes_on_the_second_press() {
+    let mut f = fixture(3).await;
+    f.screen.ctx.field_keys = FieldKeys::Vi;
+    press(&mut f, KeyCode::Char(':')).await;
+    press(&mut f, KeyCode::Esc).await;
+    assert!(
+        f.screen.modal.is_some(),
+        "the first Esc goes to normal mode"
+    );
+    press(&mut f, KeyCode::Esc).await;
+    assert!(f.screen.modal.is_none());
+
+    let mut f = compose_fixture().await;
+    f.screen.ctx.field_keys = FieldKeys::Vi;
+    press(&mut f, KeyCode::Char('1')).await;
+    press(&mut f, KeyCode::Char('c')).await;
+    press(&mut f, KeyCode::Esc).await;
+    assert_eq!(
+        f.screen.compose.as_ref().and_then(|c| c.prompt_label()),
+        Some("To"),
+        "the first Esc goes to normal mode"
+    );
+    press(&mut f, KeyCode::Esc).await;
+    assert!(
+        f.screen.compose.as_ref().and_then(|c| c.prompt_label()) != Some("To"),
+        "the second Esc cancels the prompt"
+    );
 }
