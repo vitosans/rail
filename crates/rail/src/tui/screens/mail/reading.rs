@@ -554,6 +554,7 @@ impl MailScreen {
             Command::Theme(index) => return self.keep_scheme(index),
             Command::Accent(answer) => return self.keep_accent(answer),
             Command::Keymap(index) => return self.switch_keymap(index),
+            Command::Trust(choice) => return self.chose_trust(choice),
             Command::KeepKeymap => return self.keep_keymap(),
             Command::OpenAttachment(_)
             | Command::SaveAttachment(_)

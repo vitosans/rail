@@ -381,7 +381,7 @@ action's own description.
 | `reader.attachments` | reader | `a` | List the attachments. |  |
 | `reader.save_attachments` | reader | `w` | Save this message's attachments. |  |
 | `reader.load_images` | reader | `i` | Load this thread's remote pictures. |  |
-| `reader.trust_images` | reader | `I` | Always load this sender's remote pictures, or stop. |  |
+| `reader.trust_images` | reader | `I` | Always load this sender's or their domain's remote pictures, or stop. |  |
 | `reader.follow_link` | reader | `g x` | Open a link. |  |
 | `reader.back` | reader | `q` `esc` | Close the thread. |  |
 | `reader.down` | reader | `j` `down` | Next line. |  |

@@ -14,6 +14,7 @@ use ratatui::style::Color;
 
 use super::{Fixture, fixture, keys, open_toms_card, press, store_bodies_on_fetch};
 use crate::tui::data::FakeCall;
+use crate::tui::modals::Modal;
 use crate::tui::screen::Screen;
 use crate::tui::screens::reader::LineKind;
 use crate::tui::screens::reader::pictures::MAX_PICTURES_PER_READER;
@@ -195,7 +196,8 @@ fn remote_calls(f: &Fixture) -> Vec<FakeCall> {
 
 fn has_hint(f: &Fixture) -> bool {
     f.screen.reader().unwrap().lines(80).iter().any(|l| {
-        l.text() == "Remote pictures are not shown; i loads them, I always for this sender."
+        l.text()
+            == "Remote pictures are not shown; i loads them, I always for this sender or domain."
     })
 }
 
@@ -248,6 +250,15 @@ async fn capital_i_trusts_the_sender_for_good_and_again_stops_trusting_them() {
     assert_eq!(remote_calls(&f), []);
 
     press(&mut f, KeyCode::Char('I')).await;
+    assert_eq!(
+        chooser_rows(&f),
+        [
+            "tom@example.com  (this sender)",
+            "@example.com  (everyone at this domain)"
+        ]
+    );
+    assert_eq!(remote_calls(&f), [], "nothing loads until a row is chosen");
+    press(&mut f, KeyCode::Enter).await;
     assert!(
         f.screen
             .status_line()
@@ -293,6 +304,7 @@ async fn capital_i_keeps_a_sender_added_to_the_file_while_rail_was_open() {
     by_hand(r#""ann@example.com""#);
 
     press(&mut f, KeyCode::Char('I')).await;
+    press(&mut f, KeyCode::Enter).await;
     let text = std::fs::read_to_string(f.paths.config_file()).unwrap();
     assert!(
         text.contains(r#"remote_images_from = ["ann@example.com", "tom@example.com"] # by hand"#),
@@ -316,6 +328,7 @@ async fn capital_i_on_unvouched_mail_loads_it_now_but_not_by_itself_again() {
     press(&mut f, KeyCode::Enter).await;
     open_toms_card(&mut f).await;
     press(&mut f, KeyCode::Char('I')).await;
+    press(&mut f, KeyCode::Enter).await;
     assert!(
         f.screen
             .status_line()
@@ -328,4 +341,94 @@ async fn capital_i_on_unvouched_mail_loads_it_now_but_not_by_itself_again() {
     open_toms_card(&mut f).await;
     assert_eq!(remote_calls(&f).len(), 1, "not again without the key");
     assert!(has_hint(&f));
+}
+
+/// The rows of the open `I` chooser.
+fn chooser_rows(f: &Fixture) -> Vec<String> {
+    let Some(Modal::Picker(picker)) = f.screen.open_modal() else {
+        panic!("no chooser open");
+    };
+    picker.items().iter().map(|i| i.name.clone()).collect()
+}
+
+#[tokio::test]
+async fn capital_i_can_trust_the_whole_domain_and_again_stops_trusting_it() {
+    let (mut f, _dir) = with_a_remote_picture().await;
+    press(&mut f, KeyCode::Enter).await;
+    open_toms_card(&mut f).await;
+
+    press(&mut f, KeyCode::Char('I')).await;
+    press(&mut f, KeyCode::Down).await;
+    press(&mut f, KeyCode::Enter).await;
+    assert!(
+        f.screen
+            .status_line()
+            .contains("remote pictures from @example.com: always"),
+        "{}",
+        f.screen.status_line()
+    );
+    assert_eq!(remote_calls(&f).len(), 1, "loaded at once");
+    let text = std::fs::read_to_string(f.paths.config_file()).unwrap();
+    assert!(
+        text.contains(r#"remote_images_from = ["@example.com"]"#),
+        "{text}"
+    );
+
+    press(&mut f, KeyCode::Char('q')).await;
+    press(&mut f, KeyCode::Enter).await;
+    open_toms_card(&mut f).await;
+    assert_eq!(
+        remote_calls(&f).len(),
+        2,
+        "the domain's mail loads by itself"
+    );
+
+    // Trusted by domain, `I` stops trusting the domain rather than asking again.
+    press(&mut f, KeyCode::Char('I')).await;
+    assert!(f.screen.open_modal().is_none());
+    assert!(
+        f.screen.status_line().contains("@example.com: ask first"),
+        "{}",
+        f.screen.status_line()
+    );
+    let text = std::fs::read_to_string(f.paths.config_file()).unwrap();
+    assert!(!text.contains("remote_images_from"), "{text}");
+}
+
+/// A domain is offered only for mail the receiving server vouched for. Otherwise its row only
+/// says why: choosing it trusts nothing and loads nothing.
+#[tokio::test]
+async fn capital_i_on_unvouched_mail_will_not_trust_its_domain() {
+    let (mut f, _dir) = with_a_remote_picture_vouched("NULL").await;
+    press(&mut f, KeyCode::Enter).await;
+    open_toms_card(&mut f).await;
+
+    press(&mut f, KeyCode::Char('I')).await;
+    assert_eq!(
+        chooser_rows(&f)[1],
+        "@example.com  (not verified for this mail)"
+    );
+    press(&mut f, KeyCode::Down).await;
+    press(&mut f, KeyCode::Enter).await;
+    assert!(
+        f.screen.status_line().contains("Not trusting @example.com"),
+        "{}",
+        f.screen.status_line()
+    );
+    assert_eq!(remote_calls(&f), [], "nothing loaded");
+    let text = std::fs::read_to_string(f.paths.config_file()).unwrap_or_default();
+    assert!(!text.contains("remote_images_from"), "{text}");
+}
+
+#[tokio::test]
+async fn esc_closes_the_capital_i_chooser_without_trusting_anyone() {
+    let (mut f, _dir) = with_a_remote_picture().await;
+    press(&mut f, KeyCode::Enter).await;
+    open_toms_card(&mut f).await;
+    press(&mut f, KeyCode::Char('I')).await;
+    press(&mut f, KeyCode::Esc).await;
+    assert!(f.screen.open_modal().is_none());
+    assert_eq!(remote_calls(&f), []);
+    let text = std::fs::read_to_string(f.paths.config_file()).unwrap_or_default();
+    assert!(!text.contains("remote_images_from"), "{text}");
 }

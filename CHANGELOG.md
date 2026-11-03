@@ -6,6 +6,15 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Trust a whole domain's remote pictures.** `remote_images_from` takes `"@example.com"` for
+  every address at exactly that domain, as well as single addresses. `I` now asks whom to
+  trust, the sender or their domain, and offers the domain only when the receiving server
+  vouched for the message (DMARC or aligned DKIM), so a forged From line cannot win it. `I`
+  then `Enter` trusts the sender as before, and `I` on trusted mail stops trusting whichever
+  entry matched. See [Trusting a sender or a domain](docs/reading.md#trusting-a-sender-or-a-domain).
+
 ## [0.9.1] - 2026-11-03
 
 Gmail setup for a brand-new Google account: the MCP guide, the setup wizard and the docs now

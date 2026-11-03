@@ -81,6 +81,27 @@ pub enum PickerKind {
     Snooze,
     /// A keymap preset (`id`: its position in `KeymapPreset::ALL`).
     Keymap,
+    /// Whose remote pictures `I` always loads (`id`: a `TrustChoice`'s).
+    Trust,
+}
+
+/// What the `I` chooser trusts. Its ids are the picker rows' `id`s.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrustChoice {
+    /// The cursor message's sender, by address.
+    Sender = 0,
+    /// Everyone at the sender's domain, which the receiving server vouched for.
+    Domain = 1,
+    /// The sender's domain, which the receiving server did not vouch for: only says why not.
+    UnvouchedDomain = 2,
+}
+
+impl TrustChoice {
+    fn from_id(id: i64) -> Option<Self> {
+        [Self::Sender, Self::Domain, Self::UnvouchedDomain]
+            .into_iter()
+            .find(|c| *c as i64 == id)
+    }
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -329,6 +350,7 @@ impl Picker {
             PickerKind::Account => usize::try_from(item.id).ok().map(Command::Account),
             PickerKind::Draft => usize::try_from(item.id).ok().map(Command::DraftRow),
             PickerKind::Keymap => usize::try_from(item.id).ok().map(Command::Keymap),
+            PickerKind::Trust => TrustChoice::from_id(item.id).map(Command::Trust),
             PickerKind::Snooze if item.id == RETURN_NOW => Some(Command::SnoozeReturn),
             PickerKind::Snooze => Some(Command::Snooze {
                 until: item.id,
@@ -456,6 +478,11 @@ impl Picker {
                 "Keys",
                 "Enter switches · Esc keeps · ↑↓ move",
                 "No preset matches.",
+            ),
+            PickerKind::Trust => (
+                "Always load remote pictures from",
+                "Enter trusts · Esc cancels · ↑↓ move",
+                "Nothing matches.",
             ),
             PickerKind::Snooze => (
                 "Snooze until",

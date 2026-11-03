@@ -33,7 +33,9 @@ use rail_core::store::view::{BodyState, MessageView, ThreadDetail};
 use ratatui::style::Color;
 
 pub use lines::{LineKind, ReaderLine, Tone};
-pub use pictures::{DecodedPicture, Source as PictureSource, decode as decode_picture};
+pub use pictures::{
+    DecodedPicture, Source as PictureSource, decode as decode_picture, domain_entry,
+};
 pub use rich::{RichBody, from_html};
 
 use crate::tui::clock::Clock;
@@ -60,7 +62,7 @@ pub enum ReaderOutcome {
     Attachments,
     /// `w`: save the cursor message's attachments, without the list.
     SaveAttachments,
-    /// `I`: always load the cursor message's sender's remote pictures, or stop.
+    /// `I`: always load the cursor message's sender's or their domain's remote pictures, or stop.
     TrustSender,
 }
 
