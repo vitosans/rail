@@ -6,6 +6,21 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Bash's editing keys in text fields.** Every field you type in (the `/` filter, the
+  palette, the pickers, the name prompts, compose's header and attachment prompts and the setup
+  wizard) takes `Ctrl-a`/`Ctrl-e` to go to the start or the end, `Ctrl-u`/`Ctrl-k` to remove
+  everything before or after the cursor, and `Ctrl-w` to remove back to the previous space.
+  `Alt-Backspace` removes the word before the cursor, `Ctrl-Delete` the word after it and
+  `Ctrl-←`/`Ctrl-→` move a word at a time, a word being letters and digits as in bash; `Ctrl`
+  and `Alt` are interchangeable there, and `Alt-b`, `Alt-f` and `Alt-d` work too, what macOS
+  terminals send for Option with an arrow or `Delete`. `Ctrl-Backspace` removes a word only
+  where the terminal reports it as its own key: most send `Ctrl-h` for it, which removes one
+  character, as in bash, because some terminals send it for `Backspace`. In a masked field the
+  word keys take the whole value as one word, so the cursor never shows where a secret's symbols
+  are (#152).
+
 ## [0.8.0] - 2026-11-02
 
 Key presets: start from the keys you know. `keymap` chooses `rail`, `vim`, `mutt`, `emacs`,
