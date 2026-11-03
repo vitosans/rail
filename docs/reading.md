@@ -291,20 +291,33 @@ Start Rail in an attached tmux session to get full pictures there.
 one tells its sender you opened the mail.
 
 - The message starts with
-  `Remote pictures are not shown; i loads them, I always for this sender.`
+  `Remote pictures are not shown; i loads them, I always for this sender or domain.`
 - A remote picture with alt text shows `[image: …]` in its place.
 - `i` loads the open thread's remote pictures. It loads every remote picture of the thread, a
   tracking pixel too when the mail does not declare its size.
 - `remote_images = true` under `[general]`, or `:remote-images`, loads them in every thread.
 
-### Trusting a sender
+### Trusting a sender or a domain
 
-`I` loads them and remembers the sender of the message under the cursor, by address, so their mail
-shows its pictures from then on (`remote pictures from jira@example.com: always`, saved as
-`remote_images_from` under `[general]`). `I` on their mail again stops that (`…: ask first`).
+`I` asks whose pictures to load from then on, for the message under the cursor:
 
-A From line can be forged, so a trusted sender's mail loads its pictures by itself only when the
-receiving server vouched for the sender's domain:
+| Row | Trusts | Saved in `remote_images_from` as |
+|---|---|---|
+| `jira@example.com  (this sender)` | That address | `"jira@example.com"` |
+| `@example.com  (everyone at this domain)` | Every address at exactly that domain, not its subdomains | `"@example.com"` |
+
+`Enter` trusts the highlighted row, loads this thread's pictures and says so (`remote pictures
+from @example.com: always`). `Esc` trusts no one. The first row is the sender, so `I` `Enter` is
+what `I` did before.
+
+The domain row is offered only when the receiving server vouched for this message's domain (see
+below). Otherwise it reads `(not verified for this mail)`, and choosing it trusts nothing.
+
+On mail that is trusted already, `I` asks nothing: it stops trusting the address, or the domain
+when that is what matched (`…: ask first`).
+
+A From line can be forged, so a trusted sender's or domain's mail loads its pictures by itself
+only when the receiving server vouched for the sender's domain:
 
 - Gmail's or Microsoft 365's own `Authentication-Results` show DMARC passed for it, or
 - a DKIM signature of it (or of a parent domain) passed.

@@ -106,8 +106,9 @@ pub struct General {
     /// tells their senders the mail was read. `false` (the default) holds them back until a
     /// key loads one thread's. `:remote-images` toggles it.
     pub remote_images: bool,
-    /// `general.remote_images_from`: the senders (addresses) whose remote pictures the reader
-    /// always fetches. `I` on a message adds its sender, or removes them.
+    /// `general.remote_images_from`: the senders whose remote pictures the reader always
+    /// fetches: an address, or `@domain` for everyone at exactly that domain. `I` on a message
+    /// adds its sender or their domain, or removes the entry that matched.
     pub remote_images_from: Vec<String>,
     /// `general.remote_images_ipv6`: the daemon may fetch remote pictures over IPv6. `false`
     /// refuses every IPv6 address, for an IPv6-only network whose NAT64 prefix could reach

@@ -689,6 +689,12 @@ impl MailScreen {
         effects
     }
 
+    /// The open modal; for tests outside this module.
+    #[cfg(test)]
+    pub(crate) fn open_modal(&self) -> Option<&Modal> {
+        self.modal.as_ref()
+    }
+
     /// The notice, then each account, as text: what the hint bar shows without the hints;
     /// for tests.
     #[cfg(test)]

@@ -1,6 +1,6 @@
 //! `:images`: draw an HTML body's pictures or leave them out, and `:remote-images`: fetch
 //! remote pictures always or only once a thread's are loaded, each for the session and in
-//! `config.toml`; `I`: always fetch one sender's remote pictures, or stop; and asking the daemon for the open messages' pictures, once each. Pictures
+//! `config.toml`; `I`: always fetch one sender's or one domain's remote pictures, or stop; and asking the daemon for the open messages' pictures, once each. Pictures
 //! need rich mode and a terminal Rail could ask about its cells (`MailContext::picker`).
 
 use std::collections::HashSet;
@@ -10,7 +10,8 @@ use super::themes::Saved;
 use crate::tui::app::Effect;
 use crate::tui::data::MailEvent;
 use crate::tui::keys::Action;
-use crate::tui::screens::reader::{DecodedPicture, PictureSource, Reader};
+use crate::tui::modals::{Modal, Picker, PickerItem, PickerKind, TrustChoice};
+use crate::tui::screens::reader::{DecodedPicture, PictureSource, Reader, domain_entry};
 use crate::tui::text::escape;
 
 impl MailScreen {
@@ -59,27 +60,80 @@ impl MailScreen {
         effects
     }
 
-    /// `I`: always load the cursor message's sender's remote pictures (fetching this thread's
-    /// now, as `i` does, whether or not its sender was vouched for), or stop, say so, and add
-    /// or remove just that address in `remote_images_from` as the file has it, so a sender
-    /// added elsewhere stays (an empty list removes the key). Later mail loads by itself only
-    /// when the receiving server vouched for the sender's domain.
+    /// `I`: when the cursor message's sender is trusted already, by address or by domain, stop
+    /// trusting that entry. Otherwise ask whom to trust: the sender, or everyone at their
+    /// domain, which is offered only when the receiving server vouched for it.
     pub(super) fn trust_sender(&mut self) -> Vec<Effect> {
+        let Some(reader) = self.reader.as_ref() else {
+            return Vec::new();
+        };
+        let Some(address) = reader.sender_at_cursor() else {
+            return Vec::new();
+        };
+        let vouched = reader.sender_vouched_at_cursor();
+        let domain = domain_entry(&address);
+        let listed = |entry: &str| {
+            let list = &self.ctx.remote_images_from;
+            list.iter().any(|a| a.to_lowercase() == entry)
+        };
+        if listed(&address) {
+            return self.set_trust(address, false);
+        }
+        if let Some(domain) = domain.clone().filter(|d| listed(d)) {
+            return self.set_trust(domain, false);
+        }
+        let mut items = vec![trust_item(TrustChoice::Sender, &address, "this sender")];
+        if let Some(domain) = domain {
+            items.push(if vouched {
+                trust_item(TrustChoice::Domain, &domain, "everyone at this domain")
+            } else {
+                trust_item(
+                    TrustChoice::UnvouchedDomain,
+                    &domain,
+                    "not verified for this mail",
+                )
+            });
+        }
+        let picker = Picker::new(PickerKind::Trust, items);
+        self.modal = Some(Modal::Picker(picker));
+        Vec::new()
+    }
+
+    /// The `I` chooser's answer for the cursor message's sender.
+    pub(super) fn chose_trust(&mut self, choice: TrustChoice) -> Vec<Effect> {
+        self.modal = None;
         let Some(address) = self.reader.as_ref().and_then(Reader::sender_at_cursor) else {
             return Vec::new();
         };
+        match choice {
+            TrustChoice::Sender => self.set_trust(address, true),
+            TrustChoice::Domain => match domain_entry(&address) {
+                Some(domain) => self.set_trust(domain, true),
+                None => Vec::new(),
+            },
+            TrustChoice::UnvouchedDomain => {
+                let domain = domain_entry(&address).unwrap_or_default();
+                let text = format!(
+                    "Not trusting {}: the server did not verify that this mail came from it",
+                    escape(&domain)
+                );
+                self.status.error(text, self.ctx.clock.now(), self.tick);
+                Vec::new()
+            }
+        }
+    }
+
+    /// Always load `entry`'s remote pictures (an address, or `@domain`), fetching this
+    /// thread's now as `i` does, or stop; say so, and add or remove just that entry in
+    /// `remote_images_from` as the file has it, so entries added elsewhere stay (an empty list
+    /// removes the key). Later mail loads by itself only when the receiving server vouched for
+    /// the sender's domain.
+    fn set_trust(&mut self, entry: String, trusted: bool) -> Vec<Effect> {
         let list = &mut self.ctx.remote_images_from;
-        let found = list.iter().position(|a| a.to_lowercase() == address);
-        let trusted = match found {
-            Some(at) => {
-                list.remove(at);
-                false
-            }
-            None => {
-                list.push(address.clone());
-                true
-            }
-        };
+        list.retain(|a| a.to_lowercase() != entry);
+        if trusted {
+            list.push(entry.clone());
+        }
         let senders = self.trusted_senders();
         if let Some(reader) = &mut self.reader {
             reader.set_trusted(senders);
@@ -88,11 +142,11 @@ impl MailScreen {
             }
         }
         let choice = if trusted { "always" } else { "ask first" };
-        let notice = format!("remote pictures from {}: {choice}", escape(&address));
+        let notice = format!("remote pictures from {}: {choice}", escape(&entry));
         let mut effects = self.flip_and_save(
             Some(notice),
             "remote_images_from",
-            Saved::InList(address.clone(), trusted),
+            Saved::InList(entry, trusted),
             |result| MailEvent::RemoteImagesSaved { result },
         );
         effects.extend(self.load_pictures());
@@ -109,7 +163,7 @@ impl MailScreen {
     pub(super) fn remote_hint(&self) -> String {
         let keys = &self.ctx.keymap;
         format!(
-            "Remote pictures are not shown; {} loads them, {} always for this sender.",
+            "Remote pictures are not shown; {} loads them, {} always for this sender or domain.",
             keys.label(Action::ReaderLoadImages),
             keys.label(Action::ReaderTrustImages),
         )
@@ -161,5 +215,15 @@ impl MailScreen {
             reader.picture_read(message_id, source, image);
         }
         self.load_pictures()
+    }
+}
+
+/// One row of the `I` chooser: the entry, then what it covers.
+fn trust_item(choice: TrustChoice, entry: &str, covers: &str) -> PickerItem {
+    PickerItem {
+        id: choice as i64,
+        name: format!("{entry}  ({covers})"),
+        checked: false,
+        swatch: Vec::new(),
     }
 }

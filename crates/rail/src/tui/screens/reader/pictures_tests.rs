@@ -12,13 +12,14 @@ use ratatui_image::picker::Picker;
 use super::lines::{LineKind, ReaderLine};
 use super::pictures::{
     DecodedPicture, MAX_KEPT_PIXELS, MAX_PICTURE_ROWS, MAX_PICTURES_IN_FLIGHT,
-    MAX_PICTURES_PER_READER, Picture, Pictures, Source, content_id, decode, fit,
+    MAX_PICTURES_PER_READER, Picture, Pictures, Source, content_id, decode, domain_entry, fit,
 };
 use super::rich::{Placing, from_html, lines};
 use super::test_threads::{four, message, person, reader_of};
 
 /// The hint the screen builds from the default keys.
-const HINT: &str = "Remote pictures are not shown; i loads them, I always for this sender.";
+const HINT: &str =
+    "Remote pictures are not shown; i loads them, I always for this sender or domain.";
 
 /// Cells of 8 by 16 pixels, as many terminals have.
 const FONT: (u16, u16) = (8, 16);
@@ -415,4 +416,73 @@ fn the_sender_at_the_cursor_is_its_messages_first_address_in_lower_case() {
         reader.sender_at_cursor().as_deref(),
         Some("david@example.com")
     );
+}
+
+#[test]
+fn a_trusted_domain_loads_its_vouched_senders_and_only_that_exact_domain() {
+    let html = r#"<p>a</p><img src="https://cdn.example.com/a.png" width="160" height="64">"#;
+    let open = |address: &str, vouched: &[&str], trusted: &[&str]| {
+        let mut detail = four(0);
+        detail.messages[3].from = vec![person(Some("David"), address)];
+        detail.messages[3].vouched_domains = vouched.iter().map(|d| d.to_string()).collect();
+        let trusted = trusted.iter().map(|t| t.to_string()).collect();
+        let mut reader = reader_of(detail, ThreadOrder::Oldest)
+            .with_rich(true)
+            .with_images(Some(Picker::halfblocks()))
+            .with_remote(false, trusted, HINT.into());
+        reader.rich_read(4, Some(from_html(html)));
+        reader.pictures_wanted().len()
+    };
+    assert_eq!(
+        open("david@example.com", &["example.com"], &["@example.com"]),
+        1
+    );
+    assert_eq!(
+        open("David@Example.COM", &["example.com"], &["@example.com"]),
+        1
+    );
+    assert_eq!(
+        open("david@example.com", &[], &["@example.com"]),
+        0,
+        "not vouched for"
+    );
+    assert_eq!(
+        open(
+            "david@mail.example.com",
+            &["example.com"],
+            &["@example.com"]
+        ),
+        0,
+        "a subdomain is a domain of its own"
+    );
+    assert_eq!(
+        open(
+            "david@example.com",
+            &["example.com"],
+            &["@mail.example.com"]
+        ),
+        0
+    );
+}
+
+#[test]
+fn a_domain_entry_is_the_addresss_domain_in_lower_case() {
+    assert_eq!(
+        domain_entry("Ann@Example.COM").as_deref(),
+        Some("@example.com")
+    );
+    assert_eq!(
+        domain_entry("ann@example.com.").as_deref(),
+        Some("@example.com")
+    );
+    assert_eq!(domain_entry("ann@"), None);
+    assert_eq!(domain_entry("no-at-sign"), None);
+}
+
+#[test]
+fn the_cursor_senders_domain_is_vouched_for_only_when_the_server_said_so() {
+    let mut detail = four(0);
+    detail.messages[3].vouched_domains = vec!["example.com".into()];
+    assert!(reader_of(detail, ThreadOrder::Oldest).sender_vouched_at_cursor());
+    assert!(!reader_of(four(0), ThreadOrder::Oldest).sender_vouched_at_cursor());
 }

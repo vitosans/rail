@@ -30,7 +30,7 @@ pub use help::Help;
 pub use palette::{Palette, PaletteEntry, Target};
 #[cfg(test)]
 pub use picker::PICKER_WIDTH;
-pub use picker::{AccentAnswer, Picker, PickerItem, PickerKind};
+pub use picker::{AccentAnswer, Picker, PickerItem, PickerKind, TrustChoice};
 pub use prompt::TextPrompt;
 
 use crate::tui::theme::Theme;
@@ -67,6 +67,8 @@ pub enum Command {
     Accent(AccentAnswer),
     /// `:keymap`'s answer: an index into `KeymapPreset::ALL`.
     Keymap(usize),
+    /// The `I` chooser's answer: the sender or their domain.
+    Trust(TrustChoice),
     /// "Keep these keys?" was answered yes: save the preset being tried.
     KeepKeymap,
     /// The account picker's answer: write a new message from account `n` (its position).

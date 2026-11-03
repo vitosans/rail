@@ -158,7 +158,7 @@ actions! {
     ReaderAttachments => "reader.attachments", [Reader], ["a"], "List the attachments";
     ReaderSaveAttachments => "reader.save_attachments", [Reader], ["w"], "Save this message's attachments";
     ReaderLoadImages => "reader.load_images", [Reader], ["i"], "Load this thread's remote pictures";
-    ReaderTrustImages => "reader.trust_images", [Reader], ["I"], "Always load this sender's remote pictures, or stop";
+    ReaderTrustImages => "reader.trust_images", [Reader], ["I"], "Always load this sender's or their domain's remote pictures, or stop";
     ReaderFollowLink => "reader.follow_link", [Reader], ["g x"], "Open a link";
     ReaderBack => "reader.back", [Reader], ["q", "esc"], "Close the thread";
     ReaderDown => "reader.down", [Reader], ["j", "down"], "Next line";

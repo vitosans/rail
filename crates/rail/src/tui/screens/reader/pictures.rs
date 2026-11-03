@@ -164,11 +164,22 @@ fn sender(m: &MessageView) -> Option<String> {
     m.from.first().map(|p| p.address.to_lowercase())
 }
 
-/// `m`'s sender is one whose remote pictures are always fetched, and the receiving server
-/// vouched for the sender's domain: a From line alone can be forged.
+/// The `remote_images_from` entry that trusts everyone at `address`'s domain: `@domain`, that
+/// domain exactly (a subdomain is a domain of its own).
+pub fn domain_entry(address: &str) -> Option<String> {
+    let (_, domain) = address.rsplit_once('@')?;
+    let domain = domain.trim_end_matches('.').to_ascii_lowercase();
+    (!domain.is_empty()).then(|| format!("@{domain}"))
+}
+
+/// `m`'s sender, by address or by domain, is one whose remote pictures are always fetched, and
+/// the receiving server vouched for the sender's domain: a From line alone can be forged.
 pub(super) fn trusts(trusted: &HashSet<String>, m: &MessageView) -> bool {
-    sender(m)
-        .is_some_and(|address| trusted.contains(&address) && aligned(&address, &m.vouched_domains))
+    sender(m).is_some_and(|address| {
+        let listed = trusted.contains(&address)
+            || domain_entry(&address).is_some_and(|entry| trusted.contains(&entry));
+        listed && aligned(&address, &m.vouched_domains)
+    })
 }
 
 /// The picture at `path` decoded, within `MAX_DECODED_SIDE` and `MAX_DECODE_ALLOC`, and
@@ -276,6 +287,13 @@ impl Reader {
     /// The cursor message's sender, in lower case.
     pub fn sender_at_cursor(&self) -> Option<String> {
         self.message_at_cursor().and_then(sender)
+    }
+
+    /// The receiving server vouched for the cursor message's sender's domain (DMARC, or DKIM
+    /// aligned with it), so trusting that whole domain cannot be won by forging a From line.
+    pub fn sender_vouched_at_cursor(&self) -> bool {
+        self.message_at_cursor()
+            .is_some_and(|m| sender(m).is_some_and(|address| aligned(&address, &m.vouched_domains)))
     }
 
     /// `:remote-images` flipped: from now on, this thread's remote pictures fetched or not.
