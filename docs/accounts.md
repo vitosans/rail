@@ -82,13 +82,28 @@ again once the error is resolved.
 
 ## Gmail / Google Workspace
 
-1. In Google Cloud Console create a project and enable the **Gmail API**.
-2. **OAuth consent screen**: External. **Publishing status must be "In production"**, even
-   unverified. An app left in "Testing" has its refresh tokens expire after 7 days, and Rail will
-   keep asking you to log in.
-3. **Credentials**: create an **OAuth client ID** of type **Desktop app** and copy the client id
-   and secret. A desktop-app secret is not actually secret; keeping it in `config.toml` is fine
-   (or keep it in [1Password](configuration.md#tokens-in-1password)).
+Do these in the browser as the Google account that will own the client. If the browser is
+signed in to several Google accounts, check the account picker on every page (or add
+`&authuser=you@example.com` to the URL). A "You need additional access" page for your own
+project means the page opened as another account.
+
+1. In Google Cloud Console create a project and enable the **Gmail API**. A Google account that
+   has never used Google Cloud must accept the terms of service in the console first; no
+   billing account is needed.
+2. **Google Auth Platform**: Get started, then your app name and address, audience **External**,
+   and your address as contact.
+   - **Branding**: Google publishes the app only with a **homepage URL** and a **privacy policy
+     URL**, with each URL's domain under **Authorized domains**. Your project's repository or
+     personal site will do.
+   - **Leave the logo out.** An app with a logo needs Google's verification before it can go to
+     production.
+   - **Audience**: **Publish app**. The status must be **"In production"**, even unverified. An
+     app left in "Testing" has its refresh tokens expire after 7 days, and Rail will keep asking
+     you to log in.
+3. **Clients**: create an OAuth client of type **Desktop app**, then click **Download JSON** in
+   the dialog that follows. Google shows the secret only there and never again. A desktop-app
+   secret is not actually secret; keeping it in `config.toml` is fine, or keep it in
+   [1Password](configuration.md#tokens-in-1password).
 4. Log in with `rail setup`, or:
 
    ```sh
@@ -96,13 +111,23 @@ again once the error is resolved.
      --client-id XXXX.apps.googleusercontent.com --client-secret GOCSPX-...
    ```
 
-   A browser opens for consent. Google warns that your own app is unverified; continue.
+   A browser opens for consent. Google warns that your own app is unverified; continue. Rail
+   opens the default browser: if that is signed in to another account or browser profile, open
+   the login URL Rail prints where you are signed in as the new address.
 
-<!-- guide:google v1 -->
+Once the account works, the downloaded JSON file is no longer needed. Delete it, or keep it in
+your password manager.
+
+<!-- guide:google v2 -->
 ### The same steps with `gcloud`
 
-`gcloud` can create the project and enable the API, but it cannot create a desktop OAuth client,
-so steps 2 and 3 stay in the browser.
+`gcloud` can create the project and enable the API, but it cannot set up the consent screen or
+create a desktop OAuth client, so steps 2 and 3 stay in the browser.
+
+Check which account `gcloud auth login` leaves active: the project belongs to it. To keep a work
+account's `gcloud` setup as it is, use a separate configuration:
+`gcloud config configurations create rail --no-activate`, then run each command below with
+`CLOUDSDK_ACTIVE_CONFIG_NAME=rail` in front.
 
 Pick a project id: 6 to 30 characters, lowercase letters, digits and hyphens, starting with a
 letter and not ending with a hyphen.
@@ -114,12 +139,16 @@ gcloud config set project <project-id>
 gcloud services enable gmail.googleapis.com
 ```
 
-Then, in the browser:
+If `gcloud projects create` fails with a `TOS` precondition, the account has not accepted the
+Google Cloud terms: open `https://console.cloud.google.com/?authuser=<address>`, accept, and run
+it again.
 
-- the consent screen at `https://console.cloud.google.com/apis/credentials/consent?project=<project-id>`:
-  External, then publish ("In production");
-- the credentials page at `https://console.cloud.google.com/apis/credentials?project=<project-id>`:
-  Create credentials, OAuth client ID, Desktop app, and download the JSON file.
+Then, in the browser, as the account that owns the project:
+
+- the Google Auth Platform at `https://console.cloud.google.com/auth/overview?project=<project-id>&authuser=<address>`:
+  step 2 above, ending with **Publish app** ("In production");
+- a new client at `https://console.cloud.google.com/auth/clients/create?project=<project-id>&authuser=<address>`:
+  Desktop app, Create, and **Download JSON** before closing the dialog.
 
 An AI agent connected over MCP can walk you through exactly these steps (see
 [Using Rail from an AI agent](mcp.md)).
@@ -151,7 +180,7 @@ An AI agent connected over MCP can walk you through exactly these steps (see
    the default `common` endpoint for single-tenant apps. Add `--tenant` too if your organisation
    restricts `common`.
 
-<!-- guide:microsoft v1 -->
+<!-- guide:microsoft v2 -->
 ### The same steps with `az`
 
 The Azure CLI can do the whole registration of an app for work or school accounts (single or

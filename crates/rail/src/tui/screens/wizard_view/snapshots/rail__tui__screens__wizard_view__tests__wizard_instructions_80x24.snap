@@ -1,27 +1,28 @@
 ---
-source: crates/rail/src/tui/screens/wizard_view.rs
+source: crates/rail/src/tui/screens/wizard_view/tests.rs
+assertion_line: 78
 expression: text
 ---
  Rail setup      │
                  │  Register Rail with your provider
  ✓ Start         │
- ✓ Provider      │  1. In Google Cloud Console create a project and enable   ▲
- ▸ Instructions  │  the Gmail API.                                           █
-   Details       │  2. OAuth consent screen: choose External, then set the   █
- – Admin consent │  publishing status to "In production". An app left in     █
-   Login         │  Testing expires refresh tokens after 7 days.             █
-   Done          │  3. Credentials: create an OAuth client ID of type Desktop█
-                 │  app.                                                     █
-                 │  4. Copy the client ID and the client secret into the next█
-                 │  step.                                                    ║
-                 │                                                           ║
-                 │  Scope Rail asks for:                                     ║
-                 │  https://www.googleapis.com/auth/gmail.modify             ║
-                 │                                                           ║
-                 │  Redirect URI: Desktop app clients accept http://127.0.0.1║
-                 │  on any port; there is nothing to add.                    ║
-                 │                                                           ▼
-                 │  Portal: https://console.cloud.google.com/apis/credentials
+ ✓ Provider      │  Use the browser as the Google account that will own the  ▲
+ ▸ Instructions  │  client; with several signed in, check the account picker █
+   Details       │  on each page.                                            █
+ – Admin consent │                                                           █
+   Login         │  1. In Google Cloud Console create a project and enable   █
+   Done          │  the Gmail API. A Google account new to Google Cloud      █
+                 │  accepts its terms first.                                 █
+                 │  2. Google Auth Platform: Get started, audience External. ║
+                 │  Under Branding add a homepage URL and a privacy policy   ║
+                 │  URL (their domain under Authorized domains) and no logo, ║
+                 │  which would need Google's verification. Then Audience,   ║
+                 │  Publish app: the status must be "In production". An app  ║
+                 │  left in Testing expires refresh tokens after 7 days.     ║
+                 │  3. Clients: create an OAuth client of type Desktop app.  ║
+                 │  Google shows its secret only in the dialog that follows. ║
+                 │  4. Copy the client ID and the client secret into the next▼
+                 │  Portal: https://console.cloud.google.com/auth/overview
                  │
                  │
 

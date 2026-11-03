@@ -11,7 +11,7 @@ use crate::ops::{
 };
 
 /// Bumped whenever a step changes. docs/accounts.md marks the version it documents.
-pub const GUIDE_VERSION: u32 = 1;
+pub const GUIDE_VERSION: u32 = 2;
 
 /// The steps for `request.kind`, with the inputs filled in. Anything not given stays as a
 /// `<placeholder>` for the agent to fill from an earlier step's output or by asking.
