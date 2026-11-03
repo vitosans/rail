@@ -151,7 +151,7 @@ impl Palette {
 
     pub(super) fn key(&mut self, key: KeyEvent) -> ModalOutcome {
         match key.code {
-            KeyCode::Esc => ModalOutcome::Close,
+            KeyCode::Esc if !self.input.takes_esc() => ModalOutcome::Close,
             KeyCode::Down => {
                 self.selected = (self.selected + 1).min(self.shown.len().saturating_sub(1));
                 ModalOutcome::Stay

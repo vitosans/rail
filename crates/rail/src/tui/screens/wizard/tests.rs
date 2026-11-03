@@ -113,6 +113,32 @@ fn the_fields_edit_with_the_configs_field_keys() {
     }
 }
 
+/// In a vi field `Esc` goes to normal mode first; only then does it go back a step.
+#[test]
+fn esc_in_a_vi_field_goes_to_normal_mode_before_going_back() {
+    let mut screen = wizard_screen().with_field_keys(rail_core::config::FieldKeys::Vi);
+    drive(
+        &mut screen,
+        vec![
+            key(KeyCode::Down),
+            key(KeyCode::Enter),
+            key(KeyCode::Enter),
+            key(KeyCode::Enter),
+        ],
+    );
+    type_text(&mut screen, "q@x.io no");
+    press(&mut screen, KeyCode::Esc);
+    assert_eq!(screen.wizard.step(), Step::Details, "normal mode, not back");
+    type_text(&mut screen, "bD");
+    assert_eq!(screen.wizard.draft().address, "q@x.io ");
+    press(&mut screen, KeyCode::Esc);
+    assert_ne!(
+        screen.wizard.step(),
+        Step::Details,
+        "the second Esc goes back"
+    );
+}
+
 #[test]
 fn space_toggles_the_administrator_box() {
     let mut screen = wizard_screen();

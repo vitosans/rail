@@ -12,6 +12,10 @@ use ratatui::widgets::{Paragraph, Widget};
 
 use crate::tui::theme::Theme;
 
+mod vi;
+
+use vi::Vi;
+
 /// Columns reserved for the label in front of every field.
 pub const LABEL_WIDTH: u16 = 15;
 /// Rows one field takes: the value, then its error or hint.
@@ -26,6 +30,8 @@ pub struct TextInput {
     masked: bool,
     /// `general.field_keys`, which the screen hands over before each key.
     keys: FieldKeys,
+    /// The vi mode, with `vi` keys.
+    vi: Vi,
 }
 
 impl fmt::Debug for TextInput {
@@ -62,6 +68,9 @@ impl TextInput {
     /// Edit with `keys` from now on: the screen calls this before each key, so a change to
     /// `general.field_keys` reaches fields that are already open.
     pub fn set_keys(&mut self, keys: FieldKeys) {
+        if keys != self.keys {
+            self.vi = Vi::default();
+        }
         self.keys = keys;
     }
 
@@ -71,8 +80,11 @@ impl TextInput {
     /// Ctrl or Alt edit as bash does. Ctrl or Alt with an arrow moves by word,
     /// with `Backspace` or `Delete` removes a word, and a word is letters and digits. In a
     /// masked field the whole value is one word, so a word step never shows where a secret's
-    /// symbols are.
+    /// symbols are. With `vi`, see the `vi` module.
     pub fn handle_key(&mut self, key: KeyEvent) -> bool {
+        if self.keys == FieldKeys::Vi {
+            return self.vi_key(key);
+        }
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         let alt = key.modifiers.contains(KeyModifiers::ALT);
         if self.keys == FieldKeys::Basic && (ctrl || alt) {
@@ -86,6 +98,13 @@ impl TextInput {
             KeyCode::Left if ctrl || alt => self.move_to(self.word_start()),
             KeyCode::Right if ctrl || alt => self.move_to(self.word_end()),
             _ if ctrl || alt => false,
+            code => self.plain_key(code),
+        }
+    }
+
+    /// A key without Ctrl or Alt, the same in every mode that types.
+    fn plain_key(&mut self, code: KeyCode) -> bool {
+        match code {
             KeyCode::Char(c) => {
                 self.insert(c);
                 true

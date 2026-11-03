@@ -396,7 +396,7 @@ impl Picker {
     pub(super) fn key(&mut self, key: KeyEvent) -> ModalOutcome {
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         match key.code {
-            KeyCode::Esc => ModalOutcome::Close,
+            KeyCode::Esc if !self.input.takes_esc() => ModalOutcome::Close,
             KeyCode::Enter => self.enter(),
             KeyCode::Down => self.step(true),
             KeyCode::Up => self.step(false),

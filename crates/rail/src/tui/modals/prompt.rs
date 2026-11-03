@@ -97,7 +97,7 @@ impl TextPrompt {
                     ModalOutcome::Stay
                 }
             },
-            KeyCode::Esc => ModalOutcome::Close,
+            KeyCode::Esc if !self.input.takes_esc() => ModalOutcome::Close,
             _ => {
                 let before = self.input.clone();
                 if !self.input.handle_key(key) {
