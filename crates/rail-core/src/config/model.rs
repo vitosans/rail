@@ -80,6 +80,9 @@ pub struct General {
     /// `general.keymap`: the preset the keys start from (`rail` by default). `:keymap`
     /// switches it.
     pub keymap: KeymapPreset,
+    /// `general.field_keys`: how text fields edit (`readline` by default), whatever the
+    /// keymap. `:field-keys` cycles it.
+    pub field_keys: FieldKeys,
     /// `general.bulk_confirm`: how many threads an archive, star, mark-read or trash without
     /// asking (`list.trash_now`) may cover before Rail asks first; `0` never asks. `d` asks at
     /// every size. A number, not a two-state
@@ -131,6 +134,7 @@ impl Default for General {
             thread_order: ThreadOrder::Oldest,
             dim_read: DimRead::Dot,
             keymap: KeymapPreset::Rail,
+            field_keys: FieldKeys::Readline,
             bulk_confirm: 50,
             attachment_dir: None,
             saved_search_counts: true,
@@ -292,6 +296,36 @@ impl KeymapPreset {
     /// `as_str` and `summary` as one line: `vim — h/l panes · …`.
     pub fn label(self) -> String {
         format!("{} — {}", self.as_str(), self.summary())
+    }
+}
+
+/// `general.field_keys`: the editing keys of every text field. Separate from `keymap`:
+/// fields take raw keys, so no preset or `[keys]` entry reaches them.
+#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum FieldKeys {
+    /// Bash's default (emacs) keys: `Ctrl-a`/`Ctrl-e`, `Ctrl-w`, `Alt-b`/`Alt-f` and so on.
+    #[default]
+    Readline,
+    /// Arrows, `Home`/`End`, `Backspace` and `Delete` only; Ctrl and Alt keys do nothing.
+    Basic,
+}
+
+impl FieldKeys {
+    /// The config value: `readline` or `basic`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Readline => "readline",
+            Self::Basic => "basic",
+        }
+    }
+
+    /// The mode `:field-keys` switches to.
+    pub fn next(self) -> Self {
+        match self {
+            Self::Readline => Self::Basic,
+            Self::Basic => Self::Readline,
+        }
     }
 }
 

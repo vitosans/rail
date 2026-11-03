@@ -31,6 +31,7 @@ mod compose_edges;
 mod compose_gmail;
 mod dim_read;
 mod drafts_folder;
+mod field_keys;
 mod keymap;
 mod list;
 mod m365;

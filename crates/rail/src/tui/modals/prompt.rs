@@ -5,6 +5,7 @@
 use std::fmt;
 
 use crossterm::event::{KeyCode, KeyEvent};
+use rail_core::config::FieldKeys;
 use rail_core::store::filter::MAX_FILTER_CHARS;
 use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
@@ -52,6 +53,11 @@ impl fmt::Debug for TextPrompt {
 }
 
 impl TextPrompt {
+    /// The editing keys of the line, handed over before each key.
+    pub(crate) fn use_field_keys(&mut self, keys: FieldKeys) {
+        self.input.set_keys(keys);
+    }
+
     pub fn new(title: &str, label: &str, start: &str, check: Check, make: Make) -> Self {
         let mut input = TextInput::default();
         input.set_value(start);

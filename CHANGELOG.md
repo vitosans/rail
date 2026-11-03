@@ -14,6 +14,16 @@ All notable changes to Rail are recorded here. The format follows
   word keys take the whole value as one word. See
   [Editing keys in text fields](docs/keys.md#editing-keys-in-text-fields). Contributed by
   @coko7 (#152, #169).
+- **`field_keys`: choose how text fields edit.** `"readline"` (the default) is bash's keys, now
+  with `Ctrl-b`/`Ctrl-f` to move a character and `Ctrl-d` to remove one. `"basic"` keeps only the
+  arrows, `Home`/`End`, `Backspace` and `Delete`. It is the same in every keymap. `:field-keys`
+  switches and saves it (#153).
+
+### Upgrading
+
+- Keys with `Ctrl` or `Alt` now edit in text fields. Set `field_keys = "basic"` under
+  `[general]` to keep the fields as they were.
+- An older Rail refuses a `config.toml` that contains `field_keys`; remove it before going back.
 
 ## [0.8.0] - 2026-11-02
 

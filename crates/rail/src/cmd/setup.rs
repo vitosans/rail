@@ -52,11 +52,13 @@ pub async fn wizard(paths: &Paths, kind_hint: Option<AccountKind>) -> color_eyre
     // The daemon starts (or fails, with its reason) before the terminal changes.
     let ctx = EffectContext::new(paths.clone());
     ctx.daemon.client().await.map_err(report_error)?;
+    let field_keys = config.general.field_keys;
     let screen = WizardScreen::new(
         Wizard::new(Some(config), kind_hint),
         ctx.clone(),
         keymap.clone(),
-    );
+    )
+    .with_field_keys(field_keys);
     let screen = run_app(screen, keymap, Theme::default()).await;
     // Nothing of the wizard screen needs cleaning up: a signal may end Rail from here on.
     finish_run().await;

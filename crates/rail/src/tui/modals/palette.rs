@@ -4,6 +4,7 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo_matcher::{Config, Matcher};
+use rail_core::config::FieldKeys;
 use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
 use ratatui::text::{Line, Span};
@@ -42,6 +43,8 @@ pub enum Target {
     ThreadOrder,
     /// `:dim-read`: dim the dot, subject or all text of read threads.
     DimRead,
+    /// `:field-keys`: switch how text fields edit.
+    FieldKeys,
     Scope(ScopeChoice),
     /// Write a new message (`c`).
     Compose,
@@ -104,6 +107,11 @@ pub struct Palette {
 }
 
 impl Palette {
+    /// The editing keys of the line, handed over before each key.
+    pub(crate) fn use_field_keys(&mut self, keys: FieldKeys) {
+        self.input.set_keys(keys);
+    }
+
     pub fn new(entries: Vec<PaletteEntry>) -> Self {
         let shown = (0..entries.len()).collect();
         Self {

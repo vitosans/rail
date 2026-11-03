@@ -45,12 +45,25 @@ On a Mac keyboard the key labelled delete, above Return, is `backspace`; `delete
 ## Editing keys in text fields
 
 Every field you type in (the `/` filter, the palette, the pickers, the name prompts, compose's
-header and attachment prompts and the setup wizard's fields) edits with bash's keys. `←`/`→`,
-`Home`/`End`, `Backspace` and `Delete` work a character at a time.
+header and attachment prompts and the setup wizard's fields) edits the same way. `field_keys`
+under `[general]` chooses how:
+
+| `field_keys` | Keys |
+|---|---|
+| `"readline"` (the default) | Bash's keys, below. |
+| `"basic"` | `←`/`→`, `Home`/`End`, `Backspace` and `Delete` only. Keys with `Ctrl` or `Alt` do nothing. |
+
+`:field-keys` in the palette switches between them and saves the choice. It is the same in every
+keymap: the key presets never change how fields edit. `←`/`→`, `Home`/`End`, `Backspace` and
+`Delete` work a character at a time in both.
+
+The `readline` keys:
 
 | Key | Action |
 |---|---|
 | `Ctrl-a` / `Ctrl-e` | Go to the start or the end of the line. |
+| `Ctrl-b` / `Ctrl-f` | Move one character back or forward. |
+| `Ctrl-d` | Remove the character under the cursor. |
 | `Ctrl-u` / `Ctrl-k` | Remove everything before or after the cursor. |
 | `Ctrl-w` | Remove back to the previous space: all of `me@example.com`. |
 | `Alt-Backspace` | Remove the word before the cursor: `com`, then `example`, then `me`. |
@@ -76,7 +89,7 @@ keybind = ctrl+backspace=text:\x1b\x7f
 ```
 
 These keys are not actions: `[keys]` and the key presets never change them, and `Ctrl-C` still
-quits.
+quits in every mode.
 
 ## When Rail refuses a `[keys]` entry
 

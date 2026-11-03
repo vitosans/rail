@@ -89,6 +89,30 @@ fn typing_edits_the_draft_and_q_is_text_in_a_field() {
     );
 }
 
+/// `general.field_keys` reaches the wizard's fields: `Ctrl-w` removes a word with the
+/// readline keys and nothing with the basic ones.
+#[test]
+fn the_fields_edit_with_the_configs_field_keys() {
+    for (keys, left) in [
+        (rail_core::config::FieldKeys::Readline, "q@x.io "),
+        (rail_core::config::FieldKeys::Basic, "q@x.io no"),
+    ] {
+        let mut screen = wizard_screen().with_field_keys(keys);
+        drive(
+            &mut screen,
+            vec![
+                key(KeyCode::Down),
+                key(KeyCode::Enter),
+                key(KeyCode::Enter),
+                key(KeyCode::Enter),
+            ],
+        );
+        type_text(&mut screen, "q@x.io no");
+        screen.update(Msg::Key(ctrl('w')));
+        assert_eq!(screen.wizard.draft().address, left, "{keys:?}");
+    }
+}
+
 #[test]
 fn space_toggles_the_administrator_box() {
     let mut screen = wizard_screen();

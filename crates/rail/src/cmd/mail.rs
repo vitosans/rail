@@ -98,6 +98,7 @@ fn context(
         remote_images_from: config.general.remote_images_from.clone(),
         picker: picker(),
         dim_read: config.general.dim_read,
+        field_keys: config.general.field_keys,
         hyperlinks: hyperlinks_supported(|name| std::env::var(name).ok()),
         depth,
         theme_choice,
