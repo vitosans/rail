@@ -117,8 +117,18 @@ minimum supported Rust version (1.89), and reports line coverage.
 
 GitHub also scans Rust and Actions workflows with CodeQL on pull requests, pushes to `main`
 and weekly. Workflows use actions pinned to commit SHAs, read-only default tokens and explicit
-timeouts. Dependabot checks Cargo and Actions weekly and opens security updates. Keep action
-pins current through Dependabot; select Rust toolchains through the action's `toolchain` input.
+timeouts. Keep action pins current through Dependabot; select Rust toolchains through the
+action's `toolchain` input.
+
+Dependabot checks Cargo and Actions weekly and opens security updates:
+
+| Update | What happens |
+|---|---|
+| Patch or minor (Cargo is grouped) | Proposed after a cooldown (3 days for a Cargo patch, 7 otherwise), then merged on its own once every required check passes |
+| Major | Labelled `major update`; a person reviews and merges it |
+| Security | Proposed at once, no cooldown; merged like the rows above |
+
+Auto-merged updates reach users only in the next release, whose pull request lists them.
 
 Line coverage needs `cargo-llvm-cov`:
 

@@ -6,6 +6,12 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Dependency updates from Dependabot now wait out a cooldown (3 to 7 days) so a bad release
+  can be pulled first, and patch and minor updates merge on their own once every required
+  check passes. Major updates still wait for review. See CONTRIBUTING.md.
+
 ### Fixed
 
 - **Sync no longer stops when 1Password is locked.** A token refresh that failed (the network,
