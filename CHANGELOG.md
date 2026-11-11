@@ -6,6 +6,14 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Sync no longer stops when 1Password is locked.** A token refresh that failed (the network,
+  or 1Password locked or a prompt unanswered when it saved) threw away the tokens Rail held, so
+  every retry had to read them back from 1Password and failed until someone unlocked it; one
+  account went five hours without syncing. Rail now keeps its tokens through such failures,
+  and a save that fails is logged and tried again at the next refresh.
+
 ### Security
 
 - Updated the bundled SQLite to 3.54.1 (`libsqlite3-sys` 0.39.1 through rusqlite 0.41.1) for

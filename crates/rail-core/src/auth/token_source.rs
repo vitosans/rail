@@ -5,6 +5,12 @@
 //! memory; after a restart Rail simply refreshes again. Each write to 1Password can mean an
 //! authorisation prompt, so a refresh token the provider rotates on every refresh (Microsoft
 //! does; the old one stays valid for weeks) is saved at most once per `ROTATED_SAVE_SECS`.
+//!
+//! The tokens in memory outlive failures. A refresh that fails for a passing reason (the
+//! network, the provider) keeps them, and a save that fails (1Password locked, a prompt nobody
+//! answered) is retried at the next refresh while the new tokens stay in use. Either way the
+//! next sync needs no read from the store, so an unattended daemon keeps syncing. Only a
+//! refusal that needs a new login drops them, so the tokens that login stores are read afresh.
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -119,9 +125,10 @@ impl TokenSource {
     }
 
     /// The tokens in use, read from the store the first time (which records what it holds).
+    /// They stay in `cache` until a refresh replaces them or needs a new login.
     fn current(&self, cache: &mut Cache, now: i64) -> Result<TokenSet, AuthError> {
-        if let Some(tokens) = cache.tokens.take() {
-            return Ok(tokens);
+        if let Some(tokens) = &cache.tokens {
+            return Ok(tokens.clone());
         }
         let tokens = self
             .secrets
@@ -131,15 +138,48 @@ impl TokenSource {
             refresh_token: tokens.refresh_token.clone(),
             at: now,
         });
+        cache.tokens = Some(tokens.clone());
         Ok(tokens)
     }
 
+    /// New tokens for `current`. A refusal that needs a new login forgets the tokens in
+    /// memory; any other failure keeps them for the next try.
     async fn refresh(
         &self,
         cache: &mut Cache,
         current: &TokenSet,
         now: i64,
     ) -> Result<TokenSet, AuthError> {
+        let result = self.exchange(current, now).await;
+        if let Err(AuthError::NeedsAuth(_)) = &result {
+            cache.tokens = None;
+        }
+        let tokens = result?;
+        if must_save(cache.stored.as_ref(), &tokens.refresh_token, now) {
+            self.save(cache, &tokens, now);
+        }
+        Ok(tokens)
+    }
+
+    /// Write `tokens` to the store. A failure is logged, not returned: the stored refresh
+    /// token still works, the new tokens stay in use, and the next refresh tries again.
+    fn save(&self, cache: &mut Cache, tokens: &TokenSet, now: i64) {
+        match self.secrets.set_tokens(&self.address, tokens) {
+            Ok(()) => {
+                cache.stored = Some(Stored {
+                    refresh_token: tokens.refresh_token.clone(),
+                    at: now,
+                });
+            }
+            Err(e) => tracing::warn!(
+                address = %self.address,
+                error = %e,
+                "could not save refreshed tokens; keeping them in memory and trying at the next refresh"
+            ),
+        }
+    }
+
+    async fn exchange(&self, current: &TokenSet, now: i64) -> Result<TokenSet, AuthError> {
         tracing::debug!(address = %self.address, "refreshing access token");
         let response = self
             .client
@@ -147,15 +187,7 @@ impl TokenSource {
             .request_async(&|req| send_token_request(self.http.clone(), req))
             .await
             .map_err(map_token_error)?;
-        let tokens = token_set_from_response(&response, Some(&current.refresh_token), now)?;
-        if must_save(cache.stored.as_ref(), &tokens.refresh_token, now) {
-            self.secrets.set_tokens(&self.address, &tokens)?;
-            cache.stored = Some(Stored {
-                refresh_token: tokens.refresh_token.clone(),
-                at: now,
-            });
-        }
-        Ok(tokens)
+        token_set_from_response(&response, Some(&current.refresh_token), now)
     }
 }
 
@@ -170,7 +202,7 @@ mod tests {
     use crate::auth::endpoints::endpoints_for;
     use crate::auth::secrets::{MemorySecretStore, SecretError};
     use crate::config::{AccountConfig, AccountKind};
-    use std::sync::atomic::{AtomicI64, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
     use wiremock::matchers::{body_string_contains, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -258,17 +290,33 @@ mod tests {
 
     /// Counts the writes that reach the store; each one may be a 1Password prompt.
     #[derive(Default)]
+    /// Counts reads and writes (each may be a 1Password prompt); `locked` makes both fail
+    /// as a locked 1Password or an unanswered prompt does.
     struct CountingStore {
         inner: MemorySecretStore,
+        reads: std::sync::atomic::AtomicUsize,
         writes: std::sync::atomic::AtomicUsize,
+        locked: AtomicBool,
+    }
+
+    impl CountingStore {
+        fn check_lock(&self) -> Result<(), SecretError> {
+            if self.locked.load(Ordering::SeqCst) {
+                return Err(SecretError::OnePasswordLocked("locked".into()));
+            }
+            Ok(())
+        }
     }
 
     impl SecretStore for CountingStore {
         fn get_tokens(&self, address: &str) -> Result<Option<TokenSet>, SecretError> {
+            self.reads.fetch_add(1, Ordering::SeqCst);
+            self.check_lock()?;
             self.inner.get_tokens(address)
         }
         fn set_tokens(&self, address: &str, tokens: &TokenSet) -> Result<(), SecretError> {
             self.writes.fetch_add(1, Ordering::SeqCst);
+            self.check_lock()?;
             self.inner.set_tokens(address, tokens)
         }
         fn delete_tokens(&self, address: &str) -> Result<(), SecretError> {
@@ -359,6 +407,93 @@ mod tests {
         let saved = store.get_tokens(ADDRESS).unwrap().unwrap();
         assert_eq!(saved.refresh_token, "rotated");
         assert_eq!(saved.access_token, "new-access");
+    }
+
+    /// A refresh that fails for a passing reason keeps the tokens: the retry reads nothing.
+    #[tokio::test]
+    async fn failed_refresh_keeps_tokens_in_memory() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(503))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "new-access", "expires_in": 3600, "token_type": "Bearer"
+            })))
+            .mount(&server)
+            .await;
+        let store = counting(0);
+        let src = source(&server.uri(), store.clone(), 1_000);
+        assert!(matches!(
+            src.access_token().await,
+            Err(AuthError::Network(_))
+        ));
+        store.locked.store(true, Ordering::SeqCst);
+        assert_eq!(src.access_token().await.unwrap(), "new-access");
+        assert_eq!(
+            store.reads.load(Ordering::SeqCst),
+            1,
+            "read once, at the start"
+        );
+    }
+
+    /// A save that fails does not fail the refresh, and is tried again at the next refresh.
+    #[tokio::test]
+    async fn failed_save_keeps_new_tokens_and_retries() {
+        let server = token_server(serde_json::json!({
+            "access_token": "new-access", "refresh_token": "rotated",
+            "expires_in": 3600, "token_type": "Bearer"
+        }))
+        .await;
+        let store = counting(0);
+        let clock = Arc::new(AtomicI64::new(1_000));
+        let src = ticking(&server.uri(), store.clone(), &clock);
+        src.access_token().await.unwrap();
+        store.locked.store(true, Ordering::SeqCst);
+        clock.store(1_000 + ROTATED_SAVE_SECS, Ordering::SeqCst);
+        assert_eq!(src.force_refresh().await.unwrap(), "new-access");
+        assert_eq!(store.writes.load(Ordering::SeqCst), 1, "tried once");
+        clock.store(1_000 + ROTATED_SAVE_SECS + 30, Ordering::SeqCst);
+        assert_eq!(
+            src.access_token().await.unwrap(),
+            "new-access",
+            "from memory"
+        );
+        assert_eq!(store.reads.load(Ordering::SeqCst), 1);
+        store.locked.store(false, Ordering::SeqCst);
+        clock.store(1_000 + ROTATED_SAVE_SECS + 3_600, Ordering::SeqCst);
+        src.access_token().await.unwrap();
+        assert_eq!(store.writes.load(Ordering::SeqCst), 2, "tried again");
+        let saved = store.get_tokens(ADDRESS).unwrap().unwrap();
+        assert_eq!(saved.refresh_token, "rotated");
+    }
+
+    /// A refusal that needs a new login forgets the tokens, so the login's are read afresh.
+    #[tokio::test]
+    async fn needs_auth_rereads_the_store() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+                "error": "invalid_grant"
+            })))
+            .mount(&server)
+            .await;
+        let store = counting(0);
+        let src = source(&server.uri(), store.clone(), 1_000);
+        assert!(matches!(
+            src.access_token().await,
+            Err(AuthError::NeedsAuth(_))
+        ));
+        let fresh_login = TokenSet {
+            access_token: "logged-in".into(),
+            refresh_token: "new-login".into(),
+            expires_at: 10_000,
+        };
+        store.inner.set_tokens(ADDRESS, &fresh_login).unwrap();
+        assert_eq!(src.access_token().await.unwrap(), "logged-in");
+        assert_eq!(store.reads.load(Ordering::SeqCst), 2);
     }
 
     #[test]
