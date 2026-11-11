@@ -317,6 +317,10 @@ concealed fields. Values reach `op` only on its standard input, never as command
   | A Gmail token refresh | None: Google keeps the refresh token, and the new access token stays in memory |
   | A Microsoft 365 token refresh | None, except at most once a day to save the rotated refresh token (the stored one stays valid for weeks) |
   | A login, `rail secrets set` | Writes the new tokens |
+
+  If 1Password is locked or a prompt goes unanswered, syncing carries on with the tokens Rail
+  already holds; a save that failed is tried again at the next refresh, and `rail.log` says
+  so.
 - **`op_path`** is only ever read from `config.toml`. Rail refuses it when it is relative, not an
   executable, owned by another user, or writable by anyone but its owner, or when a directory
   above it is. A Homebrew-on-Linux `op` usually fails this check; prefer 1Password's own package
