@@ -6,6 +6,12 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-11-11
+
+Sync keeps going when 1Password is locked (#186), the bundled SQLite is patched for
+RUSTSEC-2026-0459 (#184), and Dependabot updates merge on their own after a cooldown (#183).
+Building from source now needs Rust 1.89.
+
 ### Changed
 
 - Dependency updates from Dependabot now wait out a cooldown (3 to 7 days) so a bad release
