@@ -113,7 +113,7 @@ Run tests in the default (debug) profile. Under `cargo test --release` the test 
 cannot work.
 
 All four must pass before a pull request is opened. CI runs them on Linux and macOS, checks the
-minimum supported Rust version (1.88), and reports line coverage.
+minimum supported Rust version (1.89), and reports line coverage.
 
 GitHub also scans Rust and Actions workflows with CodeQL on pull requests, pushes to `main`
 and weekly. Workflows use actions pinned to commit SHAs, read-only default tokens and explicit

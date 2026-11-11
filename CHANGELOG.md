@@ -6,6 +6,20 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Security
+
+- Updated the bundled SQLite to 3.54.1 (`libsqlite3-sys` 0.39.1 through rusqlite 0.41.1) for
+  RUSTSEC-2026-0459 (CVE-2026-119375): SQLite before 3.54.0 could return stale process memory
+  when it opened a database with a crafted `-wal` file of a different page size. Rail's store
+  is in your own data directory, so only someone who can already write there could use it.
+- Updated rmcp from 3.8.0 to 3.9.0 for RUSTSEC-2026-0462 (unbounded response buffering in its
+  Streamable HTTP client, which only Rail's tests use).
+
+### Upgrading
+
+- Building Rail now needs Rust 1.89 or newer (was 1.88): rusqlite 0.41, which carries the
+  SQLite fix, requires it. The release binaries are unaffected.
+
 ## [0.10.1] - 2026-11-03
 
 Far fewer 1Password prompts: a token refresh writes back to the secret store only when it must
