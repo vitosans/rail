@@ -72,11 +72,31 @@ pub(super) async fn accounts_list(
                     kind: account.kind,
                     address: account.address.clone(),
                     color: account.color.clone(),
-                    tokens: match secrets.has_tokens(&account.address) {
-                        Ok(true) => TokenState::Present,
-                        Ok(false) => TokenState::Missing,
-                        Err(e) => TokenState::Error {
-                            message: e.to_string().into(),
+                    tokens: match account.kind {
+                        config::AccountKind::ImapSmtp => {
+                            match secrets.has_password(&account.address) {
+                                Ok(true) => TokenState::Present,
+                                Ok(false) => {
+                                    match secrets.has_password(&format!("{}:imap", account.address))
+                                    {
+                                        Ok(true) => TokenState::Present,
+                                        Ok(false) => TokenState::Missing,
+                                        Err(e) => TokenState::Error {
+                                            message: e.to_string().into(),
+                                        },
+                                    }
+                                }
+                                Err(e) => TokenState::Error {
+                                    message: e.to_string().into(),
+                                },
+                            }
+                        }
+                        _ => match secrets.has_tokens(&account.address) {
+                            Ok(true) => TokenState::Present,
+                            Ok(false) => TokenState::Missing,
+                            Err(e) => TokenState::Error {
+                                message: e.to_string().into(),
+                            },
                         },
                     },
                     ai_send: account.ai_send(),

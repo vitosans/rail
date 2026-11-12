@@ -115,7 +115,7 @@ impl Wizard {
             body: self.body(),
             notice: self.notice.clone(),
             failure: self.failure.as_ref().map(|(f, r)| failure_view(f, r)),
-            busy: self.busy.map(busy_label),
+            busy: self.busy.map(|b| self.busy_label(b)),
             url: self.url.as_ref().map(ToString::to_string),
         }
     }
@@ -219,7 +219,10 @@ impl Wizard {
         FieldView {
             field,
             label: field.label(),
-            masked: field == Field::ClientSecret,
+            masked: matches!(
+                field,
+                Field::ClientSecret | Field::Password | Field::SmtpPassword
+            ),
             checkbox: (field == Field::Admin).then_some(self.draft.admin),
             error: show_error
                 .then(|| self.errors.get(&field).cloned())
@@ -236,6 +239,9 @@ impl Wizard {
             Field::Color => Some("optional, for example blue".into()),
             Field::ClientSecret if microsoft => Some("optional for Microsoft".into()),
             Field::ClientSecret => Some("required for Gmail".into()),
+            Field::ImapPort => Some("default 993".into()),
+            Field::SmtpPort => Some("default 465".into()),
+            Field::SmtpPassword => Some("optional if same as IMAP".into()),
             Field::Tenant => Some(format!(
                 "empty means common; try {}",
                 self.draft.tenant_suggestions().join(", ")
@@ -276,6 +282,10 @@ impl Wizard {
     fn login_message(&self) -> String {
         match self.busy {
             Some(Busy::Persisting) => "Saving the account.".to_string(),
+            Some(Busy::Login) if self.draft.kind == Some(AccountKind::ImapSmtp) => format!(
+                "Testing IMAP and SMTP connections for {}.",
+                self.draft.address.trim()
+            ),
             Some(Busy::Login) => format!(
                 "Log in as {} in your browser. Waiting for the browser to finish.",
                 self.draft.address.trim()
@@ -312,6 +322,21 @@ impl Wizard {
             choices: strings(&DONE_CHOICES),
         }
     }
+
+    fn busy_label(&self, busy: Busy) -> String {
+        let label = match busy {
+            Busy::LoadingPresets => "Looking for presets",
+            Busy::FetchingPreset => "Loading the preset",
+            Busy::Consent => "Waiting for admin consent",
+            Busy::Login if self.draft.kind == Some(AccountKind::ImapSmtp) => {
+                "Testing IMAP and SMTP connections"
+            }
+            Busy::Login => "Waiting for the browser login",
+            Busy::Persisting => "Saving",
+            Busy::SavingKeys => "Saving the keys",
+        };
+        label.to_string()
+    }
 }
 
 fn step_index(step: Step) -> usize {
@@ -339,18 +364,6 @@ fn failure_view(failure: &Failure, remedy: &Remedy) -> FailureView {
         text: format!("{class}: {}", failure.message),
         primary,
     }
-}
-
-fn busy_label(busy: Busy) -> String {
-    let label = match busy {
-        Busy::LoadingPresets => "Looking for presets",
-        Busy::FetchingPreset => "Loading the preset",
-        Busy::Consent => "Waiting for admin consent",
-        Busy::Login => "Waiting for the browser login",
-        Busy::Persisting => "Saving",
-        Busy::SavingKeys => "Saving the keys",
-    };
-    label.to_string()
 }
 
 fn strings(items: &[&str]) -> Vec<String> {

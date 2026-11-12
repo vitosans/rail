@@ -62,6 +62,10 @@ fn every_operation_name_is_unique_and_matches_its_marker() {
         SavedSearchRemove::NAME,
         AttachmentImage::NAME,
         ImageRemote::NAME,
+        AccountValidate::NAME,
+        AccountPasswordSet::NAME,
+        AccountPasswordCheck::NAME,
+        AccountPasswordDelete::NAME,
     ];
     assert_eq!(markers, names::ALL);
     for internal in [Hello::NAME, DaemonInfoOp::NAME, DaemonStop::NAME] {
@@ -102,6 +106,10 @@ fn every_request_and_response_has_an_object_schema() {
         object_schemas::<AttachmentOpen>(),
         object_schemas::<AttachmentImage>(),
         object_schemas::<ImageRemote>(),
+        object_schemas::<AccountValidate>(),
+        object_schemas::<AccountPasswordSet>(),
+        object_schemas::<AccountPasswordCheck>(),
+        object_schemas::<AccountPasswordDelete>(),
     ];
     for (request, response) in all {
         assert_eq!(request["type"], "object", "{request}");
@@ -541,6 +549,8 @@ fn the_agent_add_tool_takes_at_most_one_secret_source() {
         color: None,
         store_secret_in_1password: false,
         pasted_client_secret: false,
+        pasted_password: false,
+        pasted_smtp_password: false,
     };
     let request = base.clone().into_request().unwrap();
     assert_eq!(
@@ -579,6 +589,36 @@ fn an_agent_cannot_pass_a_client_secret_or_unknown_fields() {
     assert_eq!(err.code, ErrorCode::InvalidInput);
     assert_eq!(err.message, crate::ops::NO_SECRETS_FROM_AGENTS);
     assert!(!properties::<AgentAccountAdd>().contains("client_secret"));
+    assert!(!properties::<AgentAccountAdd>().contains("password"));
+    assert!(!properties::<AgentAccountAdd>().contains("smtp_password"));
+
+    let pasted_pw = serde_json::json!({
+        "kind": "imapsmtp", "address": "me@example.com", "password": "canary-password"
+    });
+    let add_pw: AgentAccountAdd = serde_json::from_value(pasted_pw).unwrap();
+    assert!(!format!("{add_pw:?}").contains("canary-password"));
+    let err_pw = add_pw.into_request().unwrap_err();
+    assert_eq!(err_pw.code, ErrorCode::InvalidInput);
+    assert_eq!(err_pw.message, crate::ops::NO_PASSWORDS_FROM_AGENTS);
+
+    let imap_add = AgentAccountAdd {
+        kind: AccountKind::ImapSmtp,
+        address: "me@example.com".into(),
+        client_id: None,
+        client_secret_file: None,
+        client_secret_ref: None,
+        preset: None,
+        tenant: None,
+        name: None,
+        color: None,
+        store_secret_in_1password: false,
+        pasted_client_secret: false,
+        pasted_password: false,
+        pasted_smtp_password: false,
+    };
+    let err_imap = imap_add.into_request().unwrap_err();
+    assert_eq!(err_imap.code, ErrorCode::InvalidInput);
+    assert!(err_imap.message.contains("IMAP/SMTP"));
     let unknown = serde_json::json!({"account": "work", "confirm": true});
     assert!(serde_json::from_value::<AgentAccountRemove>(unknown).is_err());
     let unknown = serde_json::json!({"id": "add-1", "force": true});

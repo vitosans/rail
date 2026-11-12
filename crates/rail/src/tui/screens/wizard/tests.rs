@@ -488,3 +488,52 @@ fn a_rebound_wizard_key_moves_the_list_and_the_hint_follows() {
     });
     assert!(text.contains("↑/s move"), "{text}");
 }
+
+#[test]
+fn imapsmtp_ui_walk_and_validation() {
+    let mut screen = wizard_screen();
+    // Choose Set up my own app
+    press(&mut screen, KeyCode::Down);
+    press(&mut screen, KeyCode::Enter);
+    assert_eq!(screen.wizard.step(), Step::Provider);
+
+    // Down twice to Generic IMAP / SMTP
+    press(&mut screen, KeyCode::Down);
+    press(&mut screen, KeyCode::Down);
+    press(&mut screen, KeyCode::Enter);
+    assert_eq!(screen.wizard.step(), Step::Instructions);
+    assert_eq!(
+        screen.wizard.draft().kind,
+        Some(rail_core::config::AccountKind::ImapSmtp)
+    );
+
+    // Enter to Details
+    press(&mut screen, KeyCode::Enter);
+    assert_eq!(screen.wizard.step(), Step::Details);
+
+    // Fill fields
+    type_text(&mut screen, "user@example.com");
+    press(&mut screen, KeyCode::Tab); // to Name
+    press(&mut screen, KeyCode::Tab); // to Color
+    press(&mut screen, KeyCode::Tab); // to ImapHost
+    type_text(&mut screen, "imap.example.com");
+    press(&mut screen, KeyCode::Tab); // to ImapPort (already 993)
+    press(&mut screen, KeyCode::Tab); // to Password
+    type_text(&mut screen, "secret");
+    press(&mut screen, KeyCode::Tab); // to SmtpHost
+    type_text(&mut screen, "smtp.example.com");
+
+    // Submit details
+    let effects = screen.update(Msg::Key(key(KeyCode::Enter)));
+    assert_eq!(screen.wizard.step(), Step::Login);
+    assert!(screen.wizard.busy().is_some());
+    assert!(!effects.is_empty());
+
+    // Validate feedback
+    feed(&mut screen, Event::ImapSmtpValidated(Ok(())));
+    assert_eq!(screen.wizard.busy(), Some(Busy::Persisting));
+
+    // Persisted feedback
+    feed(&mut screen, Event::Persisted(Ok(report())));
+    assert!(matches!(screen.wizard.step(), Step::Keys | Step::Done));
+}

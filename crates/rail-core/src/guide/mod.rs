@@ -36,6 +36,7 @@ pub fn template(kind: AccountKind, inputs: &GuideInputs) -> Vec<GuideStep> {
     match kind {
         AccountKind::Gmail => google::steps(),
         AccountKind::M365 => microsoft::steps(inputs.admin),
+        AccountKind::ImapSmtp => Vec::new(),
     }
 }
 

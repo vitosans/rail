@@ -14,7 +14,7 @@
 [![platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS-blue.svg)](#install)
 [![license](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
-Rail is a terminal mail client for Gmail and Microsoft 365, written in Rust.
+Rail is a terminal mail client for Gmail, Microsoft 365, and IMAP/SMTP, written in Rust.
 
 It keeps a local copy of your mail in SQLite, synced by a small background daemon. Every list,
 search and open is a local query, so the interface never waits on the network.
@@ -64,8 +64,8 @@ so an AI coding agent can help you set it up without ever seeing your secrets.
 
 > **Rail is pre-1.0.** Account setup, background sync, search, reading mail, acting on threads
 > (archive, trash, star, read, move) and writing mail (new messages, replies and forwards, with
-> undo send, and drafts saved to the account's Drafts) work today for Gmail and Microsoft 365.
-> Labels are Gmail's; on Microsoft 365 `m` moves to a folder instead.
+> undo send, and drafts saved to the account's Drafts) work today for Gmail, Microsoft 365, and
+> IMAP/SMTP accounts. Labels are Gmail's; on Microsoft 365 and IMAP `m` moves to a folder instead.
 
 ## Features
 
@@ -78,8 +78,9 @@ so an AI coding agent can help you set it up without ever seeing your secrets.
   actions with undo, snooze, and keys you can change (with `vim`, `mutt`, `emacs`, `gmail` and `outlook` presets).
 - **Writing in your own editor**, with a ten second undo send and drafts that sync to the
   account's Drafts.
-- **Gmail and Microsoft 365**, including organisation presets and Microsoft admin consent.
-- **Tokens kept safe** in the OS keyring, a private file or 1Password.
+- **Gmail, Microsoft 365, and IMAP/SMTP**, including organisation presets, Microsoft admin consent,
+  and standard TLS IMAP/SMTP mail servers.
+- **Tokens and passwords kept safe** in the OS keyring, a private file or 1Password.
 - **`rail doctor`**, a single health check, and an **MCP server** for setting Rail up from an AI
   agent.
 
@@ -145,7 +146,7 @@ Every command and flag is in [Commands](docs/commands.md).
 
 | Page | What it covers |
 |---|---|
-| [Account setup](docs/accounts.md) | The setup wizard, Gmail and Microsoft 365 app registration, admin consent, Microsoft 365 differences, organisation presets. |
+| [Account setup](docs/accounts.md) | The setup wizard, Gmail and Microsoft 365 app registration, IMAP/SMTP setup, admin consent, organisation presets. |
 | [Reading mail](docs/reading.md) | The mail screen, the reader, pictures, links, attachments, filtering, saved searches, the palette, themes. |
 | [Doing things to mail](docs/actions.md) | Archive, trash, star, labels, moving, selections, undo, snooze. |
 | [Writing mail](docs/writing.md) | The editor, the review, sending with undo, drafts, limits. |

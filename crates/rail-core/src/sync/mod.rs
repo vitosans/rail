@@ -19,6 +19,8 @@ mod engine_tests;
 mod graph_body_tests;
 #[cfg(test)]
 mod graph_engine_tests;
+#[cfg(test)]
+mod imap_engine_tests;
 
 pub use batch::{Batch, BatchOutcome, Origin, Prune, ResumeToken, StateUpdate, Sweep};
 pub use engine::{Clock, Engine, EngineParts, SyncError};

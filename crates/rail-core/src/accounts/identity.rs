@@ -54,14 +54,19 @@ pub(crate) async fn verify_mailbox(
     tokens: &TokenSet,
     api_root: Option<&str>,
 ) -> Result<(), OpError> {
-    let root = api_root.unwrap_or(match account.kind {
-        AccountKind::Gmail => GMAIL_API,
-        AccountKind::M365 => GRAPH_API,
-    });
+    let root = match api_root {
+        Some(r) => r,
+        None => match account.kind {
+            AccountKind::Gmail => GMAIL_API,
+            AccountKind::M365 => GRAPH_API,
+            AccountKind::ImapSmtp => return Ok(()),
+        },
+    };
     let root = url::Url::parse(root).map_err(|_| unreadable())?;
     let path = match account.kind {
         AccountKind::Gmail => "profile",
         AccountKind::M365 => "me?$select=mail,userPrincipalName,proxyAddresses",
+        AccountKind::ImapSmtp => return Ok(()),
     };
     let url = root.join(path).map_err(|_| unreadable())?;
     let response = http
@@ -80,6 +85,7 @@ pub(crate) async fn verify_mailbox(
             let profile: GraphProfile = serde_json::from_slice(&bytes).map_err(|_| unreadable())?;
             profile.matches(&account.address)
         }
+        AccountKind::ImapSmtp => true,
     };
     if matches {
         Ok(())

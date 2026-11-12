@@ -10,7 +10,8 @@ use crate::onboarding::view::StepState;
 use crate::onboarding::wizard::Consent;
 use crate::onboarding::{Action, Busy, Field, Input, Step, Wizard};
 use crate::test_support::{
-    contoso_preset, edit, gmail_details, m365_details, own_app, walk, wizard,
+    contoso_preset, done_report, edit, gmail_details, imapsmtp_details, m365_details, own_app,
+    walk, wizard,
 };
 
 fn concat(parts: Vec<Vec<Input>>) -> Vec<Input> {
@@ -177,6 +178,7 @@ fn valid_details_ask_for_a_login_with_the_draft_account() {
         ai_send: None,
         history_days: None,
         body_cache_days: None,
+        ..Default::default()
     };
     assert_eq!(actions, vec![Action::RunLogin(expected)]);
     assert_eq!(w.busy(), Some(Busy::Login));
@@ -498,4 +500,99 @@ fn edits_are_ignored_outside_editable_steps_and_while_busy() {
     assert!(actions.is_empty());
     assert_eq!(w.draft().address, "me@contoso.com");
     assert!(!w.draft().admin);
+}
+
+#[test]
+fn imapsmtp_walk_to_login_and_validate() {
+    let mut w = wizard();
+    walk(&mut w, own_app(2));
+    assert_eq!(w.step(), Step::Details);
+    assert_eq!(w.draft().kind, Some(AccountKind::ImapSmtp));
+
+    walk(&mut w, imapsmtp_details("alice@example.com", "topsecret"));
+    let actions = w.handle(Input::Next);
+    assert_eq!(w.step(), Step::Login);
+    assert_eq!(w.busy(), Some(Busy::Login));
+    assert_eq!(actions.len(), 1);
+    match &actions[0] {
+        Action::ValidateImapSmtp {
+            account,
+            password,
+            smtp_password,
+        } => {
+            assert_eq!(account.address, "alice@example.com");
+            assert_eq!(account.imap_host.as_deref(), Some("mail.example.com"));
+            assert_eq!(account.imap_port, Some(993));
+            assert_eq!(password.expose(), "topsecret");
+            assert_eq!(smtp_password, &None);
+        }
+        other => panic!("expected ValidateImapSmtp, got {other:?}"),
+    }
+}
+
+#[test]
+fn imapsmtp_validation_success_persists_account() {
+    let mut w = wizard();
+    walk(&mut w, own_app(2));
+    walk(&mut w, imapsmtp_details("alice@example.com", "topsecret"));
+    w.handle(Input::Next);
+
+    let persist = w.apply(crate::onboarding::Event::ImapSmtpValidated(Ok(())));
+    assert_eq!(w.busy(), Some(Busy::Persisting));
+    assert_eq!(persist.len(), 1);
+    match &persist[0] {
+        Action::PersistImapSmtp {
+            account,
+            password,
+            smtp_password,
+        } => {
+            assert_eq!(account.address, "alice@example.com");
+            assert_eq!(password.expose(), "topsecret");
+            assert_eq!(smtp_password, &None);
+        }
+        other => panic!("expected PersistImapSmtp, got {other:?}"),
+    }
+
+    let report = done_report();
+    w.apply(crate::onboarding::Event::Persisted(Ok(report)));
+    assert_eq!(w.busy(), None);
+    assert!(matches!(w.step(), Step::Keys | Step::Done));
+    assert_eq!(w.added(), &["alice"]);
+    assert_eq!(w.existing().accounts.len(), 2);
+    assert!(w.existing().accounts.iter().any(|a| a.name == "alice"));
+}
+
+#[test]
+fn imapsmtp_validation_failure_and_retry() {
+    let mut w = wizard();
+    walk(&mut w, own_app(2));
+    walk(&mut w, imapsmtp_details("alice@example.com", "topsecret"));
+    w.handle(Input::Next);
+
+    let failure = Failure::new("invalid credentials", ErrorClass::Permanent);
+    let after_fail = w.apply(crate::onboarding::Event::ImapSmtpValidated(Err(failure)));
+    assert!(after_fail.is_empty());
+    assert_eq!(w.busy(), None);
+    assert_eq!(w.failure().unwrap().message, "invalid credentials");
+    assert_eq!(w.remedy(), Some(&Remedy::Retry));
+
+    // Retry re-emits ValidateImapSmtp
+    let retried = w.handle(Input::Retry);
+    assert_eq!(w.busy(), Some(Busy::Login));
+    assert!(matches!(&retried[..], [Action::ValidateImapSmtp { .. }]));
+
+    // Back goes back to Details with inputs preserved
+    walk(&mut w, [Input::Back]);
+    assert_eq!(w.step(), Step::Details);
+    assert_eq!(w.draft().address, "alice@example.com");
+    assert_eq!(w.draft().imap_host, "mail.example.com");
+}
+
+#[test]
+fn imapsmtp_provider_hint_skips_provider_step() {
+    let mut w = Wizard::new(None, Some(AccountKind::ImapSmtp));
+    let actions = walk(&mut w, [Input::Choose(1)]);
+    assert!(actions.is_empty());
+    assert_eq!(w.step(), Step::Instructions);
+    assert_eq!(w.draft().kind, Some(AccountKind::ImapSmtp));
 }

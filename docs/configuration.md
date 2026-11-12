@@ -26,11 +26,19 @@ secrets = "keyring"            # "keyring" (default), "file" or "1password"
 
 [[accounts]]
 name = "work"
-kind = "gmail"                 # "gmail" or "m365"
+kind = "gmail"                 # "gmail", "m365", or "imapsmtp"
 address = "you@example.com"
 client_id = "XXXX.apps.googleusercontent.com"
 client_secret = "GOCSPX-..."   # Gmail only; may be an op:// reference
 color = "blue"
+
+[[accounts]]
+name = "personal"
+kind = "imapsmtp"
+address = "me@example.com"
+imap_host = "imap.example.com"
+smtp_host = "smtp.example.com"
+color = "green"
 ```
 
 - Unknown keys and wrong types fail to load, with the file's path and line number.
@@ -193,11 +201,20 @@ host to the capture in each.
 | Key | Required | Meaning |
 |---|---|---|
 | `name` | yes | Short name used in commands and output; unique among accounts. |
-| `kind` | yes | `"gmail"` or `"m365"`. |
+| `kind` | yes | `"gmail"`, `"m365"`, or `"imapsmtp"`. |
 | `address` | yes | The mailbox address. Must contain `@`, at most 254 characters. |
-| `client_id` | yes | Your OAuth client id (Google) or Application (client) ID (Microsoft). |
+| `client_id` | Gmail, M365 | Your OAuth client id (Google) or Application (client) ID (Microsoft). |
 | `client_secret` | Gmail | The desktop client's secret, or an `op://vault/item/field` reference. |
 | `tenant` | no | Microsoft tenant ID or domain (default `common`). |
+| `imap_host` | imapsmtp | IMAP server hostname. |
+| `imap_port` | no | IMAP port (default `993` for required TLS, `143` for opportunistic/off). |
+| `imap_tls` | no | IMAP TLS mode: `"required"` (default), `"opportunistic"`, or `"off"`. |
+| `imap_user` | no | IMAP username when different from `address`. |
+| `smtp_host` | imapsmtp | SMTP server hostname. |
+| `smtp_port` | no | SMTP port (default `465` for required TLS, `587` for opportunistic/off). |
+| `smtp_tls` | no | SMTP TLS mode: `"required"` (default), `"opportunistic"`, or `"off"`. |
+| `smtp_user` | no | SMTP username when different from `address`. |
+| `sent_folder` | no | Sent mailbox name override for `imapsmtp` accounts (discovered automatically by default). |
 | `color` | no | Account colour in the UI. |
 | `label` | no | The account's name on screen: the sidebar, the header, `Write from`, the account states and the palette (at most 40 characters; `name` stays what commands, `--account` and `account:` use). `rail doctor` warns when two accounts show the same one. |
 | `history_days`, `body_cache_days` | no | Per-account overrides of the `[general]` values. |
@@ -205,10 +222,13 @@ host to the capture in each.
 | `signature` | no | A text file whose contents go under `-- ` at the end of every new message, reply and forward from this account (`~` is your home directory; trailing blank lines are dropped; at most 4 KiB are used). Read when the mail screen starts; a file that cannot be read is noticed when you start writing, and the message goes without it. |
 | `from_name` | no | The name shown before `address` in `From:` of mail Rail sends (spaces allowed, at most 200 characters). |
 
-- `address`, `color` and `tenant` must not contain spaces, control characters or Unicode format
-  characters (such as U+202E). Such a value is refused by `rail account add` and fails to load
-  from a hand-edited file.
+- `address`, `color`, `tenant`, `imap_host` and `smtp_host` must not contain spaces, control
+  characters or Unicode format characters (such as U+202E). Such a value is refused by
+  `rail account add` and fails to load from a hand-edited file.
 - `from_name` may contain ordinary spaces but no other whitespace, control or format characters.
+- **Passwords are never kept in `config.toml`.** Writing a password into `config.toml` is
+  rejected on load with a line-numbered error. Set passwords with
+  `rail secrets password <account> [--service <imap|smtp>]` or during `rail account add` / the setup wizard.
 
 How to get the `client_id` and the rest: [Account setup](accounts.md).
 

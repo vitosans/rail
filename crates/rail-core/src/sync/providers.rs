@@ -24,7 +24,10 @@ pub const GRAPH_QUOTA_BURST: u32 = 100;
 /// Whether Rail syncs accounts of `kind`: every kind has a provider in this version
 /// (`SyncPhase::Unsupported` stays for a kind without one).
 pub fn syncs(kind: AccountKind) -> bool {
-    matches!(kind, AccountKind::Gmail | AccountKind::M365)
+    matches!(
+        kind,
+        AccountKind::Gmail | AccountKind::M365 | AccountKind::ImapSmtp
+    )
 }
 
 /// The account's provider, by its kind.
@@ -32,6 +35,7 @@ pub fn provider_for(request: ProviderRequest) -> Result<Arc<dyn Provider>, OpErr
     match request.account.kind {
         AccountKind::Gmail => gmail_for(request),
         AccountKind::M365 => graph_for(request),
+        AccountKind::ImapSmtp => imap_smtp_for(request),
     }
 }
 
@@ -65,6 +69,73 @@ pub fn graph_for(request: ProviderRequest) -> Result<Arc<dyn Provider>, OpError>
             .with_history_days(window_days(&request))
             .with_own_address(&request.account.address),
     ))
+}
+
+/// An IMAP/SMTP provider for the account.
+pub fn imap_smtp_for(request: ProviderRequest) -> Result<Arc<dyn Provider>, OpError> {
+    if request.account.kind != AccountKind::ImapSmtp {
+        return Err(OpError::invalid_input(
+            "this account is not an IMAP/SMTP account",
+        ));
+    }
+    let imap_host = request
+        .account
+        .imap_host
+        .clone()
+        .ok_or_else(|| OpError::invalid_input("missing imap_host for IMAP/SMTP account"))?;
+    let imap_port = request.account.imap_port.unwrap_or(993);
+    let imap_tls_mode = request
+        .account
+        .imap_tls
+        .unwrap_or(crate::config::model::TlsMode::Required);
+
+    let smtp_host = request
+        .account
+        .smtp_host
+        .clone()
+        .ok_or_else(|| OpError::invalid_input("missing smtp_host for IMAP/SMTP account"))?;
+    let smtp_port = request.account.smtp_port;
+    let smtp_tls_mode = request
+        .account
+        .smtp_tls
+        .unwrap_or(crate::config::model::TlsMode::Required);
+
+    let secrets = open_secret_store(&request.config, &request.paths, &request.ids);
+    let password = secrets
+        .get_password(&request.account.address)
+        .ok()
+        .flatten()
+        .or_else(|| {
+            secrets
+                .get_password(&format!("{}:imap", request.account.address))
+                .ok()
+                .flatten()
+        })
+        .or_else(|| secrets.get_password(&request.account.name).ok().flatten())
+        .ok_or_else(|| {
+            OpError::new(
+                crate::ops::ErrorCode::Auth,
+                crate::error::ErrorClass::Permanent,
+                "no password stored for this account; run 'rail secrets password'",
+            )
+        })?;
+
+    let username = request.account.address.clone();
+    let sent_mailbox_name = request.account.sent_folder.clone();
+
+    Ok(Arc::new(crate::provider::imap_smtp::ImapSmtpProvider::new(
+        imap_host,
+        imap_port,
+        imap_tls_mode,
+        username.clone(),
+        password.clone(),
+        smtp_host,
+        smtp_port,
+        smtp_tls_mode,
+        Some(username),
+        Some(password),
+        sent_mailbox_name,
+    )))
 }
 
 /// The account's `history_days` as its engine gets it: `SyncSettings` from the same config
@@ -162,6 +233,48 @@ mod tests {
         let mut bad = request(m365, paths());
         bad.graph_url = Some("not a url".into());
         assert!(graph_for(bad).is_err());
-        assert!(syncs(AccountKind::Gmail) && syncs(AccountKind::M365));
+        assert!(
+            syncs(AccountKind::Gmail) && syncs(AccountKind::M365) && syncs(AccountKind::ImapSmtp)
+        );
+    }
+
+    #[test]
+    fn imap_smtp_provider_building() {
+        let tmp = tempfile::tempdir().unwrap();
+        let paths = Paths::all_in(tmp.path());
+        let mut account = sample_account();
+        account.kind = AccountKind::ImapSmtp;
+        account.imap_host = Some("imap.example.com".into());
+        account.smtp_host = Some("smtp.example.com".into());
+
+        // Password not stored yet -> ErrorCode::Auth
+        let req = request(account.clone(), paths.clone());
+        let err = imap_smtp_for(req).err().expect("auth required");
+        assert_eq!(err.code, crate::ops::ErrorCode::Auth);
+
+        // Store password
+        let secrets = open_secret_store(
+            &Config {
+                general: General {
+                    secrets: SecretsBackend::File,
+                    ..General::default()
+                },
+                ..Config::default()
+            },
+            &paths,
+            &ItemIdCache::default(),
+        );
+        secrets
+            .set_password(
+                &account.name,
+                &crate::ops::Secret::new("testpass".to_string()),
+            )
+            .unwrap();
+
+        // Now provider_for and imap_smtp_for succeed
+        let built = imap_smtp_for(request(account.clone(), paths.clone()));
+        assert!(built.is_ok());
+        let provider = provider_for(request(account, paths));
+        assert!(provider.is_ok());
     }
 }

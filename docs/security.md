@@ -1,9 +1,9 @@
 # Security and privacy
 
-Where Rail keeps tokens, what it stores on your machine, when it loads remote content, and how the
+Where Rail keeps tokens and passwords, what it stores on your machine, when it loads remote content, and how the
 daemon, the logs and AI agents are kept in bounds.
 
-- [Tokens](#tokens)
+- [Tokens and passwords](#tokens-and-passwords)
 - [What is stored locally](#what-is-stored-locally)
 - [What Rail changes on the server](#what-rail-changes-on-the-server)
 - [Remote content](#remote-content)
@@ -11,9 +11,9 @@ daemon, the logs and AI agents are kept in bounds.
 - [The daemon](#the-daemon)
 - [Logs](#logs)
 
-## Tokens
+## Tokens and passwords
 
-OAuth tokens are never written to `config.toml`. They live in one of:
+OAuth tokens and account passwords are never written to `config.toml`. They live in one of:
 
 | Backend | Setting | Notes |
 |---|---|---|
@@ -21,10 +21,13 @@ OAuth tokens are never written to `config.toml`. They live in one of:
 | A **private file** | `secrets = "file"` | `secrets.json` in the data directory, mode 0600, for machines without a Secret Service. |
 | **1Password** | `secrets = "1password"` | Through the `op` CLI; see [Tokens in 1Password](configuration.md#tokens-in-1password). |
 
-- Tokens, client secrets and authorization codes never appear in logs, error messages or terminal
+- Tokens, passwords, client secrets and authorization codes never appear in logs, error messages or terminal
   output.
+- Passwords entered in the terminal or setup wizard are masked without local echo.
+- Passwords are typed as `Secret<String>` and redacted at the type level (`Debug` output and logs display `<redacted>`).
 - Files that hold mail or credentials are created owner-only (0600 files, 0700 directories) and
   written atomically.
+- Stored credentials and tokens are removed when an account is removed (`rail account remove`).
 
 ## What is stored locally
 
@@ -78,7 +81,7 @@ move), send, or save or discard a draft.
 It never deletes mail permanently, except a Gmail draft you discard or send (a Microsoft 365 draft
 you discard goes to Deleted Items).
 
-The daemon is the only process that talks to Gmail or Microsoft 365.
+The daemon is the only process that talks to Gmail, Microsoft 365, or IMAP/SMTP servers.
 
 ## Remote content
 
@@ -93,7 +96,9 @@ Remote content in mail is loaded only when you ask for it.
 
 ## Mail and AI agents
 
-Through MCP, mail content never reaches an agent today.
+Through MCP, mail content never reaches an agent today. Agents cannot supply passwords,
+client secrets or configure IMAP/SMTP accounts; any credential pasted by an agent is dropped
+immediately without being logged or echoed.
 
 Text from outside Rail (preset files, provider and system error messages) comes back to the agent
 marked as untrusted: quoted on one line, cut to 200 characters, and preceded by a notice that it

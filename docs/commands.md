@@ -6,6 +6,7 @@ Every `rail` command, its flags and its exit codes.
 - [`rail`](#rail)
 - [Accounts](#accounts)
 - [`rail secrets set`](#rail-secrets-set)
+- [`rail secrets password`](#rail-secrets-password)
 - [`rail sync`](#rail-sync)
 - [`rail search`](#rail-search)
 - [`rail doctor`](#rail-doctor)
@@ -22,7 +23,8 @@ Every `rail` command, its flags and its exit codes.
 | `rail account login <account>` | Logs in again to an existing account. |
 | `rail account list` | Lists accounts and whether their tokens are stored. |
 | `rail account remove <account>` | Removes an account's config entry and tokens. |
-| `rail secrets set` | Changes where tokens are kept. |
+| `rail secrets set` | Changes where tokens and passwords are kept. |
+| `rail secrets password <account>` | Sets or updates an account's password in the secret store. |
 | `rail sync` | Wakes the sync and shows progress. |
 | `rail search <query>` | Searches the store and each account's server. |
 | `rail doctor` | Checks that everything is in order. |
@@ -44,11 +46,12 @@ See [Reading mail](reading.md) and [The setup wizard](accounts.md#the-setup-wiza
 | Command | What it does |
 |---|---|
 | `rail setup` | Opens the setup wizard to add an account. |
-| `rail account add [gmail\|m365]` | With no flags, opens the wizard (with that provider chosen, if given). |
+| `rail account add [gmail\|m365\|imapsmtp]` | With no flags, opens the wizard (with that provider chosen, if given). |
 | `rail account add <gmail\|m365> --address <addr> --client-id <id> [--client-secret <secret>] [--tenant <tenant>] [--name <name>] [--color <colour>] [--store-secret-in-1password]` | Adds an account without the wizard, then opens the browser login. A partial set of flags exits 1 and names the missing one. |
+| `rail account add imapsmtp --address <addr> --imap-host <host> --smtp-host <host> [--imap-port <port>] [--imap-user <user>] [--smtp-port <port>] [--smtp-user <user>] [--name <name>] [--color <colour>]` | Adds an IMAP/SMTP account without the wizard, securely prompting for password and validating connections. |
 | `rail account login <account>` | Logs in again to an existing account (name or address) and replaces its tokens; `config.toml` is untouched. |
-| `rail account list` | Lists accounts and whether their tokens are stored, without reading the tokens. |
-| `rail account remove <account>` | Removes the account's config entry and tokens; its mail stays in the store. Asks `Remove? [y/N]`; refuses (exit 1) when stdin or stdout is not a terminal. |
+| `rail account list` | Lists accounts and whether their tokens or passwords are stored, without reading secrets. |
+| `rail account remove <account>` | Removes the account's config entry, tokens, and passwords; its mail stays in the store. Asks `Remove? [y/N]`; refuses (exit 1) when stdin or stdout is not a terminal. |
 
 Where the `--client-id` and the rest come from: [Account setup](accounts.md).
 
@@ -58,12 +61,24 @@ Where the `--client-id` and the rest come from: [Account setup](accounts.md).
 rail secrets set <keyring|file|1password> [--vault <vault>] [--account <account>] [--no-migrate]
 ```
 
-Changes where tokens are kept and moves them there.
+Changes where tokens and passwords are kept and moves them there.
 
-- `--no-migrate` changes the setting only; each account then needs `rail account login`.
+- `--no-migrate` changes the setting only; each account then needs `rail account login` or `rail secrets password`.
 - Asks `Change? [y/N]`; interactive only.
 
-See [Tokens](security.md#tokens) and [Tokens in 1Password](configuration.md#tokens-in-1password).
+See [Tokens and passwords](security.md#tokens-and-passwords) and [Tokens in 1Password](configuration.md#tokens-in-1password).
+
+## `rail secrets password`
+
+```sh
+rail secrets password <account> [--service <imap|smtp>]
+```
+
+Prompts for and saves the password for an IMAP/SMTP account in the configured secret store.
+
+- Password entry is non-echoing and secure.
+- Without `--service`, sets the password used for both IMAP and SMTP.
+- With `--service imap` or `--service smtp`, sets a service-specific password override.
 
 ## `rail sync`
 

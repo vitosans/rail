@@ -60,6 +60,7 @@ pub fn endpoints_for(kind: AccountKind, tenant: Option<&str>) -> OAuthEndpoints 
                 extra_auth_params: Vec::new(),
             }
         }
+        AccountKind::ImapSmtp => panic!("IMAP/SMTP accounts do not use OAuth endpoints"),
     }
 }
 

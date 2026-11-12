@@ -297,6 +297,15 @@ fn token_template<'a>(title: &'a str, tokens: &TokenSet) -> ItemTemplate<'a> {
     }
 }
 
+fn password_template<'a>(title: &'a str, password: &Secret<String>) -> ItemTemplate<'a> {
+    ItemTemplate {
+        title,
+        category: "SECURE_NOTE",
+        tags: [TAG],
+        fields: vec![concealed("password", password.expose())],
+    }
+}
+
 fn tokens_from_fields(fields: &[FieldValue]) -> Result<TokenSet, SecretError> {
     let field = |label: &str| {
         fields
@@ -438,6 +447,47 @@ impl OnePasswordSecretStore {
         }
     }
 
+    fn read_password_item(
+        &self,
+        id: &str,
+        vault: &str,
+    ) -> Result<Option<Secret<String>>, SecretError> {
+        let args = [
+            "item",
+            "get",
+            id,
+            "--vault",
+            vault,
+            "--fields",
+            "label=password",
+            "--reveal",
+            "--format",
+            "json",
+        ];
+        let out = self.op.run(&args, None, &[])?;
+        let fields: Vec<FieldValue> = parse_json(&out)?;
+        let val = fields
+            .into_iter()
+            .find(|f| f.label == "password")
+            .map(|f| Secret::new(f.value));
+        Ok(val)
+    }
+
+    fn verify_password_edit(
+        &self,
+        id: &str,
+        vault: &str,
+        written: &Secret<String>,
+    ) -> Result<(), SecretError> {
+        match self.read_password_item(id, vault) {
+            Ok(Some(stored)) if stored == *written => Ok(()),
+            Ok(_) | Err(SecretError::OnePasswordNoItem(_)) => {
+                Err(SecretError::OnePasswordEditUnverified)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
     fn create(&self, title: &str, json: &[u8], redact: &[&str]) -> Result<(), SecretError> {
         let vault = self.vault()?;
         let args = ["item", "create", "--vault", vault, "--format", "json", "-"];
@@ -498,6 +548,63 @@ impl SecretStore for OnePasswordSecretStore {
             }
             Err(e) => Err(e),
         }
+    }
+
+    fn get_password(&self, key: &str) -> Result<Option<Secret<String>>, SecretError> {
+        let title = item_title(key);
+        let Some(id) = self.find(&title)? else {
+            return Ok(None);
+        };
+        let vault = self.vault()?;
+        match self.read_password_item(&id, vault) {
+            Err(SecretError::OnePasswordNoItem(_)) => {
+                self.ids.forget(&self.scope(vault), &title);
+                Ok(None)
+            }
+            Ok(opt) => Ok(opt),
+            Err(e) => Err(e),
+        }
+    }
+
+    fn set_password(&self, key: &str, password: &Secret<String>) -> Result<(), SecretError> {
+        let title = item_title(key);
+        let json = template_json(&password_template(&title, password))?;
+        let redact = [password.expose()];
+        let Some(id) = self.find(&title)? else {
+            return self.create(&title, &json, &redact);
+        };
+        let vault = self.vault()?;
+        let args = ["item", "edit", &id, "--vault", vault, "--format", "json"];
+        match self.op.run(&args, Some(&json), &redact) {
+            Ok(_) => self.verify_password_edit(&id, vault, password),
+            Err(SecretError::OnePasswordNoItem(_)) => {
+                self.ids.forget(&self.scope(vault), &title);
+                self.create(&title, &json, &redact)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    fn delete_password(&self, key: &str) -> Result<(), SecretError> {
+        let title = item_title(key);
+        let Some(id) = self.find(&title)? else {
+            return Ok(());
+        };
+        let vault = self.vault()?;
+        match self
+            .op
+            .run(&["item", "delete", &id, "--vault", vault], None, &[])
+        {
+            Ok(_) | Err(SecretError::OnePasswordNoItem(_)) => {
+                self.ids.forget(&self.scope(vault), &title);
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    fn has_password(&self, key: &str) -> Result<bool, SecretError> {
+        self.look_up(&item_title(key)).map(|id| id.is_some())
     }
 
     fn backend_name(&self) -> &'static str {

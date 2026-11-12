@@ -46,6 +46,42 @@ fn tokens_round_trip_through_the_cli() {
     assert!(fake.items().is_empty());
 }
 
+#[test]
+fn passwords_round_trip_through_the_cli() {
+    let tmp = tempfile::tempdir().unwrap();
+    let fake = FakeOp::install(tmp.path());
+    let store = store(&fake);
+    let pass = Secret::new("my-imap-secret");
+    assert_eq!(store.get_password("Me@Example.com").unwrap(), None);
+    store.set_password("Me@Example.com", &pass).unwrap();
+    assert_eq!(
+        store
+            .get_password("me@example.com")
+            .unwrap()
+            .as_ref()
+            .map(|s| s.expose()),
+        Some("my-imap-secret")
+    );
+    let newer = Secret::new("newer-password");
+    store.set_password("me@example.com", &newer).unwrap();
+    assert_eq!(
+        fake.items().len(),
+        1,
+        "the second write edits the same item"
+    );
+    assert_eq!(
+        store
+            .get_password("me@example.com")
+            .unwrap()
+            .as_ref()
+            .map(|s| s.expose()),
+        Some("newer-password")
+    );
+    store.delete_password("me@example.com").unwrap();
+    assert_eq!(store.get_password("me@example.com").unwrap(), None);
+    assert!(fake.items().is_empty());
+}
+
 /// Final review F2: an `op item edit` that answers success but keeps the old values is caught
 /// by reading the item back; the error is fixed text and quotes no token.
 #[test]

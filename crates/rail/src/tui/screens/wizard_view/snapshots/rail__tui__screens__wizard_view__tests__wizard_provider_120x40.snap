@@ -1,5 +1,5 @@
 ---
-source: crates/rail/src/tui/screens/wizard_view.rs
+source: crates/rail/src/tui/screens/wizard_view/tests.rs
 expression: text
 ---
  Rail setup      │
@@ -7,7 +7,7 @@ expression: text
  ✓ Start         │
  ▸ Provider      │  ▸ Gmail / Google Workspace
    Instructions  │    Microsoft 365 / Outlook
-   Details       │
+   Details       │    Generic IMAP / SMTP
  – Admin consent │
    Login         │
    Done          │

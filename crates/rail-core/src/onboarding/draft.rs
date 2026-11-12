@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use super::preset::Preset;
+use crate::config::model::TlsMode;
 use crate::config::{AccountConfig, AccountKind, Config, MAX_ADDRESS_CHARS, default_account_name};
 
 /// Tenants that name a group of directories rather than one organisation.
@@ -24,6 +25,14 @@ pub enum Field {
     PresetSource,
     /// The organisation's tenant, asked before admin consent when the draft says `common`.
     ConsentTenant,
+    ImapHost,
+    ImapPort,
+    ImapUser,
+    Password,
+    SmtpHost,
+    SmtpPort,
+    SmtpUser,
+    SmtpPassword,
 }
 
 impl Field {
@@ -38,6 +47,14 @@ impl Field {
             Self::Admin => "I am an administrator of this tenant",
             Self::PresetSource => "Path or URL",
             Self::ConsentTenant => "Org tenant",
+            Self::ImapHost => "IMAP host",
+            Self::ImapPort => "IMAP port",
+            Self::ImapUser => "IMAP username",
+            Self::Password => "Password",
+            Self::SmtpHost => "SMTP host",
+            Self::SmtpPort => "SMTP port",
+            Self::SmtpUser => "SMTP username",
+            Self::SmtpPassword => "SMTP password",
         }
     }
 }
@@ -59,12 +76,30 @@ pub struct AccountDraft {
     /// A Gmail preset without a secret still asks for one.
     pub preset_needs_secret: bool,
     pub help_url: Option<String>,
+    pub imap_host: String,
+    pub imap_port: String,
+    pub imap_user: String,
+    pub password: String,
+    pub smtp_host: String,
+    pub smtp_port: String,
+    pub smtp_user: String,
+    pub smtp_password: String,
 }
 
-/// Hides `client_secret`; shows only whether it is set.
+/// Hides `client_secret` and passwords; shows only whether they are set.
 impl fmt::Debug for AccountDraft {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let secret = if self.client_secret.is_empty() {
+            "<empty>"
+        } else {
+            "<redacted>"
+        };
+        let password = if self.password.is_empty() {
+            "<empty>"
+        } else {
+            "<redacted>"
+        };
+        let smtp_password = if self.smtp_password.is_empty() {
             "<empty>"
         } else {
             "<redacted>"
@@ -79,14 +114,29 @@ impl fmt::Debug for AccountDraft {
             .field("tenant", &self.tenant)
             .field("admin", &self.admin)
             .field("preset", &self.preset)
+            .field("imap_host", &self.imap_host)
+            .field("imap_port", &self.imap_port)
+            .field("imap_user", &self.imap_user)
+            .field("password", &password)
+            .field("smtp_host", &self.smtp_host)
+            .field("smtp_port", &self.smtp_port)
+            .field("smtp_user", &self.smtp_user)
+            .field("smtp_password", &smtp_password)
             .finish_non_exhaustive()
     }
 }
 
 impl AccountDraft {
     pub fn for_kind(kind: AccountKind) -> Self {
+        let (imap_port, smtp_port) = if kind == AccountKind::ImapSmtp {
+            ("993".to_string(), "465".to_string())
+        } else {
+            (String::new(), String::new())
+        };
         Self {
             kind: Some(kind),
+            imap_port,
+            smtp_port,
             ..Self::default()
         }
     }
@@ -113,6 +163,14 @@ impl AccountDraft {
             Field::ClientId => &self.client_id,
             Field::ClientSecret => &self.client_secret,
             Field::Tenant => &self.tenant,
+            Field::ImapHost => &self.imap_host,
+            Field::ImapPort => &self.imap_port,
+            Field::ImapUser => &self.imap_user,
+            Field::Password => &self.password,
+            Field::SmtpHost => &self.smtp_host,
+            Field::SmtpPort => &self.smtp_port,
+            Field::SmtpUser => &self.smtp_user,
+            Field::SmtpPassword => &self.smtp_password,
             Field::Admin | Field::PresetSource | Field::ConsentTenant => "",
         }
     }
@@ -134,6 +192,14 @@ impl AccountDraft {
             Field::ClientId => self.client_id = value,
             Field::ClientSecret => self.client_secret = value,
             Field::Tenant => self.tenant = value,
+            Field::ImapHost => self.imap_host = value,
+            Field::ImapPort => self.imap_port = value,
+            Field::ImapUser => self.imap_user = value,
+            Field::Password => self.password = value,
+            Field::SmtpHost => self.smtp_host = value,
+            Field::SmtpPort => self.smtp_port = value,
+            Field::SmtpUser => self.smtp_user = value,
+            Field::SmtpPassword => self.smtp_password = value,
             Field::Admin | Field::PresetSource | Field::ConsentTenant => {}
         }
     }
@@ -150,6 +216,16 @@ impl AccountDraft {
     /// The fields the Details step shows, in order.
     pub fn fields(&self) -> Vec<Field> {
         let mut fields = vec![Field::Address, Field::Name, Field::Color];
+        if self.kind == Some(AccountKind::ImapSmtp) {
+            fields.extend([
+                Field::ImapHost,
+                Field::ImapPort,
+                Field::Password,
+                Field::SmtpHost,
+                Field::SmtpPort,
+            ]);
+            return fields;
+        }
         if self.preset.is_none() {
             fields.push(Field::ClientId);
         }
@@ -190,6 +266,11 @@ impl AccountDraft {
             (Field::ClientId, self.client_id_error()),
             (Field::ClientSecret, self.secret_error()),
             (Field::Tenant, self.tenant_error()),
+            (Field::ImapHost, self.imap_host_error()),
+            (Field::ImapPort, self.imap_port_error()),
+            (Field::Password, self.password_error()),
+            (Field::SmtpHost, self.smtp_host_error()),
+            (Field::SmtpPort, self.smtp_port_error()),
         ];
         checks
             .into_iter()
@@ -231,6 +312,9 @@ impl AccountDraft {
     }
 
     fn client_id_error(&self) -> Option<String> {
+        if self.kind == Some(AccountKind::ImapSmtp) {
+            return None;
+        }
         let id = self.client_id.trim();
         if id.is_empty() {
             return Some("enter the client ID from the portal".to_string());
@@ -238,6 +322,43 @@ impl AccountDraft {
         id.chars()
             .any(char::is_whitespace)
             .then(|| "the client ID has no spaces".to_string())
+    }
+
+    fn imap_host_error(&self) -> Option<String> {
+        (self.kind == Some(AccountKind::ImapSmtp) && self.imap_host.trim().is_empty())
+            .then(|| "enter the IMAP server hostname".to_string())
+    }
+
+    fn password_error(&self) -> Option<String> {
+        (self.kind == Some(AccountKind::ImapSmtp) && self.password.trim().is_empty())
+            .then(|| "enter the account password".to_string())
+    }
+
+    fn smtp_host_error(&self) -> Option<String> {
+        (self.kind == Some(AccountKind::ImapSmtp) && self.smtp_host.trim().is_empty())
+            .then(|| "enter the SMTP server hostname".to_string())
+    }
+
+    fn imap_port_error(&self) -> Option<String> {
+        if self.kind != Some(AccountKind::ImapSmtp) || self.imap_port.trim().is_empty() {
+            return None;
+        }
+        self.imap_port
+            .trim()
+            .parse::<u16>()
+            .err()
+            .map(|_| "port must be between 1 and 65535".to_string())
+    }
+
+    fn smtp_port_error(&self) -> Option<String> {
+        if self.kind != Some(AccountKind::ImapSmtp) || self.smtp_port.trim().is_empty() {
+            return None;
+        }
+        self.smtp_port
+            .trim()
+            .parse::<u16>()
+            .err()
+            .map(|_| "port must be between 1 and 65535".to_string())
     }
 
     fn secret_error(&self) -> Option<String> {
@@ -254,6 +375,26 @@ impl AccountDraft {
     /// The account to log in and persist. `None` until a provider is chosen.
     pub fn to_account(&self) -> Option<AccountConfig> {
         let kind = self.kind?;
+        let (imap_port, smtp_port, imap_tls, smtp_tls) = if kind == AccountKind::ImapSmtp {
+            let i_port = if self.imap_port.trim().is_empty() {
+                Some(993)
+            } else {
+                self.imap_port.trim().parse::<u16>().ok()
+            };
+            let s_port = if self.smtp_port.trim().is_empty() {
+                Some(465)
+            } else {
+                self.smtp_port.trim().parse::<u16>().ok()
+            };
+            (
+                i_port,
+                s_port,
+                Some(TlsMode::Required),
+                Some(TlsMode::Required),
+            )
+        } else {
+            (None, None, None, None)
+        };
         Some(AccountConfig {
             name: self.name.trim().to_string(),
             kind,
@@ -264,13 +405,22 @@ impl AccountDraft {
             client_secret: non_empty(&self.client_secret),
             tenant: match kind {
                 AccountKind::M365 => non_empty(&self.tenant),
-                AccountKind::Gmail => None,
+                _ => None,
             },
             signature: None,
             from_name: None,
             ai_send: None,
             history_days: None,
             body_cache_days: None,
+            imap_host: non_empty(&self.imap_host),
+            imap_port,
+            imap_tls,
+            imap_user: non_empty(&self.imap_user),
+            smtp_host: non_empty(&self.smtp_host),
+            smtp_port,
+            smtp_tls,
+            smtp_user: non_empty(&self.smtp_user),
+            sent_folder: None,
         })
     }
 }
@@ -476,5 +626,67 @@ mod tests {
         assert!(!is_address("a@b@c"));
         assert!(is_concrete_tenant("contoso.com"));
         assert!(!is_concrete_tenant("Organizations"));
+    }
+
+    #[test]
+    fn imapsmtp_fields_and_validation() {
+        let existing = existing_config();
+        let mut draft = AccountDraft::for_kind(AccountKind::ImapSmtp);
+        assert_eq!(
+            draft.fields(),
+            vec![
+                Field::Address,
+                Field::Name,
+                Field::Color,
+                Field::ImapHost,
+                Field::ImapPort,
+                Field::Password,
+                Field::SmtpHost,
+                Field::SmtpPort,
+            ]
+        );
+        let errors = draft.validate(&existing);
+        assert!(errors.contains_key(&Field::Address));
+        assert!(errors.contains_key(&Field::Name));
+        assert!(errors.contains_key(&Field::ImapHost));
+        assert!(errors.contains_key(&Field::Password));
+        assert!(errors.contains_key(&Field::SmtpHost));
+        assert!(!errors.contains_key(&Field::ClientId));
+        assert!(!errors.contains_key(&Field::ClientSecret));
+
+        draft.set(Field::Address, "user@example.com".into(), &existing);
+        draft.set(Field::ImapHost, "imap.example.com".into(), &existing);
+        draft.set(Field::Password, "secret".into(), &existing);
+        draft.set(Field::SmtpHost, "smtp.example.com".into(), &existing);
+        assert!(draft.validate(&existing).is_empty());
+
+        draft.set(Field::ImapPort, "not-a-port".into(), &existing);
+        assert!(draft.validate(&existing).contains_key(&Field::ImapPort));
+    }
+
+    #[test]
+    fn imapsmtp_to_account_and_debug_redaction() {
+        let existing = existing_config();
+        let mut draft = AccountDraft::for_kind(AccountKind::ImapSmtp);
+        draft.set(Field::Address, "user@example.com".into(), &existing);
+        draft.set(Field::ImapHost, "imap.example.com".into(), &existing);
+        draft.set(Field::Password, "supersecret".into(), &existing);
+        draft.set(Field::SmtpHost, "smtp.example.com".into(), &existing);
+        draft.set(Field::SmtpPassword, "smtpsecret".into(), &existing);
+
+        let debug = format!("{draft:?}");
+        assert!(!debug.contains("supersecret"));
+        assert!(!debug.contains("smtpsecret"));
+        assert!(debug.contains("<redacted>"));
+
+        let account = draft.to_account().unwrap();
+        assert_eq!(account.kind, AccountKind::ImapSmtp);
+        assert_eq!(account.address, "user@example.com");
+        assert_eq!(account.imap_host.as_deref(), Some("imap.example.com"));
+        assert_eq!(account.imap_port, Some(993));
+        assert_eq!(account.imap_tls, Some(TlsMode::Required));
+        assert_eq!(account.smtp_host.as_deref(), Some("smtp.example.com"));
+        assert_eq!(account.smtp_port, Some(465));
+        assert_eq!(account.smtp_tls, Some(TlsMode::Required));
     }
 }

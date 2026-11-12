@@ -19,6 +19,8 @@ mod compose_tests;
 mod gmail_send_tests;
 #[cfg(test)]
 mod graph_send_tests;
+#[cfg(test)]
+mod imap_send_tests;
 mod plan;
 #[cfg(test)]
 mod plan_tests;

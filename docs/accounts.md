@@ -1,7 +1,7 @@
 # Account setup
 
-How to register an OAuth app with Google or Microsoft, add the account to Rail, and what a
-Microsoft 365 account does differently from Gmail.
+How to register an OAuth app with Google or Microsoft, configure an IMAP/SMTP account,
+add the account to Rail, and provider differences.
 
 - [Before you start](#before-you-start)
 - [The setup wizard](#the-setup-wizard)
@@ -9,6 +9,7 @@ Microsoft 365 account does differently from Gmail.
 - [Microsoft 365 / Outlook](#microsoft-365--outlook)
 - [Work or school accounts and admin consent](#work-or-school-accounts-and-admin-consent)
 - [Microsoft 365 mail](#microsoft-365-mail)
+- [IMAP / SMTP](#imap--smtp)
 - [Presets for your organisation](#presets-for-your-organisation)
 
 ## Before you start
@@ -380,6 +381,69 @@ See [Doing things to mail](actions.md#microsoft-365) for the details.
 Before any later attempt (a retry, or a start after the daemon stopped mid-send), Rail asks
 Outlook for a sent message with the draft's `Message-ID`, and about the draft it saved, and counts
 a sent one as sent.
+
+## IMAP / SMTP
+
+Rail supports generic IMAP and SMTP accounts with standard TLS, such as self-hosted mail servers,
+Fastmail, or other standard-compliant providers.
+
+### Setting up an IMAP / SMTP account
+
+Run `rail setup` (or `rail` if no accounts are configured) and choose **Generic IMAP / SMTP**.
+The wizard guides you through:
+
+1. **Account Name & Email Address**: short identifier for the account and your email address.
+2. **IMAP Settings**: IMAP server hostname (required), port (default 993), and username (defaults to your email address).
+3. **SMTP Settings**: SMTP server hostname (required), port (default 465), and username (defaults to your email address).
+4. **Password**: entered interactively with non-echo masking. Rail tests the connection and credentials immediately.
+
+Alternatively, add the account with flags from your terminal:
+
+```sh
+rail account add imapsmtp --address you@example.com \
+  --imap-host imap.example.com --smtp-host smtp.example.com
+```
+
+The command prompts for your password securely before validating the connection. Additional
+flags include `--imap-port`, `--imap-user`, `--smtp-port`, `--smtp-user`, `--name`, and `--color`.
+
+### Storing passwords securely
+
+- Passwords are **never stored in `config.toml`**. Plaintext passwords in `config.toml` are
+  refused on load with a line-numbered error.
+- Passwords are saved in the configured secret store: OS keyring (default), private file, or
+  1Password.
+- To set or update a password later:
+
+  ```sh
+  rail secrets password <account>
+  ```
+
+- If your IMAP and SMTP services use different passwords, specify the service:
+
+  ```sh
+  rail secrets password <account> --service imap
+  rail secrets password <account> --service smtp
+  ```
+
+### Mailbox discovery and capabilities
+
+- Rail discovers server mailboxes and maps standard roles (`\Sent`, `\Drafts`, `\Trash`, `\Archive`)
+  automatically using RFC 6154 special-use attributes.
+- You can override the Sent mailbox with `sent_folder = "Sent Items"` in `config.toml`.
+- Rail detects server capabilities dynamically:
+  - If the server lacks `MOVE`, Rail performs atomic copy-then-delete.
+  - If the server lacks `UIDPLUS`, Rail verifies message copies and flag changes explicitly.
+  - If the server lacks `IDLE`, Rail uses bounded polling to check for new mail.
+
+### Outbox delivery: two-phase send
+
+Outgoing mail is delivered in two phases:
+1. Rail submits the message to the SMTP relay.
+2. Once the SMTP relay accepts the message, Rail appends a copy to your IMAP Sent folder.
+
+If appending to the Sent folder fails transiently (e.g. network disconnect), Rail retries appending
+to the Sent folder without re-submitting to SMTP, ensuring recipients never receive duplicate emails.
 
 ## Presets for your organisation
 

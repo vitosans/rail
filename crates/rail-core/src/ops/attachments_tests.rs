@@ -276,7 +276,7 @@ fn the_image_operation_is_registered_retry_safe_and_prints_nothing() {
 #[test]
 fn the_remote_image_operation_is_registered_retry_safe_and_prints_nothing() {
     assert_eq!(names::IMAGE_REMOTE, "image.remote");
-    assert_eq!(names::ALL.last(), Some(&names::IMAGE_REMOTE));
+    assert!(names::ALL.contains(&names::IMAGE_REMOTE));
     assert!(crate::daemon::retry_safe(names::IMAGE_REMOTE));
     let request = super::RemoteImageRequest {
         url: "https://track.example.com/open?to=sam".into(),

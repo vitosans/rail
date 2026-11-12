@@ -3,6 +3,7 @@
 //! operating system) enters a summary only through `Text::outside`: quoted with escapes on one
 //! line, cut to `MAX_OUTSIDE_CHARS`, and the summary then starts with the `OUTSIDE_TEXT` notice.
 
+use rail_core::config::AccountKind;
 use rail_core::ops::{
     AccountRemoveResponse, AccountStatus, AccountSyncStatus, AccountsListResponse, BeginResponse,
     DoctorReport, GuideResponse, OpError, PendingOutcome, PendingState, PresetFetchResponse,
@@ -138,7 +139,10 @@ fn status_line(text: &mut Text, account: &AccountStatus) -> String {
     let tokens = match (&account.token_error, account.has_tokens) {
         (Some(e), _) => format!("token store error {}", text.outside(e.get())),
         (None, true) => "logged in".to_string(),
-        (None, false) => "no tokens (needs rail_account_login)".to_string(),
+        (None, false) => match account.kind {
+            AccountKind::ImapSmtp => "no password (needs rail secrets password)".to_string(),
+            _ => "no tokens (needs rail_account_login)".to_string(),
+        },
     };
     format!(
         "- {} <{}> ({}): {tokens}; ai_send = {}",
@@ -161,7 +165,10 @@ pub fn accounts(listed: &AccountsListResponse) -> String {
     for account in &listed.accounts {
         let tokens = match &account.tokens {
             TokenState::Present => "logged in".to_string(),
-            TokenState::Missing => "no tokens (needs rail_account_login)".to_string(),
+            TokenState::Missing => match account.kind {
+                AccountKind::ImapSmtp => "no password (needs rail secrets password)".to_string(),
+                _ => "no tokens (needs rail_account_login)".to_string(),
+            },
             TokenState::Error { message } => {
                 format!("token store error {}", text.outside(message.get()))
             }
@@ -201,7 +208,10 @@ fn sync_lines(text: &mut Text, s: &AccountSyncStatus) {
     let name = name_of(&s.name);
     let line = match s.phase {
         SyncPhase::Unsupported => format!("{name}: Microsoft 365 sync is not available yet."),
-        _ if s.needs_auth => format!("{name}: needs a login (rail_account_login)."),
+        _ if s.needs_auth => match s.kind {
+            AccountKind::ImapSmtp => format!("{name}: needs a password (rail secrets password)."),
+            _ => format!("{name}: needs a login (rail_account_login)."),
+        },
         phase => format!(
             "{name}: {}; {} messages, {} threads, {} bodies stored; last success {}.",
             phase.as_str(),
@@ -370,9 +380,16 @@ fn outcome_text(outcome: &PendingOutcome) -> String {
 pub fn removed(removed: &AccountRemoveResponse) -> String {
     let mut text = Text::default();
     let tokens = match &removed.token_error {
-        None => "and its tokens were deleted".to_string(),
+        None => match removed.kind {
+            AccountKind::ImapSmtp => "and its stored passwords were deleted".to_string(),
+            _ => "and its tokens were deleted".to_string(),
+        },
         Some(error) => format!(
-            "but its tokens could not be deleted ({})",
+            "but its {} could not be deleted ({})",
+            match removed.kind {
+                AccountKind::ImapSmtp => "stored passwords",
+                _ => "tokens",
+            },
             text.outside(error.get())
         ),
     };
@@ -433,7 +450,6 @@ pub fn nothing_done(what: &str, reason: &str, outside: Option<&str>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rail_core::config::AccountKind;
     use rail_core::error::ErrorClass;
     use rail_core::ops::{ErrorCode, PendingId, PendingKind, PresetListing, Untrusted};
 

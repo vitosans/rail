@@ -18,6 +18,7 @@ fn switch(
 }
 use crate::auth::{FileSecretStore, OnePasswordSecretStore, TokenSet};
 use crate::config::load;
+use crate::ops::Secret;
 use crate::test_support::FakeOp;
 
 fn tokens(n: i64) -> TokenSet {
@@ -81,6 +82,43 @@ fn switching_to_1password_moves_tokens_and_deletes_the_old_copies() {
         "the hand-set op_path is kept"
     );
     assert_eq!(onepassword.get_tokens("b@x.com").unwrap(), Some(tokens(2)));
+}
+
+#[test]
+fn switching_to_1password_moves_passwords_and_deletes_old_copies() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (paths, fake, file, _text) = setup(&tmp);
+    let ids = ItemIdCache::default();
+    file.set_password("a@x.com", &Secret::new("pass-a"))
+        .unwrap();
+    file.set_password("a@x.com:smtp", &Secret::new("smtp-a"))
+        .unwrap();
+
+    let done = switch(&paths, &ids, &to_onepassword()).unwrap();
+    assert_eq!(done.previous, SecretsBackend::File);
+    assert_eq!(done.moved, ["a@x.com", "b@x.com"]);
+    assert!(done.changed);
+    assert!(done.old_copies_kept.is_empty());
+    assert_eq!(file.get_password("a@x.com").unwrap(), None);
+    assert_eq!(file.get_password("a@x.com:smtp").unwrap(), None);
+
+    let onepassword = OnePasswordSecretStore::new(fake.cli(), "Rail".into(), ids);
+    assert_eq!(
+        onepassword
+            .get_password("a@x.com")
+            .unwrap()
+            .as_ref()
+            .map(|s| s.expose()),
+        Some("pass-a")
+    );
+    assert_eq!(
+        onepassword
+            .get_password("a@x.com:smtp")
+            .unwrap()
+            .as_ref()
+            .map(|s| s.expose()),
+        Some("smtp-a")
+    );
 }
 
 #[test]

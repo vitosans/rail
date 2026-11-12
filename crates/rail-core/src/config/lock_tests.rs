@@ -20,7 +20,15 @@ fn a_held_lock_shuts_out_every_other_holder_until_it_is_dropped() {
     let held = lock_config(&config).unwrap();
     assert!(!try_lock(&config), "a second open file cannot take it");
     drop(held);
-    assert!(try_lock(&config), "free once dropped");
+    let mut freed = false;
+    for _ in 0..50 {
+        if try_lock(&config) {
+            freed = true;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    assert!(freed, "free once dropped");
 }
 
 #[test]

@@ -157,13 +157,14 @@ fn build_account(
         client_secret: resolved.stored.as_ref().map(|s| s.expose().to_string()),
         tenant: match request.kind {
             AccountKind::M365 => request.tenant.clone().or_else(|| resolved.tenant.clone()),
-            AccountKind::Gmail => None,
+            _ => None,
         },
         signature: None,
         from_name: None,
         ai_send: None,
         history_days: None,
         body_cache_days: None,
+        ..Default::default()
     })
 }
 

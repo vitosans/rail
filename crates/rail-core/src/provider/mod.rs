@@ -15,6 +15,7 @@ mod html_style_tests;
 #[cfg(test)]
 mod html_tests;
 pub mod http;
+pub mod imap_smtp;
 pub(crate) mod limits;
 pub mod links;
 #[cfg(test)]

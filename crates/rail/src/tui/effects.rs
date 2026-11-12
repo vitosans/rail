@@ -118,7 +118,17 @@ pub fn to_effect(action: Action, ctx: &EffectContext) -> Effect {
             job(move |sink| admin_consent(ctx, client_id, tenant, sink))
         }
         Action::RunLogin(account) => job(move |sink| login(ctx, account, sink)),
+        Action::ValidateImapSmtp {
+            account,
+            password,
+            smtp_password,
+        } => job(move |sink| validate_imapsmtp(ctx, account, password, smtp_password, sink)),
         Action::Persist { .. } => job(move |sink| async move { persisted(&ctx, &sink) }),
+        Action::PersistImapSmtp {
+            account,
+            password,
+            smtp_password,
+        } => job(move |sink| persist_imapsmtp(ctx, account, password, smtp_password, sink)),
         Action::SaveKeymap {
             preset,
             config_path,
@@ -376,6 +386,104 @@ async fn run_consent(
         PendingState::Failed { error } => Err(failure(&error)),
         other => Err(ended_without(&other, "the consent ended without an answer")),
     }
+}
+
+async fn validate_imapsmtp(
+    ctx: EffectContext,
+    account: AccountConfig,
+    password: rail_core::ops::Secret<String>,
+    smtp_password: Option<rail_core::ops::Secret<String>>,
+    sink: TaskSink,
+) {
+    let req = rail_core::ops::AccountValidateRequest {
+        account: None,
+        imap_host: account.imap_host,
+        imap_port: account.imap_port,
+        imap_tls: account.imap_tls,
+        username: account.imap_user.or_else(|| Some(account.address.clone())),
+        password: Some(password),
+        smtp_host: account.smtp_host,
+        smtp_port: account.smtp_port,
+        smtp_tls: account.smtp_tls,
+        smtp_username: account.smtp_user.or_else(|| Some(account.address.clone())),
+        smtp_password,
+    };
+    let result = ctx
+        .daemon
+        .call::<rail_core::ops::op::AccountValidate>(&req)
+        .await
+        .map(|_| ())
+        .map_err(|e| failure(&e));
+    send(&sink, Event::ImapSmtpValidated(result));
+}
+
+async fn persist_imapsmtp(
+    ctx: EffectContext,
+    account: AccountConfig,
+    password: rail_core::ops::Secret<String>,
+    smtp_password: Option<rail_core::ops::Secret<String>>,
+    sink: TaskSink,
+) {
+    let set_pw = rail_core::ops::AccountPasswordSetRequest {
+        account: account.name.clone(),
+        password,
+        service: None,
+    };
+    if let Err(e) = ctx
+        .daemon
+        .call::<rail_core::ops::op::AccountPasswordSet>(&set_pw)
+        .await
+    {
+        send(&sink, Event::Persisted(Err(failure(&e))));
+        return;
+    }
+    if let Some(smtp_pw) = smtp_password {
+        let set_smtp = rail_core::ops::AccountPasswordSetRequest {
+            account: account.name.clone(),
+            password: smtp_pw,
+            service: Some("smtp".to_string()),
+        };
+        if let Err(e) = ctx
+            .daemon
+            .call::<rail_core::ops::op::AccountPasswordSet>(&set_smtp)
+            .await
+        {
+            send(&sink, Event::Persisted(Err(failure(&e))));
+            return;
+        }
+    }
+    let save_res = tokio::task::spawn_blocking(move || {
+        let paths =
+            Paths::from_env().map_err(|e| Failure::new(e.to_string(), ErrorClass::Permanent))?;
+        let config_path = paths.config_file();
+        let store_path = paths.db_file();
+        let (text, _) = rail_core::config::load_text_or_empty(&config_path)
+            .map_err(|e| Failure::new(e.to_string(), ErrorClass::Permanent))?;
+        let new_text = rail_core::config::append_account(&text, &config_path, &account)
+            .map_err(|e| Failure::new(e.to_string(), ErrorClass::Permanent))?;
+        if let Some(dir) = config_path
+            .parent()
+            .filter(|d| !d.as_os_str().is_empty() && !d.is_dir())
+        {
+            rail_core::paths::create_private_dir(dir)
+                .map_err(|e| Failure::new(e.to_string(), ErrorClass::Permanent))?;
+        }
+        rail_core::paths::replace_private_atomic(&config_path, new_text.as_bytes())
+            .map_err(|e| Failure::new(e.to_string(), ErrorClass::Permanent))?;
+        rail_core::store::Store::open(&store_path)
+            .and_then(|store| store.upsert_account(&account))
+            .map_err(|e| Failure::new(e.to_string(), ErrorClass::Permanent))?;
+        Ok(DoneReport {
+            config_path,
+            token_backend: "secrets".to_string(),
+            token_location: "secret store".to_string(),
+            store_path,
+        })
+    })
+    .await
+    .unwrap_or_else(|e| Err(Failure::new(e.to_string(), ErrorClass::Permanent)));
+
+    send(&sink, Event::Persisted(save_res));
 }
 
 #[cfg(test)]

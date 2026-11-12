@@ -34,6 +34,7 @@ async fn wrong_identity(h: &Harness, kind: AccountKind) {
             "/v1.0/me",
             json!({"mail": "personal@example.com", "userPrincipalName": "personal@example.com"}),
         ),
+        AccountKind::ImapSmtp => panic!("IMAP/SMTP does not use REST identity mocks"),
     };
     Mock::given(method("GET"))
         .and(path(at))

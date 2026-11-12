@@ -15,9 +15,10 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (10, include_str!("migrations/0010_snoozes.sql")),
     (11, include_str!("migrations/0011_content_id.sql")),
     (12, include_str!("migrations/0012_vouched_domains.sql")),
+    (13, include_str!("migrations/0013_imapsmtp.sql")),
 ];
 
-pub const LATEST_VERSION: i64 = 12;
+pub const LATEST_VERSION: i64 = 13;
 
 /// Apply every migration newer than the database's `user_version`, each in its own transaction.
 pub fn migrate(conn: &mut Connection) -> Result<(), StoreError> {
@@ -33,6 +34,10 @@ pub(crate) fn migrate_up_to(conn: &mut Connection, target: i64) -> Result<(), St
             found: current,
             supported: LATEST_VERSION,
         });
+    }
+    let fk_enabled: bool = conn.pragma_query_value(None, "foreign_keys", |r| r.get(0))?;
+    if fk_enabled {
+        conn.pragma_update(None, "foreign_keys", "OFF")?;
     }
     for (version, sql) in MIGRATIONS {
         if *version > target {
@@ -56,5 +61,76 @@ pub(crate) fn migrate_up_to(conn: &mut Connection, target: i64) -> Result<(), St
         tx.pragma_update(None, "user_version", version)?;
         tx.commit()?;
     }
+    if fk_enabled {
+        conn.pragma_update(None, "foreign_keys", "ON")?;
+    }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::store::Store;
+
+    #[test]
+    fn migration_thirteen_widens_accounts_kind_and_preserves_data() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("rail.db");
+        {
+            let store = Store::open_at_version(&path, 12).unwrap();
+            store
+                .conn()
+                .execute_batch(
+                    "INSERT INTO accounts (name, kind, address) VALUES ('work', 'gmail', 'w@example.com');
+                     INSERT INTO threads (account_id, remote_id) VALUES (1, 't1');
+                     INSERT INTO messages (account_id, thread_id, remote_id) VALUES (1, 1, 'm1');",
+                )
+                .unwrap();
+            // Kind 'imapsmtp' must fail on version 12
+            assert!(
+                store
+                    .conn()
+                    .execute(
+                        "INSERT INTO accounts (name, kind, address) VALUES ('imap', 'imapsmtp', 'i@e.com')",
+                        [],
+                    )
+                    .is_err(),
+                "version 12 check constraint rejects imapsmtp"
+            );
+        }
+
+        let store = Store::open(&path).unwrap();
+        assert_eq!(store.schema_version().unwrap(), LATEST_VERSION);
+
+        // Verify existing rows survived
+        let count: i64 = store
+            .conn()
+            .query_row(
+                "SELECT count(*) FROM messages WHERE account_id = 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+
+        // Verify imapsmtp is accepted on version 13
+        store
+            .conn()
+            .execute(
+                "INSERT INTO accounts (name, kind, address) VALUES ('imap', 'imapsmtp', 'i@e.com')",
+                [],
+            )
+            .unwrap();
+
+        // Verify invalid kind is still rejected
+        assert!(
+            store
+                .conn()
+                .execute(
+                    "INSERT INTO accounts (name, kind, address) VALUES ('pop', 'pop3', 'p@e.com')",
+                    [],
+                )
+                .is_err()
+        );
+    }
 }

@@ -32,6 +32,11 @@ pub(super) async fn add_begin(
     call: Call,
     request: AccountAddRequest,
 ) -> Result<BeginResponse, OpError> {
+    if request.kind == AccountKind::ImapSmtp {
+        return Err(OpError::invalid_input(
+            "IMAP/SMTP accounts do not use OAuth browser sign-in; add them using `rail account add --kind imapsmtp` or the setup wizard",
+        ));
+    }
     let ctx = call.ctx.clone();
     let slot = ensure_room(&ctx)?;
     let prepared = prepare_and_probe(&ctx.paths, &ctx.op_ids, &request, &ctx.http).await?;
@@ -71,6 +76,11 @@ pub(super) async fn login_begin(
     let (account, login) = ctx
         .blocking(move || {
             let (config, account) = account_for_login(&paths, &who)?;
+            if account.kind == AccountKind::ImapSmtp {
+                return Err(OpError::invalid_input(
+                    "IMAP/SMTP accounts do not use OAuth browser login; update credentials with `rail secrets password <account>` or the setup wizard",
+                ));
+            }
             probe_secrets(
                 open_secret_store(&config, &paths, &ids).as_ref(),
                 &account.address,
@@ -238,6 +248,11 @@ async fn wait_for_tokens(
         let api_root = match account.kind {
             AccountKind::Gmail => ctx.gmail_url(),
             AccountKind::M365 => ctx.graph_url(),
+            AccountKind::ImapSmtp => {
+                return Err(OpError::invalid_input(
+                    "IMAP/SMTP accounts do not use OAuth login",
+                ));
+            }
         };
         crate::accounts::identity::verify_mailbox(&ctx.http, account, &tokens, api_root).await?;
         Ok(tokens)
