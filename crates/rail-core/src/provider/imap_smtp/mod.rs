@@ -33,7 +33,7 @@ mod sync_tests;
 mod tests;
 
 use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::config::model::TlsMode;
 use crate::ops::Secret;
@@ -95,13 +95,16 @@ impl ImapSmtpProvider {
     }
 
     pub fn is_relay_accepted(&self, message_id: &str) -> bool {
-        self.relay_accepted.lock().unwrap().contains(message_id)
+        self.relay_accepted
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .contains(message_id)
     }
 
     pub fn mark_relay_accepted(&self, message_id: &str) {
         self.relay_accepted
             .lock()
-            .unwrap()
+            .unwrap_or_else(PoisonError::into_inner)
             .insert(message_id.to_string());
     }
 
@@ -242,7 +245,10 @@ impl Provider for ImapSmtpProvider {
                 if sent_id.is_some() {
                     final_receipt.message_id = sent_id;
                 }
-                self.relay_accepted.lock().unwrap().remove(msg_id);
+                self.relay_accepted
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .remove(msg_id);
                 Ok(final_receipt)
             }
             Err(err) => {

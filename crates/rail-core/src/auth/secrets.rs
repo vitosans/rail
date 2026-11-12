@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use serde::{Deserialize, Serialize};
 
@@ -387,7 +387,7 @@ impl SecretStore for MemorySecretStore {
         Ok(self
             .inner
             .lock()
-            .expect("secrets mutex")
+            .unwrap_or_else(PoisonError::into_inner)
             .get(address)
             .cloned())
     }
@@ -395,13 +395,16 @@ impl SecretStore for MemorySecretStore {
     fn set_tokens(&self, address: &str, tokens: &TokenSet) -> Result<(), SecretError> {
         self.inner
             .lock()
-            .expect("secrets mutex")
+            .unwrap_or_else(PoisonError::into_inner)
             .insert(address.to_string(), tokens.clone());
         Ok(())
     }
 
     fn delete_tokens(&self, address: &str) -> Result<(), SecretError> {
-        self.inner.lock().expect("secrets mutex").remove(address);
+        self.inner
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(address);
         Ok(())
     }
 
@@ -409,7 +412,7 @@ impl SecretStore for MemorySecretStore {
         Ok(self
             .passwords
             .lock()
-            .expect("secrets mutex")
+            .unwrap_or_else(PoisonError::into_inner)
             .get(key)
             .cloned())
     }
@@ -417,13 +420,16 @@ impl SecretStore for MemorySecretStore {
     fn set_password(&self, key: &str, password: &Secret<String>) -> Result<(), SecretError> {
         self.passwords
             .lock()
-            .expect("secrets mutex")
+            .unwrap_or_else(PoisonError::into_inner)
             .insert(key.to_string(), password.clone());
         Ok(())
     }
 
     fn delete_password(&self, key: &str) -> Result<(), SecretError> {
-        self.passwords.lock().expect("secrets mutex").remove(key);
+        self.passwords
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(key);
         Ok(())
     }
 

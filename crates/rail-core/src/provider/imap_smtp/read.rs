@@ -3,9 +3,9 @@
 use std::collections::HashMap;
 
 use async_imap::Session;
-use async_imap::types::Flag;
+use async_imap::types::{Fetch, Flag};
 use futures_util::StreamExt;
-use mail_parser::{Address, HeaderValue, MessageParser, MimeHeaders};
+use mail_parser::{Address, HeaderValue, Message, MessageParser, MimeHeaders};
 
 use super::client::{ImapStream, classify_imap_error};
 use super::identity::{ImapMessageId, compute_thread_id};
@@ -133,30 +133,44 @@ pub fn parse_body(raw_bytes: &[u8]) -> Result<Body, ProviderError> {
         .parse(raw_bytes)
         .ok_or_else(|| ProviderError::permanent("failed to parse message structure"))?;
 
+    let (text, html, links) = render_body(&parsed);
+    let truncated = text.len() > MAX_BODY_BYTES;
+    let text = if truncated {
+        format!("{}{}", cut(&text, MAX_BODY_BYTES), TRUNCATED_MARKER)
+    } else {
+        text
+    };
+
+    Ok(Body {
+        text,
+        html,
+        truncated,
+        attachments: attachments_of(&parsed),
+        attachments_unknown: false,
+        links,
+        vouched_domains: vouched_domains_of(&parsed),
+    })
+}
+
+/// The readable text, the HTML source and its links, preferring HTML when the message has it.
+fn render_body(parsed: &Message<'_>) -> (String, Option<String>, Vec<String>) {
     let has_html = parsed
         .parts
         .iter()
         .any(|p| p.is_content_type("text", "html"));
-    let (mut text, html, links) = if has_html {
+    if has_html {
         if let Some(html) = parsed.body_html(0) {
             let rendered = html_render(&html);
-            (rendered.text, Some(html.to_string()), rendered.links)
-        } else {
-            (String::new(), None, Vec::new())
+            return (rendered.text, Some(html.to_string()), rendered.links);
         }
     } else if let Some(plain) = parsed.body_text(0) {
         let rendered = plain_links(&plain);
-        (rendered.text, None, rendered.links)
-    } else {
-        (String::new(), None, Vec::new())
-    };
-
-    let mut truncated = false;
-    if text.len() > MAX_BODY_BYTES {
-        truncated = true;
-        text = format!("{}{}", cut(&text, MAX_BODY_BYTES), TRUNCATED_MARKER);
+        return (rendered.text, None, rendered.links);
     }
+    (String::new(), None, Vec::new())
+}
 
+fn attachments_of(parsed: &Message<'_>) -> Vec<AttachmentMeta> {
     let mut attachments = Vec::new();
     for (idx, att) in parsed.attachments().take(MAX_ATTACHMENTS).enumerate() {
         let filename = att
@@ -179,22 +193,15 @@ pub fn parse_body(raw_bytes: &[u8]) -> Result<Body, ProviderError> {
             content_id: att.content_id().and_then(content_id),
         });
     }
+    attachments
+}
 
-    let vouched_domains = parsed
+fn vouched_domains_of(parsed: &Message<'_>) -> Vec<String> {
+    parsed
         .header("Authentication-Results")
         .and_then(|h| h.as_text())
         .map(|val| vouched_domains(val, None))
-        .unwrap_or_default();
-
-    Ok(Body {
-        text,
-        html,
-        truncated,
-        attachments,
-        attachments_unknown: false,
-        links,
-        vouched_domains,
-    })
+        .unwrap_or_default()
 }
 
 /// Extracts raw bytes of a message attachment by its part index or filename.
@@ -297,74 +304,7 @@ pub async fn fetch_envelopes(
     for ((mailbox, uidvalidity), mut uids) in by_mailbox {
         uids.sort_unstable();
         uids.dedup();
-        if let Err(e) = session.examine(&mailbox).await {
-            tracing::warn!(mailbox = %mailbox, error = %e, "failed to examine mailbox for envelopes");
-            continue;
-        }
-
-        let uids_str = uids
-            .iter()
-            .map(|u| u.to_string())
-            .collect::<Vec<_>>()
-            .join(",");
-        let mut stream = match session
-            .uid_fetch(
-                &uids_str,
-                "(UID INTERNALDATE RFC822.SIZE FLAGS BODY.PEEK[HEADER])",
-            )
-            .await
-        {
-            Ok(s) => s,
-            Err(e) => {
-                tracing::warn!(mailbox = %mailbox, error = %e, "failed to fetch envelopes");
-                continue;
-            }
-        };
-
-        while let Some(fetch_res) = stream.next().await {
-            let fetch = match fetch_res {
-                Ok(f) => f,
-                Err(e) => {
-                    tracing::warn!(error = %e, "error reading fetch envelope record");
-                    continue;
-                }
-            };
-            let uid = match fetch.uid {
-                Some(u) => u,
-                None => continue,
-            };
-            let internal_date_ms = fetch
-                .internal_date()
-                .map(|dt| dt.timestamp_millis())
-                .unwrap_or(0);
-            let size = fetch.size.unwrap_or(0) as i64;
-            let mut is_read = false;
-            let mut is_starred = false;
-            let mut is_draft = false;
-            for flag in fetch.flags() {
-                match flag {
-                    Flag::Seen => is_read = true,
-                    Flag::Flagged => is_starred = true,
-                    Flag::Draft => is_draft = true,
-                    _ => {}
-                }
-            }
-            let header_bytes = fetch.header().unwrap_or_default();
-
-            if let Some(env) = parse_envelope(
-                &mailbox,
-                uidvalidity,
-                uid,
-                internal_date_ms,
-                size,
-                is_read,
-                is_starred,
-                is_draft,
-                header_bytes,
-            ) {
-                envelopes.push(env);
-            }
-        }
+        envelopes.extend(fetch_mailbox_envelopes(session, &mailbox, uidvalidity, &uids).await);
     }
 
     Ok(EnvelopePage {
@@ -372,6 +312,86 @@ pub async fn fetch_envelopes(
         skipped,
         next: None,
     })
+}
+
+/// Fetches and parses the envelopes of `uids` in one mailbox. A mailbox that cannot be
+/// examined or fetched is logged and skipped, so one bad folder does not lose the rest.
+async fn fetch_mailbox_envelopes(
+    session: &mut Session<ImapStream>,
+    mailbox: &str,
+    uidvalidity: u32,
+    uids: &[u32],
+) -> Vec<Envelope> {
+    if let Err(e) = session.examine(mailbox).await {
+        tracing::warn!(mailbox = %mailbox, error = %e, "failed to examine mailbox for envelopes");
+        return Vec::new();
+    }
+
+    let uids_str = uids
+        .iter()
+        .map(|u| u.to_string())
+        .collect::<Vec<_>>()
+        .join(",");
+    let mut stream = match session
+        .uid_fetch(
+            &uids_str,
+            "(UID INTERNALDATE RFC822.SIZE FLAGS BODY.PEEK[HEADER])",
+        )
+        .await
+    {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!(mailbox = %mailbox, error = %e, "failed to fetch envelopes");
+            return Vec::new();
+        }
+    };
+
+    let mut envelopes = Vec::new();
+    while let Some(fetch_res) = stream.next().await {
+        let fetch = match fetch_res {
+            Ok(f) => f,
+            Err(e) => {
+                tracing::warn!(error = %e, "error reading fetch envelope record");
+                continue;
+            }
+        };
+        if let Some(env) = envelope_from_fetch(mailbox, uidvalidity, &fetch) {
+            envelopes.push(env);
+        }
+    }
+    envelopes
+}
+
+/// Builds an `Envelope` from one IMAP `FETCH` record.
+fn envelope_from_fetch(mailbox: &str, uidvalidity: u32, fetch: &Fetch) -> Option<Envelope> {
+    let uid = fetch.uid?;
+    let internal_date_ms = fetch
+        .internal_date()
+        .map(|dt| dt.timestamp_millis())
+        .unwrap_or(0);
+    let size = fetch.size.unwrap_or(0) as i64;
+    let mut is_read = false;
+    let mut is_starred = false;
+    let mut is_draft = false;
+    for flag in fetch.flags() {
+        match flag {
+            Flag::Seen => is_read = true,
+            Flag::Flagged => is_starred = true,
+            Flag::Draft => is_draft = true,
+            _ => {}
+        }
+    }
+    parse_envelope(
+        mailbox,
+        uidvalidity,
+        uid,
+        internal_date_ms,
+        size,
+        is_read,
+        is_starred,
+        is_draft,
+        fetch.header().unwrap_or_default(),
+    )
 }
 
 /// Fetches the full message body for a given remote ID.

@@ -23,10 +23,8 @@ pub async fn apply_change(
     threads: &[ThreadTarget],
     change: &Change,
 ) -> Result<(), ProviderError> {
-    if let Change::Labels { .. } = change {
-        return Err(ProviderError::permanent(
-            "IMAP accounts do not support arbitrary label assignment; use folders instead",
-        ));
+    if matches!(change, Change::Labels { .. }) {
+        return Err(labels_unsupported());
     }
 
     let mut by_mailbox: HashMap<String, Vec<u32>> = HashMap::new();
@@ -55,6 +53,12 @@ pub async fn apply_change(
     Ok(())
 }
 
+fn labels_unsupported() -> ProviderError {
+    ProviderError::permanent(
+        "IMAP accounts do not support arbitrary label assignment; use folders instead",
+    )
+}
+
 async fn apply_change_to_mailbox(
     session: &mut Session<ImapStream>,
     caps: &ImapCapabilities,
@@ -78,50 +82,95 @@ async fn apply_change_to_mailbox(
         .collect::<Vec<_>>()
         .join(",");
 
+    apply_to_uids(session, caps, folders, source_mailbox, &uids_str, change).await
+}
+
+async fn apply_to_uids(
+    session: &mut Session<ImapStream>,
+    caps: &ImapCapabilities,
+    folders: &DiscoveredFolders,
+    source_mailbox: &str,
+    uids_str: &str,
+    change: &Change,
+) -> Result<(), ProviderError> {
     match change {
-        Change::Read { on } => {
-            let flag_query = if *on {
-                "+FLAGS (\\Seen)"
-            } else {
-                "-FLAGS (\\Seen)"
-            };
-            store_flags(session, &uids_str, flag_query).await
-        }
-        Change::Star { on } => {
-            let flag_query = if *on {
-                "+FLAGS (\\Flagged)"
-            } else {
-                "-FLAGS (\\Flagged)"
-            };
-            store_flags(session, &uids_str, flag_query).await
-        }
-        Change::Move { to } => move_uids(session, caps, &uids_str, to.as_str()).await,
-        Change::Archive => {
-            if let Some(archive_folder) = folders.find_by_kind(FolderKind::Archive)
-                && archive_folder.name != source_mailbox
-            {
-                move_uids(session, caps, &uids_str, &archive_folder.name).await?;
-            }
-            Ok(())
-        }
-        Change::Trash => {
-            if let Some(trash_mailbox) = folders.trash_mailbox_name() {
-                if trash_mailbox != source_mailbox {
-                    move_uids(session, caps, &uids_str, trash_mailbox).await?;
-                }
-            } else {
-                delete_and_expunge(session, &uids_str).await?;
-            }
-            Ok(())
-        }
-        Change::Unsnooze { .. } => {
-            if source_mailbox != "INBOX" {
-                move_uids(session, caps, &uids_str, "INBOX").await?;
-            }
-            Ok(())
-        }
-        Change::Labels { .. } => unreachable!("handled earlier"),
+        Change::Read { on } => store_seen(session, uids_str, *on).await,
+        Change::Star { on } => store_starred(session, uids_str, *on).await,
+        Change::Move { to } => move_uids(session, caps, uids_str, to.as_str()).await,
+        Change::Archive => archive(session, caps, folders, source_mailbox, uids_str).await,
+        Change::Trash => trash(session, caps, folders, source_mailbox, uids_str).await,
+        Change::Unsnooze { .. } => unsnooze(session, caps, source_mailbox, uids_str).await,
+        Change::Labels { .. } => Err(labels_unsupported()),
     }
+}
+
+async fn store_seen(
+    session: &mut Session<ImapStream>,
+    uids_str: &str,
+    on: bool,
+) -> Result<(), ProviderError> {
+    let query = if on {
+        "+FLAGS (\\Seen)"
+    } else {
+        "-FLAGS (\\Seen)"
+    };
+    store_flags(session, uids_str, query).await
+}
+
+async fn store_starred(
+    session: &mut Session<ImapStream>,
+    uids_str: &str,
+    on: bool,
+) -> Result<(), ProviderError> {
+    let query = if on {
+        "+FLAGS (\\Flagged)"
+    } else {
+        "-FLAGS (\\Flagged)"
+    };
+    store_flags(session, uids_str, query).await
+}
+
+async fn archive(
+    session: &mut Session<ImapStream>,
+    caps: &ImapCapabilities,
+    folders: &DiscoveredFolders,
+    source_mailbox: &str,
+    uids_str: &str,
+) -> Result<(), ProviderError> {
+    if let Some(folder) = folders.find_by_kind(FolderKind::Archive)
+        && folder.name != source_mailbox
+    {
+        move_uids(session, caps, uids_str, &folder.name).await?;
+    }
+    Ok(())
+}
+
+async fn trash(
+    session: &mut Session<ImapStream>,
+    caps: &ImapCapabilities,
+    folders: &DiscoveredFolders,
+    source_mailbox: &str,
+    uids_str: &str,
+) -> Result<(), ProviderError> {
+    match folders.trash_mailbox_name() {
+        Some(trash_mailbox) if trash_mailbox != source_mailbox => {
+            move_uids(session, caps, uids_str, trash_mailbox).await
+        }
+        Some(_) => Ok(()),
+        None => delete_and_expunge(session, uids_str).await,
+    }
+}
+
+async fn unsnooze(
+    session: &mut Session<ImapStream>,
+    caps: &ImapCapabilities,
+    source_mailbox: &str,
+    uids_str: &str,
+) -> Result<(), ProviderError> {
+    if source_mailbox != "INBOX" {
+        move_uids(session, caps, uids_str, "INBOX").await?;
+    }
+    Ok(())
 }
 
 async fn store_flags(
