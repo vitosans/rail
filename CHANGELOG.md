@@ -6,6 +6,10 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.10.3] - 2026-11-11
+
+Trusting your own company's domain now works on Microsoft 365 (#190).
+
 ### Fixed
 
 - **Trusting your own company's domain now works on Microsoft 365.** Mail a colleague sends
