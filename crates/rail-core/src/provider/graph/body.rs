@@ -8,12 +8,17 @@
 //! the HTML names a `cid:` image (in any case). A list Graph refuses leaves the body readable
 //! and says its attachments are unknown, so the ones already stored are kept. The topmost
 //! `Authentication-Results` of `internetMessageHeaders`, the one Exchange Online adds, says
-//! which From domains it vouched for (`auth_results`).
+//! which From domains it vouched for (`auth_results`). Mail a colleague sent inside the tenant
+//! has none that pass, since Exchange signs with DKIM only on the way out, so Exchange's own
+//! stamp that the sender signed in to the organisation (`INTERNAL_STAMPS`) vouches for the From
+//! domain instead, and only when it is the account's own domain: an internal sender may still
+//! write any From line. Exchange strips `X-MS-Exchange-Organization-*` from mail that arrives from
+//! outside, and each stamp must appear exactly once, so a sender cannot add its own.
 
 use super::reconcile::plain_file;
-use super::wire::{AttachmentWire, BodyWire, HeaderWire, Page};
+use super::wire::{AttachmentWire, BodyWire, HeaderWire, Page, Recipient};
 use super::{COST_REQUEST, GraphProvider, graph_id};
-use crate::provider::auth_results::vouched_domains;
+use crate::provider::auth_results::{MAX_VOUCHED, address_domain, vouched_domains};
 use crate::provider::gmail::body::{Kind, render};
 use crate::provider::gmail::metadata::one_line_capped;
 use crate::provider::limits::{MAX_ATTACHMENTS, MAX_FILENAME_CHARS};
@@ -21,7 +26,14 @@ use crate::provider::types::content_id;
 use crate::provider::{AttachmentMeta, Body, ProviderError};
 
 /// What a body fetch selects.
-pub const BODY_FIELDS: &str = "id,body,hasAttachments,internetMessageHeaders";
+pub const BODY_FIELDS: &str = "id,body,hasAttachments,internetMessageHeaders,from";
+
+/// The headers Exchange Online stamps on mail whose sender signed in to the organisation, each
+/// of which must say `Internal`, once.
+const INTERNAL_STAMPS: [&str; 2] = [
+    "X-MS-Exchange-Organization-AuthAs",
+    "X-MS-Exchange-CrossTenant-AuthAs",
+];
 
 /// The preference that asks for the HTML body.
 pub const HTML_BODY: &str = "outlook.body-content-type=\"html\"";
@@ -50,15 +62,45 @@ fn meta(wire: AttachmentWire) -> AttachmentMeta {
     }
 }
 
-/// The domains the topmost `Authentication-Results` vouches for. Exchange Online's names
-/// `mx.microsoft.com`, but other Microsoft clouds may name another server, so none is asked for:
-/// the topmost header is the receiving server's either way.
-fn vouched(headers: &[HeaderWire]) -> Vec<String> {
-    headers
+/// The domains the topmost `Authentication-Results` vouches for, and `own_domain` when Exchange
+/// stamped the sender as signed in to the organisation and the From line is at it. Exchange Online's header names
+/// `mx.microsoft.com`, but other Microsoft clouds may name another server, so none is asked
+/// for: the topmost header is the receiving server's either way.
+fn vouched(
+    headers: &[HeaderWire],
+    from: Option<&Recipient>,
+    own_domain: Option<&str>,
+) -> Vec<String> {
+    let mut domains = headers
         .iter()
         .find(|h| h.name.eq_ignore_ascii_case("Authentication-Results"))
         .map(|h| vouched_domains(&h.value, None))
-        .unwrap_or_default()
+        .unwrap_or_default();
+    if let Some(domain) = internal_sender_domain(headers, from)
+        && own_domain == Some(domain.as_str())
+        && !domains.contains(&domain)
+        && domains.len() < MAX_VOUCHED
+    {
+        domains.push(domain);
+    }
+    domains
+}
+
+/// The From domain of mail Exchange stamped as sent by someone signed in to the organisation:
+/// every one of `INTERNAL_STAMPS` there exactly once and saying `Internal`.
+fn internal_sender_domain(headers: &[HeaderWire], from: Option<&Recipient>) -> Option<String> {
+    let stamped = INTERNAL_STAMPS.iter().all(|stamp| {
+        let mut values = headers
+            .iter()
+            .filter(|h| h.name.eq_ignore_ascii_case(stamp));
+        let once = values.next().filter(|_| values.next().is_none());
+        once.is_some_and(|h| h.value.trim().eq_ignore_ascii_case("Internal"))
+    });
+    if !stamped {
+        return None;
+    }
+    let address = from?.email_address.as_ref()?.address.as_deref()?;
+    address_domain(address)
 }
 
 /// Whether HTML names a `cid:` image, in any case (`CID:` is the same scheme).
@@ -82,7 +124,11 @@ impl GraphProvider {
         if wire.id.as_deref() != Some(id) {
             return Err(unreadable());
         }
-        let vouched = vouched(wire.internet_message_headers.as_deref().unwrap_or_default());
+        let vouched = vouched(
+            wire.internet_message_headers.as_deref().unwrap_or_default(),
+            wire.from.as_ref(),
+            self.own_domain.as_deref(),
+        );
         let body = wire.body.unwrap_or_default();
         let kind = match body.content_type.as_deref() {
             Some(text) if text.eq_ignore_ascii_case("text") => Kind::Plain,

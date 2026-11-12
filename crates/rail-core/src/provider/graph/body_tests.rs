@@ -289,3 +289,121 @@ async fn a_message_without_authentication_results_vouches_for_nothing() {
     let body = g.provider().body("m1").await.unwrap();
     assert!(body.vouched_domains.is_empty());
 }
+
+/// Headers as Exchange Online stores mail a colleague sent inside the tenant: its own
+/// `Authentication-Results` vouch for nothing (Exchange signs with DKIM only on the way out),
+/// and it stamps the sender as authenticated inside the organisation.
+fn internal_headers(org_auth_as: &[&str], cross_tenant_auth_as: &[&str]) -> Vec<Value> {
+    let mut headers = vec![
+        json!({"name": "Received", "value": "from PH0PR01MB994345.prod.exchangelabs.com"}),
+        json!({"name": "Authentication-Results",
+               "value": "mx.microsoft.com 1; dkim=none (message not signed) header.d=none;dmarc=none action=none header.from=example.com;"}),
+        json!({"name": "X-MS-Exchange-Organization-MessageDirectionality", "value": "Originating"}),
+    ];
+    for value in org_auth_as {
+        headers.push(json!({"name": "X-MS-Exchange-Organization-AuthAs", "value": value}));
+    }
+    for value in cross_tenant_auth_as {
+        headers.push(json!({"name": "X-MS-Exchange-CrossTenant-AuthAs", "value": value}));
+    }
+    headers
+}
+
+async fn vouched_for(from: &str, headers: Vec<Value>) -> Vec<String> {
+    let g = Graph::start().await;
+    let answer = json!({"id": "m1", "hasAttachments": false,
+        "body": {"contentType": "text", "content": "hi"},
+        "from": {"emailAddress": {"name": "Ann", "address": from}},
+        "internetMessageHeaders": headers});
+    serve_body(&g, "m1", answer).await;
+    g.provider()
+        .with_own_address("me@example.com")
+        .body("m1")
+        .await
+        .unwrap()
+        .vouched_domains
+}
+
+#[tokio::test]
+async fn mail_sent_inside_the_tenant_vouches_for_the_senders_domain() {
+    let vouched = vouched_for(
+        "Ann@Example.com",
+        internal_headers(&["Internal"], &["Internal"]),
+    )
+    .await;
+    assert_eq!(vouched, ["example.com"]);
+}
+
+#[tokio::test]
+async fn mail_from_outside_the_tenant_is_not_vouched_for_by_its_stamp() {
+    let vouched = vouched_for(
+        "ann@example.com",
+        internal_headers(&["Anonymous"], &["Anonymous"]),
+    )
+    .await;
+    assert!(vouched.is_empty(), "{vouched:?}");
+}
+
+#[tokio::test]
+async fn a_second_organisation_stamp_vouches_for_nothing() {
+    let vouched = vouched_for(
+        "ann@example.com",
+        internal_headers(&["Anonymous", "Internal"], &["Internal"]),
+    )
+    .await;
+    assert!(vouched.is_empty(), "{vouched:?}");
+}
+
+#[tokio::test]
+async fn the_cross_tenant_stamp_alone_vouches_for_nothing() {
+    let vouched = vouched_for("ann@example.com", internal_headers(&[], &["Internal"])).await;
+    assert!(vouched.is_empty(), "{vouched:?}");
+    let vouched = vouched_for("ann@example.com", internal_headers(&["Internal"], &[])).await;
+    assert!(vouched.is_empty(), "{vouched:?}");
+}
+
+#[tokio::test]
+async fn an_internal_stamp_without_a_usable_from_address_vouches_for_nothing() {
+    let vouched = vouched_for(
+        "not an address",
+        internal_headers(&["Internal"], &["Internal"]),
+    )
+    .await;
+    assert!(vouched.is_empty(), "{vouched:?}");
+}
+
+#[tokio::test]
+async fn internal_mail_keeps_what_the_authentication_results_vouched_for() {
+    let mut headers = internal_headers(&["Internal"], &["Internal"]);
+    headers[1] = json!({"name": "Authentication-Results",
+        "value": "dkim=pass header.d=lists.example.net; dmarc=pass header.from=example.com"});
+    let vouched = vouched_for("ann@example.com", headers).await;
+    assert_eq!(vouched, ["lists.example.net", "example.com"]);
+}
+
+#[tokio::test]
+async fn an_internal_stamp_vouches_only_for_the_accounts_own_domain() {
+    let stamps = || internal_headers(&["Internal"], &["Internal"]);
+    let vouched = vouched_for("news@vendor.example", stamps()).await;
+    assert!(vouched.is_empty(), "another domain: {vouched:?}");
+    let vouched = vouched_for("ann@eu.example.com", stamps()).await;
+    assert!(vouched.is_empty(), "a subdomain: {vouched:?}");
+}
+
+#[tokio::test]
+async fn an_internal_stamp_vouches_for_nothing_without_the_accounts_address() {
+    let g = Graph::start().await;
+    let answer = json!({"id": "m1", "hasAttachments": false,
+        "body": {"contentType": "text", "content": "hi"},
+        "from": {"emailAddress": {"address": "ann@example.com"}},
+        "internetMessageHeaders": internal_headers(&["Internal"], &["Internal"])});
+    serve_body(&g, "m1", answer).await;
+    assert!(
+        g.provider()
+            .body("m1")
+            .await
+            .unwrap()
+            .vouched_domains
+            .is_empty()
+    );
+}
