@@ -6,6 +6,23 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Trusting your own company's domain now works on Microsoft 365.** Mail a colleague sends
+  inside the organisation carries `dkim=none dmarc=none`, because Exchange signs with DKIM only
+  on the way out, so `I` showed the domain as `(not verified for this mail)` and a trusted
+  colleague's pictures never loaded on their own. Rail now also accepts Exchange's stamp that
+  the sender signed in to the organisation (`X-MS-Exchange-Organization-AuthAs` and
+  `X-MS-Exchange-CrossTenant-AuthAs` both `Internal`, each once), for the account's own domain
+  only. Exchange strips those headers from mail arriving from outside, so a spoof cannot carry
+  them.
+
+### Upgrading
+
+- Internal mail already stored keeps its old result until its body is fetched again, so `I` on
+  an older colleague's message may still say `(not verified for this mail)`. New mail is
+  checked as it arrives.
+
 ## [0.10.2] - 2026-11-11
 
 Sync keeps going when 1Password is locked (#186), the bundled SQLite is patched for

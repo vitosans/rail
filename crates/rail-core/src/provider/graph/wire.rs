@@ -115,6 +115,7 @@ pub(crate) struct BodyWire {
     pub has_attachments: Option<bool>,
     #[serde(rename = "internetMessageHeaders")]
     pub internet_message_headers: Option<Vec<HeaderWire>>,
+    pub from: Option<Recipient>,
 }
 
 /// One of `internetMessageHeaders`, in the order the message carries them.

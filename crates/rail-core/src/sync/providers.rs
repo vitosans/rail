@@ -61,7 +61,9 @@ pub fn graph_for(request: ProviderRequest) -> Result<Arc<dyn Provider>, OpError>
         .with_concurrency(GRAPH_CONCURRENCY)
         .with_quota(Quota::new(GRAPH_QUOTA_PER_MINUTE, GRAPH_QUOTA_BURST));
     Ok(Arc::new(
-        GraphProvider::new(api).with_history_days(window_days(&request)),
+        GraphProvider::new(api)
+            .with_history_days(window_days(&request))
+            .with_own_address(&request.account.address),
     ))
 }
 

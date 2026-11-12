@@ -48,6 +48,12 @@ pub fn aligned(address: &str, vouched: &[String]) -> bool {
     })
 }
 
+/// `address`'s domain, lower case, when it has one shaped like a domain.
+pub fn address_domain(address: &str) -> Option<String> {
+    let (_, domain_part) = address.trim().rsplit_once('@')?;
+    domain(domain_part)
+}
+
 /// The domain one result (`method=result prop=value …`) vouches for, if it passed.
 fn vouched(result: &str) -> Option<String> {
     let mut tokens = result.split_whitespace();

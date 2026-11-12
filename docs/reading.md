@@ -319,8 +319,18 @@ when that is what matched (`…: ask first`).
 A From line can be forged, so a trusted sender's or domain's mail loads its pictures by itself
 only when the receiving server vouched for the sender's domain:
 
-- Gmail's or Microsoft 365's own `Authentication-Results` show DMARC passed for it, or
-- a DKIM signature of it (or of a parent domain) passed.
+- Gmail's or Microsoft 365's own `Authentication-Results` show DMARC passed for it,
+- a DKIM signature of it (or of a parent domain) passed, or
+- on Microsoft 365, the sender is at your account's own domain and Exchange stamped them as
+  signed in to your organisation (`X-MS-Exchange-Organization-AuthAs: Internal` and
+  `X-MS-Exchange-CrossTenant-AuthAs: Internal`, each once).
+
+The last rule is for mail between colleagues. Exchange signs mail with DKIM only when it leaves
+the organisation, so mail sent inside it shows `dkim=none dmarc=none` however well the domain is
+set up. Exchange removes `X-MS-Exchange-Organization-*` headers from mail that arrives from
+outside, so a sender cannot add the stamp. It covers only your own domain (not its subdomains
+or the organisation's other domains), because a colleague's account can still write another
+company's address in the From line.
 
 Other mail from that address waits with the hint, as an untrusted sender's does. So does mail
 stored before Rail kept these results, until its body is fetched again; `i` loads it.

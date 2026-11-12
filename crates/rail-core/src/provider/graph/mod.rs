@@ -99,6 +99,9 @@ pub struct GraphProvider {
     skipped: Mutex<HashSet<RemoteId>>,
     /// Folders whose delta links keep running over the cap, for the daemon's life.
     stuck: Mutex<stuck::Stuck>,
+    /// The domain of the account's own address: the only one Exchange's stamp of internal
+    /// mail vouches for (`body`). `None` vouches for none.
+    own_domain: Option<String>,
 }
 
 impl GraphProvider {
@@ -109,7 +112,14 @@ impl GraphProvider {
             folders: Mutex::new(Vec::new()),
             skipped: Mutex::new(HashSet::new()),
             stuck: Mutex::new(stuck::Stuck::default()),
+            own_domain: None,
         }
+    }
+
+    /// The account's own address, whose domain internal mail may be vouched for.
+    pub fn with_own_address(mut self, address: &str) -> Self {
+        self.own_domain = crate::provider::auth_results::address_domain(address);
+        self
     }
 
     /// Initial deltas ask only for mail received in the last `days` (0: all of it).

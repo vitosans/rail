@@ -1,7 +1,7 @@
 //! Reading the receiving server's `Authentication-Results`: which From domains it vouched for,
 //! and whether a sender's address is one of them.
 
-use super::auth_results::{aligned, vouched_domains};
+use super::auth_results::{address_domain, aligned, vouched_domains};
 
 const GMAIL: Option<&str> = Some("mx.google.com");
 
@@ -88,4 +88,20 @@ fn a_sender_aligns_with_its_own_domain_or_a_parent_of_it() {
     assert!(!aligned("jira@company.atlassian.net.evil", &vouched));
     assert!(!aligned("no-at-sign", &vouched));
     assert!(!aligned("jira@company.atlassian.net", &[]));
+}
+
+#[test]
+fn an_address_domain_is_lower_case_and_shaped_like_a_domain() {
+    assert_eq!(
+        address_domain(" Ann@Mail.Example.COM ").as_deref(),
+        Some("mail.example.com")
+    );
+    assert_eq!(
+        address_domain("ann@example.com.").as_deref(),
+        Some("example.com")
+    );
+    assert_eq!(address_domain("example.com"), None, "no @");
+    assert_eq!(address_domain("ann@localhost"), None, "no dot");
+    assert_eq!(address_domain("ann@exa mple.com"), None);
+    assert_eq!(address_domain("ann@"), None);
 }
