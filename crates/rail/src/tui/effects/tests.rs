@@ -569,3 +569,39 @@ fn save_keymap_refuses_a_preset_keys_clash_with() {
     assert!(error.contains("list.star"), "{error}");
     assert_eq!(std::fs::read_to_string(&path).unwrap(), text);
 }
+
+/// The account is written to config before its password is set: the password operation
+/// resolves the account by name, so doing it the other way round fails with "not found".
+#[tokio::test]
+async fn persisting_an_imapsmtp_account_writes_it_before_its_password() {
+    let tmp = tempfile::tempdir().unwrap();
+    let paths = tmp_paths(&tmp, FILE_BACKEND);
+    let (ctx, _urls) = daemon_ctx(&paths, None).await;
+    let account = AccountConfig {
+        name: "personal".into(),
+        kind: AccountKind::ImapSmtp,
+        address: "user@example.com".into(),
+        imap_host: Some("imap.example.com".into()),
+        imap_port: Some(993),
+        imap_user: Some("user@example.com".into()),
+        smtp_host: Some("smtp.example.com".into()),
+        smtp_port: Some(465),
+        smtp_user: Some("user@example.com".into()),
+        ..Default::default()
+    };
+    let action = Action::PersistImapSmtp {
+        account,
+        password: rail_core::ops::Secret::new("secret123"),
+        smtp_password: None,
+    };
+
+    let events = run(to_effect(action, &ctx)).await;
+    let [Event::Persisted(Ok(_))] = events.as_slice() else {
+        panic!("{events:?}");
+    };
+
+    let text = std::fs::read_to_string(paths.config_file()).unwrap();
+    assert!(text.contains("name = \"personal\""), "{text}");
+    let secrets = FileSecretStore::new(paths.secrets_file());
+    assert!(secrets.get_password("user@example.com").unwrap().is_some());
+}

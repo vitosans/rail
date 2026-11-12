@@ -342,16 +342,8 @@ async fn add_imapsmtp(paths: &Paths, args: ImapSmtpAddArgs) -> color_eyre::Resul
         sent_folder: None,
     };
 
-    let set_pw = rail_core::ops::AccountPasswordSetRequest {
-        account: account.name.clone(),
-        password: rail_core::ops::Secret::new(pass),
-        service: None,
-    };
-    let pw_res = client
-        .call::<rail_core::ops::op::AccountPasswordSet>(&set_pw)
-        .await
-        .map_err(report)?;
-
+    // Write the account before its password: the password operation resolves the account by
+    // name against the config, and refuses one that is not there yet.
     let config_path = paths.config_file();
     let store_path = paths.db_file();
     let account_clone = account.clone();
@@ -369,6 +361,16 @@ async fn add_imapsmtp(paths: &Paths, args: ImapSmtpAddArgs) -> color_eyre::Resul
         Ok(())
     })
     .await??;
+
+    let set_pw = rail_core::ops::AccountPasswordSetRequest {
+        account: account.name.clone(),
+        password: rail_core::ops::Secret::new(pass),
+        service: None,
+    };
+    let pw_res = client
+        .call::<rail_core::ops::op::AccountPasswordSet>(&set_pw)
+        .await
+        .map_err(report)?;
 
     println!(
         "Added {} (imapsmtp) as \"{}\". Password stored in the {}.",

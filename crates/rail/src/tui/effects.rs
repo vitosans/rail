@@ -424,37 +424,11 @@ async fn persist_imapsmtp(
     smtp_password: Option<rail_core::ops::Secret<String>>,
     sink: TaskSink,
 ) {
-    let set_pw = rail_core::ops::AccountPasswordSetRequest {
-        account: account.name.clone(),
-        password,
-        service: None,
-    };
-    if let Err(e) = ctx
-        .daemon
-        .call::<rail_core::ops::op::AccountPasswordSet>(&set_pw)
-        .await
-    {
-        send(&sink, Event::Persisted(Err(failure(&e))));
-        return;
-    }
-    if let Some(smtp_pw) = smtp_password {
-        let set_smtp = rail_core::ops::AccountPasswordSetRequest {
-            account: account.name.clone(),
-            password: smtp_pw,
-            service: Some("smtp".to_string()),
-        };
-        if let Err(e) = ctx
-            .daemon
-            .call::<rail_core::ops::op::AccountPasswordSet>(&set_smtp)
-            .await
-        {
-            send(&sink, Event::Persisted(Err(failure(&e))));
-            return;
-        }
-    }
+    // The account must be in config before its password is set: the password operation
+    // resolves the account by name, and refuses one that is not there yet.
+    let name = account.name.clone();
+    let paths = ctx.daemon.paths().clone();
     let save_res = tokio::task::spawn_blocking(move || {
-        let paths =
-            Paths::from_env().map_err(|e| Failure::new(e.to_string(), ErrorClass::Permanent))?;
         let config_path = paths.config_file();
         let store_path = paths.db_file();
         let (text, _) = rail_core::config::load_text_or_empty(&config_path)
@@ -483,7 +457,44 @@ async fn persist_imapsmtp(
     .await
     .unwrap_or_else(|e| Err(Failure::new(e.to_string(), ErrorClass::Permanent)));
 
-    send(&sink, Event::Persisted(save_res));
+    let saved = match save_res {
+        Ok(saved) => saved,
+        Err(e) => {
+            send(&sink, Event::Persisted(Err(e)));
+            return;
+        }
+    };
+
+    let set_pw = rail_core::ops::AccountPasswordSetRequest {
+        account: name.clone(),
+        password,
+        service: None,
+    };
+    if let Err(e) = ctx
+        .daemon
+        .call::<rail_core::ops::op::AccountPasswordSet>(&set_pw)
+        .await
+    {
+        send(&sink, Event::Persisted(Err(failure(&e))));
+        return;
+    }
+    if let Some(smtp_pw) = smtp_password {
+        let set_smtp = rail_core::ops::AccountPasswordSetRequest {
+            account: name,
+            password: smtp_pw,
+            service: Some("smtp".to_string()),
+        };
+        if let Err(e) = ctx
+            .daemon
+            .call::<rail_core::ops::op::AccountPasswordSet>(&set_smtp)
+            .await
+        {
+            send(&sink, Event::Persisted(Err(failure(&e))));
+            return;
+        }
+    }
+
+    send(&sink, Event::Persisted(Ok(saved)));
 }
 
 #[cfg(test)]
