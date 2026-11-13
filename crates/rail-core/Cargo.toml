@@ -6,7 +6,6 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-homepage.workspace = true
 
 [features]
 # Test hooks that hold a daemon's begins and saves part way. For tests of other crates only;
