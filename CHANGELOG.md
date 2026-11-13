@@ -6,6 +6,13 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **A Nix flake.** `nix run github:vitosans/rail` runs Rail without installing it, `nix profile
+  install` puts it on the path, and `nix develop` opens the development shell with the toolchain
+  from `rust-toolchain.toml` plus `cargo-deny` and `cargo-llvm-cov`. `nix build` packages the
+  binary; the flake pins nixpkgs and rust-overlay in `flake.lock`.
+
 ### Changed
 
 - **One pinned Rust version.** `rust-toolchain.toml` now names Rust 1.100.0, not the latest

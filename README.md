@@ -119,6 +119,42 @@ an earlier build of the same version. When an upgrade changes the store, the new
 it the first time it starts (rebuilding the search index can take a moment on a large mailbox);
 until then the mail screen says the store is not set up.
 
+### Nix and NixOS
+
+The repository ships a `flake.nix` with the package, a development shell and a formatter:
+
+```sh
+nix run github:vitosans/rail               # run Rail without installing it
+nix profile install github:vitosans/rail   # put `rail` on your PATH
+```
+
+Both build the latest commit on `main`; `nix profile upgrade rail` rebuilds from it again.
+
+On NixOS or with home-manager, add the flake as an input and install its package:
+
+```nix
+inputs.rail.url = "github:vitosans/rail";
+
+# NixOS: environment.systemPackages = [ inputs.rail.packages.${pkgs.stdenv.hostPlatform.system}.default ];
+# home-manager: home.packages = [ inputs.rail.packages.${pkgs.stdenv.hostPlatform.system}.default ];
+```
+
+For development, the shell has the Rust version `rust-toolchain.toml` pins, with `clippy`,
+`rustfmt`, `cargo-deny` and `cargo-llvm-cov`, the same set CI uses:
+
+```sh
+nix develop                       # enter the development shell
+nix build                         # the binary at ./result/bin/rail
+cargo test --workspace --locked   # inside `nix develop`
+```
+
+`direnv allow` loads that shell automatically when direnv and nix-direnv are installed. The Nix
+package builds with `doCheck = false`: the test suite binds loopback sockets and drives the binary
+in a pseudo-terminal, and the Nix sandbox allows neither, so run the tests from `nix develop`.
+
+The Nix package links nixpkgs' SQLite rather than the copy Rail bundles, as nixpkgs does for every
+Rust package, so SQLite updates come with nixpkgs.
+
 ## Quick start
 
 ```sh

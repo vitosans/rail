@@ -89,6 +89,7 @@ crates/rail/             Binary: clap CLI, logging, and the account, daemon, doc
   tests/                 End-to-end tests against the built binary, in a pseudo-terminal, and over MCP
 assets/brand/            Logos and the app icon
 deny.toml                Licence and advisory policy for `cargo deny`
+flake.nix                The Nix package, development shell and formatter; the toolchain comes from `rust-toolchain.toml`
 scripts/                 update-schemes.sh: regenerates the vendored colour-scheme table from a pinned commit of iTerm2-Color-Schemes
 ```
 
@@ -113,6 +114,20 @@ snapshots. `-p` builds `rail-core` with a different feature set (`rail` turns on
 there locally. `cargo clean` (or `cargo sweep --time 2` from `cargo-sweep`) clears old build
 output, which Cargo never removes on its own.
 
+The same four commands run inside the Nix shell, which uses the toolchain `rust-toolchain.toml`
+pins and brings `cargo-deny` and `cargo-llvm-cov` along:
+
+    nix develop            # or `direnv allow` once, with direnv and nix-direnv
+    nix build              # the packaged binary at ./result/bin/rail
+
+`nix build` does not run the tests: the suite binds loopback sockets and drives the binary in a
+pseudo-terminal, and the Nix sandbox blocks both. Run `cargo test --workspace --locked` from
+`nix develop` instead.
+
+The flake reads the Rust version from `rust-toolchain.toml` through rust-overlay, which only knows
+releases up to the date `flake.lock` pins it at. A pull request that bumps the toolchain therefore
+also runs `nix flake update rust-overlay`, or the Nix shell and package stop building.
+
 Run tests in the default (debug) profile. Under `cargo test --release` the test URL overrides
 (`with_graph_url`, `with_gmail_url`, `with_token_url`) are compiled out, so tests that rely on them
 cannot work.
@@ -131,7 +146,7 @@ Dependabot checks Cargo, Actions and the Rust toolchain weekly and opens securit
 |---|---|
 | Patch or minor (Cargo is grouped) | Proposed after a cooldown (3 days for a Cargo patch, 7 otherwise), then merged on its own once every required check passes |
 | Major | Labelled `major update`; a person reviews and merges it |
-| Rust toolchain (`rust-toolchain.toml`) | Proposed 7 days after a Rust release and labelled `toolchain update`; a person merges it, with any fixes for new rustfmt or clippy rules in the same pull request |
+| Rust toolchain (`rust-toolchain.toml`) | Proposed 7 days after a Rust release and labelled `toolchain update`; a person merges it, with `nix flake update rust-overlay` and any fixes for new rustfmt or clippy rules in the same pull request |
 | Security | Proposed at once, no cooldown; merged like the rows above |
 
 Auto-merged updates reach users only in the next release, whose pull request lists them.
