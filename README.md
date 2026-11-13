@@ -139,8 +139,8 @@ inputs.rail.url = "github:vitosans/rail";
 # home-manager: home.packages = [ inputs.rail.packages.${pkgs.stdenv.hostPlatform.system}.default ];
 ```
 
-For development, the shell has Rust 1.89 or newer with `clippy`, `rustfmt`, `cargo-deny` and
-`cargo-llvm-cov`, the same set CI uses:
+For development, the shell has the Rust version `rust-toolchain.toml` pins, with `clippy`,
+`rustfmt`, `cargo-deny` and `cargo-llvm-cov`, the same set CI uses:
 
 ```sh
 nix develop                       # enter the development shell
