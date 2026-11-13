@@ -89,7 +89,6 @@ crates/rail/             Binary: clap CLI, logging, and the account, daemon, doc
   tests/                 End-to-end tests against the built binary, in a pseudo-terminal, and over MCP
 assets/brand/            Logos and the app icon
 deny.toml                Licence and advisory policy for `cargo deny`
-flake.nix                The Nix package, development shell and formatter; the toolchain comes from `rust-toolchain.toml`
 scripts/                 update-schemes.sh: regenerates the vendored colour-scheme table from a pinned commit of iTerm2-Color-Schemes
 ```
 
@@ -108,16 +107,6 @@ snapshots. `-p` builds `rail-core` with a different feature set (`rail` turns on
 (`[profile.dev]` in `Cargo.toml`); to step through code with gdb or lldb, set `debug = true`
 there locally. `cargo clean` (or `cargo sweep --time 2` from `cargo-sweep`) clears old build
 output, which Cargo never removes on its own.
-
-The same four commands run inside the Nix shell, which pins the toolchain to
-`rust-toolchain.toml` and brings `cargo-deny` and `cargo-llvm-cov` along:
-
-    nix develop            # or `direnv allow` once, with direnv and nix-direnv
-    nix build              # the packaged binary at ./result/bin/rail
-
-`nix build` does not run the tests: the suite binds loopback sockets and drives the binary in a
-pseudo-terminal, and the Nix sandbox blocks both. Run `cargo test --workspace` from `nix develop`
-instead.
 
 Run tests in the default (debug) profile. Under `cargo test --release` the test URL overrides
 (`with_graph_url`, `with_gmail_url`, `with_token_url`) are compiled out, so tests that rely on them

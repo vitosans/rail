@@ -28,10 +28,6 @@ Gmail and Microsoft 365, with secure password storage across OS keyring, private
   preventing duplicate deliveries.
 - **MCP agent guardrails.** MCP tools (`rail_account_add`, etc.) reject pasted passwords and
   disallow configuring IMAP/SMTP accounts from agents to preserve credential security.
-- **A Nix flake.** `nix run github:vitosans/rail` runs Rail without installing it, `nix profile
-  install` puts it on the path, and `nix develop` opens the development shell with the toolchain
-  from `rust-toolchain.toml` plus `cargo-deny` and `cargo-llvm-cov`. `nix build` packages the
-  binary; the flake pins nixpkgs and rust-overlay in `flake.lock`.
 
 ## [0.10.3] - 2026-11-11
 
