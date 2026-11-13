@@ -264,6 +264,15 @@ Keep commits focused. The pull request template asks for a summary and a test pl
 Commit messages and pull request descriptions carry no tool or AI attribution: no `Co-Authored-By`
 trailer, no "Generated with" line and no session links.
 
+Commit with an email address linked to your GitHub account (`git config user.email`). GitHub
+credits commits by address, and merged history isn't rewritten, so a placeholder such as
+`your-email@example.com` credits your work to whoever owns that address. Before merging a pull
+request from outside, a maintainer checks who each commit is credited to:
+
+    gh api repos/vitosans/rail/pulls/<number>/commits --jq '.[]|"\(.commit.author.email) → \(.author.login // "unlinked")"'
+
+Every line should name the contributor's own account; ask them to re-author any that don't.
+
 ## Licence
 
 By contributing you agree that your work is licensed under MIT OR Apache-2.0, like the rest of Rail.
