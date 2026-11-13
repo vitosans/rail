@@ -15,6 +15,10 @@ All notable changes to Rail are recorded here. The format follows
 
 ### Changed
 
+- **CI builds the Nix flake.** A new `nix` workflow runs `nix flake check` when the flake, the
+  pinned toolchain or the Cargo manifests change, and Dependabot now keeps `flake.lock` current.
+  The flake no longer lists Intel Macs, which current nixpkgs has dropped; the release archive
+  and `cargo install` still cover them.
 - **One pinned Rust version.** `rust-toolchain.toml` now names Rust 1.100.0, not the latest
   stable, and CI, release builds and the development shell all use it, so a new Rust release can
   no longer break every open pull request overnight. Dependabot proposes each new version as a

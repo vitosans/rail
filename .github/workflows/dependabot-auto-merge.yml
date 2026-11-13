@@ -2,7 +2,8 @@ name: dependabot auto-merge
 
 # Patch and minor updates from Dependabot merge on their own once every required check on
 # main passes (the "Protect main" ruleset). Major updates and Rust toolchain updates are
-# labelled and wait for a person.
+# labelled and wait for a person. Nix flake.lock updates are left to the nix workflow, which
+# turns on auto-merge only after the flake builds.
 # This job never checks out or runs the pull request's code.
 
 on:
@@ -28,7 +29,8 @@ jobs:
       - name: Merge patch and minor updates when checks pass
         if: >-
           steps.metadata.outputs.update-type != 'version-update:semver-major' &&
-          steps.metadata.outputs.package-ecosystem != 'rust-toolchain'
+          steps.metadata.outputs.package-ecosystem != 'rust-toolchain' &&
+          steps.metadata.outputs.package-ecosystem != 'nix'
         run: gh pr merge --auto --merge "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}

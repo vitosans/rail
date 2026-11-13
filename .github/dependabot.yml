@@ -18,6 +18,14 @@ updates:
       interval: weekly
     cooldown:
       default-days: 7
+  # flake.lock: nixpkgs and rust-overlay. A shorter cooldown keeps rust-overlay ahead of the
+  # rust-toolchain update above, which needs a lock that knows the new Rust release.
+  - package-ecosystem: nix
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
   - package-ecosystem: github-actions
     directory: /
     schedule:

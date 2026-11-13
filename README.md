@@ -128,7 +128,9 @@ nix run github:vitosans/rail               # run Rail without installing it
 nix profile install github:vitosans/rail   # put `rail` on your PATH
 ```
 
-Both build the latest commit on `main`; `nix profile upgrade rail` rebuilds from it again.
+Both build the latest commit on `main`; `nix profile upgrade rail` rebuilds from it again. The flake
+covers Linux (x86_64 and ARM) and Apple Silicon Macs. nixpkgs no longer supports Intel Macs, so
+use the release archive or `cargo install` there.
 
 On NixOS or with home-manager, add the flake as an input and install its package:
 
