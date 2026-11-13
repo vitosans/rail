@@ -25,6 +25,10 @@ OAuth tokens and account passwords are never written to `config.toml`. They live
   output.
 - Passwords entered in the terminal or setup wizard are masked without local echo.
 - Passwords are typed as `Secret<String>` and redacted at the type level (`Debug` output and logs display `<redacted>`).
+- IMAP/SMTP passwords live under their own `pw:` secret-store keys, separate from OAuth tokens.
+- TLS is required by default. `opportunistic` still refuses to authenticate without TLS; a failed
+  STARTTLS handshake is final. `off` sends the password and mail in clear text, logs a warning
+  when the config is loaded, and is meant only for a trusted local server.
 - Files that hold mail or credentials are created owner-only (0600 files, 0700 directories) and
   written atomically.
 - Stored credentials and tokens are removed when an account is removed (`rail account remove`).
@@ -119,8 +123,9 @@ for agents with shell access.
 
 `rail.log` never holds tokens or mail at the default levels.
 
-Rail keeps the HTTP and TLS libraries (`hyper`, `hyper_util`, `h2`, `reqwest`, `rustls`) at `warn`
-whatever `RUST_LOG` says.
+Rail keeps the HTTP, TLS, IMAP and SMTP libraries (`hyper`, `hyper_util`, `h2`, `reqwest`,
+`rustls`, `async_imap`, `imap_proto`, `lettre`) at `warn` whatever `RUST_LOG` says. At trace
+level those libraries log IMAP `LOGIN` commands and SMTP `AUTH` lines, including passwords.
 
 Setting a more specific target, such as `RUST_LOG=hyper::proto=debug` or
 `RUST_LOG=rmcp::handler=warn`, overrides that and can write request lines, access tokens, mail or

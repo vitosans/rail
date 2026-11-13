@@ -52,7 +52,7 @@ async fn imapsmtp_account_in_accounts_list_and_status() {
     let json_content = serde_json::json!({
         "tokens": {},
         "passwords": {
-            "user@example.com": "secret123"
+            "pw:user@example.com": "secret123"
         }
     });
     std::fs::write(&secrets_file, serde_json::to_string(&json_content).unwrap()).unwrap();
@@ -86,7 +86,7 @@ async fn imapsmtp_sync_status_and_sync_now() {
     let json_content = serde_json::json!({
         "tokens": {},
         "passwords": {
-            "user@example.com": "secret123"
+            "pw:user@example.com": "secret123"
         }
     });
     std::fs::write(&secrets_file, serde_json::to_string(&json_content).unwrap()).unwrap();
@@ -116,7 +116,7 @@ async fn imapsmtp_account_remove_with_elicitation() {
     let json_content = serde_json::json!({
         "tokens": {},
         "passwords": {
-            "user@example.com": "secret123"
+            "pw:user@example.com": "secret123"
         }
     });
     std::fs::write(&secrets_file, serde_json::to_string(&json_content).unwrap()).unwrap();

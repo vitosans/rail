@@ -121,13 +121,21 @@ async fn fetch_new_messages(
         (&new_uids[..], false)
     };
 
-    let next_uid = *page_uids.last().unwrap_or(&parsed.last_uid);
     let ids: Vec<RemoteId> = page_uids
         .iter()
         .map(|&uid| ImapMessageId::new(&parsed.mailbox, parsed.uidvalidity, uid).to_remote_id())
         .collect();
 
     let envelopes = fetch_envelopes(session, &ids).await?;
+    // Advance only to the highest UID whose envelope actually arrived. A fetch that lost a
+    // record must leave its UID for the next pass.
+    let highest_received = envelopes
+        .envelopes
+        .iter()
+        .filter_map(|e| ImapMessageId::parse(&e.remote_id).map(|id| id.uid))
+        .max();
+    let next_uid =
+        highest_received.unwrap_or_else(|| *page_uids.last().unwrap_or(&parsed.last_uid));
     Ok((envelopes, next_uid, more))
 }
 
@@ -143,17 +151,13 @@ async fn fetch_flag_updates(
     let query = format!("{start_uid}:{}", parsed.last_uid);
 
     let mut relabels = Vec::new();
-    let stream_res = session.uid_fetch(&query, "(FLAGS)").await;
-    let mut stream = match stream_res {
-        Ok(s) => s,
-        Err(e) => {
-            tracing::warn!(error = %e, "failed to fetch flag updates in delta sync");
-            return Ok(Vec::new());
-        }
-    };
+    let mut stream = session
+        .uid_fetch(&query, "(FLAGS)")
+        .await
+        .map_err(|e| classify_imap_error(&e))?;
 
     while let Some(fetch_result) = stream.next().await {
-        let Ok(fetch) = fetch_result else { continue };
+        let fetch = fetch_result.map_err(|e| classify_imap_error(&e))?;
         let Some(uid) = fetch.uid else { continue };
         if uid > parsed.last_uid {
             continue;

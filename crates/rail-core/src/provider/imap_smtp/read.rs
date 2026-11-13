@@ -11,6 +11,7 @@ use super::client::{ImapStream, classify_imap_error};
 use super::identity::{ImapMessageId, compute_thread_id};
 use crate::provider::auth_results::vouched_domains;
 use crate::provider::gmail::body::{MAX_BODY_BYTES, TRUNCATED_MARKER};
+use crate::provider::gmail::mime::MAX_MESSAGE_BYTES;
 use crate::provider::html::html_render;
 use crate::provider::limits::{MAX_ATTACHMENTS, MAX_FILENAME_CHARS};
 use crate::provider::links::plain_links;
@@ -304,7 +305,7 @@ pub async fn fetch_envelopes(
     for ((mailbox, uidvalidity), mut uids) in by_mailbox {
         uids.sort_unstable();
         uids.dedup();
-        envelopes.extend(fetch_mailbox_envelopes(session, &mailbox, uidvalidity, &uids).await);
+        envelopes.extend(fetch_mailbox_envelopes(session, &mailbox, uidvalidity, &uids).await?);
     }
 
     Ok(EnvelopePage {
@@ -314,52 +315,48 @@ pub async fn fetch_envelopes(
     })
 }
 
-/// Fetches and parses the envelopes of `uids` in one mailbox. A mailbox that cannot be
-/// examined or fetched is logged and skipped, so one bad folder does not lose the rest.
+/// UIDs per `UID FETCH`: IMAP command lines and server answers stay bounded.
+const ENVELOPE_CHUNK: usize = 200;
+
+/// Fetches and parses the envelopes of `uids` in one mailbox. Any failure is returned: the
+/// caller must not advance its cursor past messages that were not received.
 async fn fetch_mailbox_envelopes(
     session: &mut Session<ImapStream>,
     mailbox: &str,
     uidvalidity: u32,
     uids: &[u32],
-) -> Vec<Envelope> {
-    if let Err(e) = session.examine(mailbox).await {
-        tracing::warn!(mailbox = %mailbox, error = %e, "failed to examine mailbox for envelopes");
-        return Vec::new();
-    }
-
-    let uids_str = uids
-        .iter()
-        .map(|u| u.to_string())
-        .collect::<Vec<_>>()
-        .join(",");
-    let mut stream = match session
-        .uid_fetch(
-            &uids_str,
-            "(UID INTERNALDATE RFC822.SIZE FLAGS BODY.PEEK[HEADER])",
-        )
+) -> Result<Vec<Envelope>, ProviderError> {
+    let status = session
+        .examine(mailbox)
         .await
-    {
-        Ok(s) => s,
-        Err(e) => {
-            tracing::warn!(mailbox = %mailbox, error = %e, "failed to fetch envelopes");
-            return Vec::new();
-        }
-    };
+        .map_err(|e| classify_imap_error(&e))?;
+    if status.uid_validity.unwrap_or(0) != uidvalidity {
+        return Err(ProviderError::CursorExpired);
+    }
 
     let mut envelopes = Vec::new();
-    while let Some(fetch_res) = stream.next().await {
-        let fetch = match fetch_res {
-            Ok(f) => f,
-            Err(e) => {
-                tracing::warn!(error = %e, "error reading fetch envelope record");
-                continue;
+    for chunk in uids.chunks(ENVELOPE_CHUNK) {
+        let uids_str = chunk
+            .iter()
+            .map(u32::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        let mut stream = session
+            .uid_fetch(
+                &uids_str,
+                "(UID INTERNALDATE RFC822.SIZE FLAGS BODY.PEEK[HEADER])",
+            )
+            .await
+            .map_err(|e| classify_imap_error(&e))?;
+
+        while let Some(fetch_res) = stream.next().await {
+            let fetch = fetch_res.map_err(|e| classify_imap_error(&e))?;
+            if let Some(env) = envelope_from_fetch(mailbox, uidvalidity, &fetch) {
+                envelopes.push(env);
             }
-        };
-        if let Some(env) = envelope_from_fetch(mailbox, uidvalidity, &fetch) {
-            envelopes.push(env);
         }
     }
-    envelopes
+    Ok(envelopes)
 }
 
 /// Builds an `Envelope` from one IMAP `FETCH` record.
@@ -394,6 +391,34 @@ fn envelope_from_fetch(mailbox: &str, uidvalidity: u32, fetch: &Fetch) -> Option
     )
 }
 
+/// Checks a message's UIDVALIDITY and RFC822.SIZE before fetching its whole body.
+async fn message_size(
+    session: &mut Session<ImapStream>,
+    id: &ImapMessageId,
+) -> Result<u32, ProviderError> {
+    let status = session
+        .examine(&id.mailbox)
+        .await
+        .map_err(|e| classify_imap_error(&e))?;
+    if status.uid_validity.unwrap_or(0) != id.uidvalidity {
+        return Err(ProviderError::NotFound);
+    }
+
+    let mut stream = session
+        .uid_fetch(id.uid.to_string(), "(UID RFC822.SIZE)")
+        .await
+        .map_err(|e| classify_imap_error(&e))?;
+    let mut size = None;
+    while let Some(fetch_res) = stream.next().await {
+        let fetch = fetch_res.map_err(|e| classify_imap_error(&e))?;
+        if fetch.uid == Some(id.uid) {
+            size = fetch.size;
+            break;
+        }
+    }
+    size.ok_or(ProviderError::NotFound)
+}
+
 /// Fetches the full message body for a given remote ID.
 pub async fn fetch_body(
     session: &mut Session<ImapStream>,
@@ -401,11 +426,12 @@ pub async fn fetch_body(
 ) -> Result<Body, ProviderError> {
     let parsed_id = ImapMessageId::parse(id.as_str())
         .ok_or_else(|| ProviderError::permanent("invalid IMAP message ID"))?;
-
-    session
-        .examine(&parsed_id.mailbox)
-        .await
-        .map_err(|e| classify_imap_error(&e))?;
+    let size = message_size(session, &parsed_id).await?;
+    if usize::try_from(size).unwrap_or(usize::MAX) > MAX_MESSAGE_BYTES {
+        return Err(ProviderError::permanent(
+            "this message is larger than Rail reads",
+        ));
+    }
 
     let mut stream = session
         .uid_fetch(parsed_id.uid.to_string(), "(BODY.PEEK[])")
@@ -431,11 +457,12 @@ pub async fn fetch_attachment(
 ) -> Result<Vec<u8>, ProviderError> {
     let parsed_id = ImapMessageId::parse(id.as_str())
         .ok_or_else(|| ProviderError::permanent("invalid IMAP message ID"))?;
-
-    session
-        .examine(&parsed_id.mailbox)
-        .await
-        .map_err(|e| classify_imap_error(&e))?;
+    let size = message_size(session, &parsed_id).await?;
+    if usize::try_from(size).unwrap_or(usize::MAX) > MAX_MESSAGE_BYTES {
+        return Err(ProviderError::permanent(
+            "this message is larger than Rail reads",
+        ));
+    }
 
     let mut stream = session
         .uid_fetch(parsed_id.uid.to_string(), "(BODY.PEEK[])")
@@ -466,7 +493,7 @@ pub async fn search_messages(
         .await
         .map_err(|e| classify_imap_error(&e))?;
 
-    let sanitized = query.replace(['"', '\r', '\n'], "");
+    let sanitized = query.replace(['\\', '"', '\r', '\n'], "");
     let criteria = format!("TEXT \"{sanitized}\"");
     let uids_set = session
         .uid_search(&criteria)

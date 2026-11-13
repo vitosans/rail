@@ -1,4 +1,4 @@
-use super::client::{ImapStream, classify_imap_error};
+use super::client::{ImapCapabilities, ImapStream, classify_imap_error};
 use super::drafts::*;
 use crate::provider::{Mailbox, Outgoing, OutgoingMail, ProviderError};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -101,7 +101,13 @@ async fn test_save_draft_append_and_find() {
     });
 
     let mail = sample_outgoing_mail("<draft001@example.com>");
-    let saved = save_draft(&mut session, "Drafts", &mail).await.unwrap();
+    let caps = ImapCapabilities {
+        uidplus_support: true,
+        ..Default::default()
+    };
+    let saved = save_draft(&mut session, &caps, "Drafts", &mail)
+        .await
+        .unwrap();
 
     assert_eq!(saved.ids.draft_id, "Drafts:999:50");
     assert_eq!(saved.ids.message_id, "Drafts:999:50");
@@ -120,7 +126,9 @@ async fn test_delete_draft_success() {
         let cmd = String::from_utf8_lossy(&buf[..n]);
         assert!(cmd.to_uppercase().contains("SELECT"));
         let tag = cmd.split_whitespace().next().unwrap();
-        let resp = format!("{tag} OK SELECT completed\r\n");
+        let resp = format!(
+            "* 1 EXISTS\r\n* OK [UIDVALIDITY 999] UIDs valid\r\n{tag} OK SELECT completed\r\n"
+        );
         server_io.write_all(resp.as_bytes()).await.unwrap();
 
         // 2. UID STORE 50 +FLAGS (\Deleted)
@@ -131,16 +139,20 @@ async fn test_delete_draft_success() {
         let resp = format!("* 1 FETCH (UID 50 FLAGS (\\Deleted))\r\n{tag} OK STORE completed\r\n");
         server_io.write_all(resp.as_bytes()).await.unwrap();
 
-        // 3. EXPUNGE
+        // 3. UID EXPUNGE 50
         let n = server_io.read(&mut buf).await.unwrap();
         let cmd = String::from_utf8_lossy(&buf[..n]);
-        assert!(cmd.to_uppercase().contains("EXPUNGE"));
+        assert!(cmd.to_uppercase().contains("UID EXPUNGE 50"));
         let tag = cmd.split_whitespace().next().unwrap();
         let resp = format!("* 1 EXPUNGE\r\n{tag} OK EXPUNGE completed\r\n");
         server_io.write_all(resp.as_bytes()).await.unwrap();
     });
 
-    let result = delete_draft(&mut session, "Drafts:999:50").await;
+    let caps = ImapCapabilities {
+        uidplus_support: true,
+        ..Default::default()
+    };
+    let result = delete_draft(&mut session, &caps, "Drafts:999:50").await;
     assert!(result.is_ok());
     server_task.await.unwrap();
 }
@@ -160,7 +172,10 @@ async fn test_delete_draft_not_found() {
             .unwrap()
             .to_string();
         server_io
-            .write_all(format!("{tag} OK SELECT\r\n").as_bytes())
+            .write_all(
+                format!("* 0 EXISTS\r\n* OK [UIDVALIDITY 999] UIDs valid\r\n{tag} OK SELECT\r\n")
+                    .as_bytes(),
+            )
             .await
             .unwrap();
 
@@ -177,7 +192,11 @@ async fn test_delete_draft_not_found() {
             .unwrap();
     });
 
-    let result = delete_draft(&mut session, "Drafts:999:999").await;
+    let caps = ImapCapabilities {
+        uidplus_support: true,
+        ..Default::default()
+    };
+    let result = delete_draft(&mut session, &caps, "Drafts:999:999").await;
     assert!(matches!(result, Err(ProviderError::NotFound)));
     server_task.await.unwrap();
 }

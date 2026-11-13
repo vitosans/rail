@@ -60,6 +60,9 @@ pub struct ImapSmtpProvider {
     pub smtp_username: Option<String>,
     pub smtp_password: Option<Secret<String>>,
     pub sent_mailbox_name: Option<String>,
+    /// Whether a sent message is appended to the Sent mailbox. False for servers such as
+    /// Gmail and iCloud that file their own copy of submitted mail.
+    pub append_to_sent: bool,
     pub relay_accepted: Arc<Mutex<HashSet<String>>>,
 }
 
@@ -90,6 +93,7 @@ impl ImapSmtpProvider {
             smtp_username,
             smtp_password,
             sent_mailbox_name,
+            append_to_sent: true,
             relay_accepted: Arc::new(Mutex::new(HashSet::new())),
         }
     }
@@ -210,45 +214,81 @@ impl Provider for ImapSmtpProvider {
     }
 
     async fn apply(&self, threads: &[ThreadTarget], change: &Change) -> Result<(), ProviderError> {
+        self.apply_with_moves(threads, change).await.map(|_| ())
+    }
+
+    async fn apply_with_moves(
+        &self,
+        threads: &[ThreadTarget],
+        change: &Change,
+    ) -> Result<Vec<(RemoteId, RemoteId)>, ProviderError> {
         let (mut session, caps) = self.connect_imap().await?;
         let discovered = self.discover_folders(&mut session).await?;
         actions::apply_change(&mut session, &caps, &discovered, threads, change).await
     }
 
     async fn send(&self, mail: &OutgoingMail) -> Result<SentReceipt, ProviderError> {
-        let msg_id = &mail.outgoing.message_id;
-        let relay_already_done = self.is_relay_accepted(msg_id)
-            || mail
-                .remote
-                .as_ref()
-                .is_some_and(|r| !r.message_id.is_empty());
-
-        let (mut session, _) = self.connect_imap().await?;
-        let discovered = self.discover_folders(&mut session).await?;
-        let sent_mailbox = discovered.sent_mailbox_name().to_string();
-
-        let receipt = if !relay_already_done {
-            let transport = self.smtp_transport()?;
-            let receipt = smtp::send_smtp(&transport, mail).await?;
-            self.mark_relay_accepted(msg_id);
-            receipt
-        } else {
+        let receipt = if self.is_relay_accepted(&mail.outgoing.message_id) {
             SentReceipt {
-                message_id: Some(msg_id.clone()),
+                message_id: Some(mail.outgoing.message_id.clone()),
                 thread_id: None,
             }
+        } else {
+            let receipt = self.relay_send(mail).await?;
+            self.mark_relay_accepted(&mail.outgoing.message_id);
+            receipt
         };
+        self.finish_send(mail, receipt).await
+    }
 
-        match send::append_to_sent(&mut session, &sent_mailbox, mail).await {
+    fn two_phase_send(&self) -> bool {
+        true
+    }
+
+    async fn relay_send(&self, mail: &OutgoingMail) -> Result<SentReceipt, ProviderError> {
+        let msg_id = &mail.outgoing.message_id;
+        if self.is_relay_accepted(msg_id) {
+            return Ok(SentReceipt {
+                message_id: Some(msg_id.clone()),
+                thread_id: None,
+            });
+        }
+        let transport = self.smtp_transport()?;
+        let receipt = smtp::send_smtp(&transport, mail).await?;
+        self.mark_relay_accepted(msg_id);
+        Ok(receipt)
+    }
+
+    async fn finish_send(
+        &self,
+        mail: &OutgoingMail,
+        receipt: SentReceipt,
+    ) -> Result<SentReceipt, ProviderError> {
+        let msg_id = &mail.outgoing.message_id;
+        if !self.append_to_sent {
+            self.relay_accepted
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .remove(msg_id);
+            return Ok(receipt);
+        }
+        let appended = async {
+            let (mut session, _) = self.connect_imap().await?;
+            let discovered = self.discover_folders(&mut session).await?;
+            let sent_mailbox = discovered.sent_mailbox_name().to_string();
+            send::append_to_sent(&mut session, &sent_mailbox, mail).await
+        }
+        .await;
+        self.relay_accepted
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(msg_id);
+        match appended {
             Ok(sent_id) => {
                 let mut final_receipt = receipt;
                 if sent_id.is_some() {
                     final_receipt.message_id = sent_id;
                 }
-                self.relay_accepted
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .remove(msg_id);
                 Ok(final_receipt)
             }
             Err(err) => {
@@ -257,16 +297,17 @@ impl Provider for ImapSmtpProvider {
                     error = %err,
                     "SMTP relay accepted message, but IMAP Sent append failed"
                 );
-                Err(err)
+                // SMTP has accepted: this is not a send failure. The recipient has the mail.
+                Ok(receipt)
             }
         }
     }
 
     async fn draft_save(&self, mail: &OutgoingMail) -> Result<SavedDraft, ProviderError> {
-        let (mut session, _) = self.connect_imap().await?;
+        let (mut session, caps) = self.connect_imap().await?;
         let discovered = self.discover_folders(&mut session).await?;
         let drafts_mailbox = discovered.drafts_mailbox_name();
-        drafts::save_draft(&mut session, drafts_mailbox, mail).await
+        drafts::save_draft(&mut session, &caps, drafts_mailbox, mail).await
     }
 
     async fn sent_already(&self, mail: &OutgoingMail) -> Result<bool, ProviderError> {
@@ -290,8 +331,8 @@ impl Provider for ImapSmtpProvider {
     }
 
     async fn draft_delete(&self, draft_id: &str) -> Result<(), ProviderError> {
-        let (mut session, _) = self.connect_imap().await?;
-        drafts::delete_draft(&mut session, draft_id).await
+        let (mut session, caps) = self.connect_imap().await?;
+        drafts::delete_draft(&mut session, &caps, draft_id).await
     }
 
     async fn draft_find(&self, message_id: &str) -> Result<Option<RemoteId>, ProviderError> {

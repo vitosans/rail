@@ -807,3 +807,25 @@ fn a_nested_folder_keeps_its_parent_even_when_listed_first() {
     store.apply(&flat, NOW).unwrap();
     assert_eq!(parent_of(&store, "child"), None, "moved to the top");
 }
+
+#[test]
+fn a_move_records_the_messages_new_provider_id() {
+    let mut store = store();
+    store
+        .apply(
+            &upserts(vec![envelope("INBOX:100:42", "t1", 10 * DAY_MS)]),
+            NOW,
+        )
+        .unwrap();
+    store
+        .apply(
+            &Batch {
+                moves: vec![("INBOX:100:42".into(), "Archive:777:99".into())],
+                ..Batch::new(1)
+            },
+            NOW,
+        )
+        .unwrap();
+    assert_eq!(ids(&store), vec!["Archive:777:99".to_string()]);
+    assert!(thread(&store, "t1").is_some());
+}

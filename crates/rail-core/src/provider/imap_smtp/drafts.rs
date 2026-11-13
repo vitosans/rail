@@ -3,7 +3,7 @@
 use async_imap::Session;
 use futures_util::StreamExt;
 
-use super::client::{ImapStream, classify_imap_error};
+use super::client::{ImapCapabilities, ImapStream, classify_imap_error};
 use super::identity::ImapMessageId;
 use crate::provider::gmail::mime::build;
 use crate::provider::{DraftIds, OutgoingMail, ProviderError, RemoteId, SavedDraft};
@@ -11,11 +11,12 @@ use crate::provider::{DraftIds, OutgoingMail, ProviderError, RemoteId, SavedDraf
 /// Appends or updates an RFC 5322 draft message in the configured Drafts mailbox.
 pub async fn save_draft(
     session: &mut Session<ImapStream>,
+    caps: &ImapCapabilities,
     drafts_mailbox: &str,
     mail: &OutgoingMail,
 ) -> Result<SavedDraft, ProviderError> {
     if let Some(existing) = &mail.remote {
-        let _ = delete_draft(session, &existing.draft_id).await;
+        let _ = delete_draft(session, caps, &existing.draft_id).await;
     }
 
     let raw_bytes = build(&mail.outgoing)?;
@@ -41,14 +42,23 @@ pub async fn save_draft(
 /// Deletes a draft message by remote ID from the server Drafts mailbox.
 pub async fn delete_draft(
     session: &mut Session<ImapStream>,
+    caps: &ImapCapabilities,
     draft_id: &str,
 ) -> Result<(), ProviderError> {
     let parsed = ImapMessageId::parse(draft_id).ok_or(ProviderError::NotFound)?;
 
-    session
+    let status = session
         .select(&parsed.mailbox)
         .await
         .map_err(|e| classify_imap_error(&e))?;
+    if status.uid_validity.unwrap_or(0) != parsed.uidvalidity {
+        return Err(ProviderError::NotFound);
+    }
+    if !caps.uidplus_support {
+        return Err(ProviderError::permanent(
+            "this IMAP server does not support UIDPLUS, so Rail cannot safely expunge one message",
+        ));
+    }
 
     let uids_str = parsed.uid.to_string();
 
@@ -70,7 +80,7 @@ pub async fn delete_draft(
 
     {
         let expunge_stream = session
-            .expunge()
+            .uid_expunge(&uids_str)
             .await
             .map_err(|e| classify_imap_error(&e))?;
         tokio::pin!(expunge_stream);
@@ -98,7 +108,7 @@ pub async fn find_draft(
         .trim()
         .trim_start_matches('<')
         .trim_end_matches('>')
-        .replace(['"', '\r', '\n'], "");
+        .replace(['\\', '"', '\r', '\n'], "");
 
     let criteria = format!("HEADER Message-ID \"{clean_msg_id}\"");
     let uids_set = session

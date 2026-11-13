@@ -74,11 +74,15 @@ pub(super) async fn accounts_list(
                     color: account.color.clone(),
                     tokens: match account.kind {
                         config::AccountKind::ImapSmtp => {
-                            match secrets.has_password(&account.address) {
+                            match secrets
+                                .has_password(&crate::auth::password_key(&account.address, None))
+                            {
                                 Ok(true) => TokenState::Present,
                                 Ok(false) => {
-                                    match secrets.has_password(&format!("{}:imap", account.address))
-                                    {
+                                    match secrets.has_password(&crate::auth::password_key(
+                                        &account.address,
+                                        Some("imap"),
+                                    )) {
                                         Ok(true) => TokenState::Present,
                                         Ok(false) => TokenState::Missing,
                                         Err(e) => TokenState::Error {

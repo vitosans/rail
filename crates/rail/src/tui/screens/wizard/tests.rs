@@ -518,6 +518,8 @@ fn imapsmtp_ui_walk_and_validation() {
     press(&mut screen, KeyCode::Tab); // to ImapHost
     type_text(&mut screen, "imap.example.com");
     press(&mut screen, KeyCode::Tab); // to ImapPort (already 993)
+    press(&mut screen, KeyCode::Tab); // to ImapTls (already required)
+    press(&mut screen, KeyCode::Tab); // to ImapUser
     press(&mut screen, KeyCode::Tab); // to Password
     type_text(&mut screen, "secret");
     press(&mut screen, KeyCode::Tab); // to SmtpHost

@@ -66,6 +66,9 @@ impl Store {
             upsert(&tx, account, envelope, batch.origin, now, &mut touched)?;
         }
         outcome.upserted = batch.upserts.len();
+        for (old, new) in &batch.moves {
+            move_message(&tx, account, old, new, &mut touched)?;
+        }
         for change in &batch.relabels {
             relabel(&tx, account, change, &mut touched)?;
         }
@@ -108,6 +111,35 @@ fn incoming_snoozes(tx: &Transaction, batch: &Batch, now: i64) -> Result<usize, 
         .chain(batch.relabels.iter().map(|r| r.remote_id.as_str()))
         .collect();
     super::snoozes::incoming(tx, batch.account_id, &arrived, now)
+}
+
+/// A message that moved in its mailbox keeps its local row but takes its new provider id.
+fn move_message(
+    tx: &Transaction,
+    account: i64,
+    old: &RemoteId,
+    new: &RemoteId,
+    touched: &mut BTreeSet<i64>,
+) -> Result<(), StoreError> {
+    let found: Option<(i64, i64)> = tx
+        .query_row(
+            "SELECT id, thread_id FROM messages WHERE account_id = ?1 AND remote_id = ?2",
+            params![account, old],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?;
+    if let Some((id, thread_id)) = found {
+        tx.execute(
+            "UPDATE messages SET remote_id = ?2 WHERE id = ?1",
+            params![id, new],
+        )?;
+        touched.insert(thread_id);
+    }
+    tx.execute(
+        "UPDATE drafts SET source_remote_id = ?2 WHERE account_id = ?1 AND source_remote_id = ?3",
+        params![account, new, old],
+    )?;
+    Ok(())
 }
 
 fn replace_folders(

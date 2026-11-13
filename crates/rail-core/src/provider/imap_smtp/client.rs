@@ -138,8 +138,10 @@ pub fn build_tls_connector() -> Result<TlsConnector, ProviderError> {
 
 /// Parse server name for TLS handshake.
 pub fn parse_server_name(host: &str) -> Result<ServerName<'static>, ProviderError> {
-    ServerName::try_from(host.to_string())
-        .map_err(|e| ProviderError::permanent(&format!("invalid TLS server name '{host}': {e}")))
+    ServerName::try_from(host.to_string()).map_err(|e| {
+        ProviderError::permanent("the IMAP server hostname is not valid for TLS")
+            .with_detail(e.to_string())
+    })
 }
 
 /// Connect to IMAP host and negotiate TLS/STARTTLS per configured mode.
@@ -170,12 +172,11 @@ async fn connect_direct_tls(host: &str, port: u16) -> Result<Client<ImapStream>,
     let connector = build_tls_connector()?;
     let server_name = parse_server_name(host)?;
     let tcp = TcpStream::connect((host, port)).await.map_err(|e| {
-        ProviderError::transient(&format!("failed to connect to {host}:{port}: {e}"))
+        ProviderError::transient("failed to connect to the IMAP server").with_detail(e.to_string())
     })?;
-    let tls = connector
-        .connect(server_name, tcp)
-        .await
-        .map_err(|e| ProviderError::transient(&format!("TLS handshake failed with {host}: {e}")))?;
+    let tls = connector.connect(server_name, tcp).await.map_err(|e| {
+        ProviderError::transient("the IMAP TLS handshake failed").with_detail(e.to_string())
+    })?;
     let mut client = Client::new(ImapStream::Tls(Box::new(tls)));
     read_greeting(&mut client).await?;
     Ok(client)
@@ -187,24 +188,17 @@ async fn connect_plain_and_upgrade(
     tls_mode: TlsMode,
 ) -> Result<Client<ImapStream>, ProviderError> {
     let tcp = TcpStream::connect((host, port)).await.map_err(|e| {
-        ProviderError::transient(&format!("failed to connect to {host}:{port}: {e}"))
+        ProviderError::transient("failed to connect to the IMAP server").with_detail(e.to_string())
     })?;
     let mut client = Client::new(ImapStream::Plain(tcp));
     read_greeting(&mut client).await?;
 
     match tls_mode {
-        TlsMode::Required => upgrade_starttls(client, host).await,
-        TlsMode::Opportunistic => match upgrade_starttls(client, host).await {
-            Ok(upgraded) => Ok(upgraded),
-            Err(_) => {
-                let tcp = TcpStream::connect((host, port)).await.map_err(|e| {
-                    ProviderError::transient(&format!("failed to connect to {host}:{port}: {e}"))
-                })?;
-                let mut plain_client = Client::new(ImapStream::Plain(tcp));
-                read_greeting(&mut plain_client).await?;
-                Ok(plain_client)
-            }
-        },
+        // Opportunistic means "use STARTTLS when the server offers it" only in the sense
+        // that the port may be 143; credentials are never sent over a connection that is not
+        // TLS unless the user explicitly chose Off. A failed STARTTLS is final, never a
+        // reason to reconnect in clear.
+        TlsMode::Required | TlsMode::Opportunistic => upgrade_starttls(client, host).await,
         TlsMode::Off => Ok(client),
     }
 }
@@ -230,7 +224,9 @@ async fn upgrade_starttls(
     let tls = connector
         .connect(server_name, plain_tcp)
         .await
-        .map_err(|e| ProviderError::transient(&format!("TLS handshake failed with {host}: {e}")))?;
+        .map_err(|e| {
+            ProviderError::transient("the IMAP TLS handshake failed").with_detail(e.to_string())
+        })?;
     Ok(Client::new(ImapStream::Tls(Box::new(tls))))
 }
 
@@ -239,7 +235,8 @@ async fn read_greeting(client: &mut Client<ImapStream>) -> Result<(), ProviderEr
         .read_response()
         .await
         .map_err(|e| {
-            ProviderError::transient(&format!("failed to read IMAP server greeting: {e}"))
+            ProviderError::transient("failed to read the IMAP server greeting")
+                .with_detail(e.to_string())
         })?
         .ok_or_else(|| ProviderError::transient("unexpected EOF waiting for IMAP greeting"))?;
     Ok(())
@@ -289,10 +286,13 @@ pub async fn query_session_capabilities(
     Ok(ImapCapabilities::from_capabilities(&caps))
 }
 
-/// Classify an `async_imap::error::Error` into Rail's `ProviderError`.
+/// Classify an `async_imap::error::Error` into Rail's `ProviderError`. Server text is detail
+/// only; `message` is always Rail's own words.
 pub fn classify_imap_error(err: &ImapError) -> ProviderError {
     match err {
-        ImapError::Io(io_err) => ProviderError::transient(&format!("IMAP network error: {io_err}")),
+        ImapError::Io(io_err) => {
+            ProviderError::transient("IMAP network error").with_detail(io_err.to_string())
+        }
         ImapError::ConnectionLost => ProviderError::transient("IMAP connection lost"),
         ImapError::No(msg) | ImapError::Bad(msg) => {
             let lower = msg.to_lowercase();
@@ -301,13 +301,17 @@ pub fn classify_imap_error(err: &ImapError) -> ProviderError {
                     detail: Some(sanitize_detail(msg)),
                 }
             } else {
-                ProviderError::permanent(&format!("IMAP error: {}", sanitize_detail(msg)))
+                ProviderError::permanent("the IMAP server refused the command")
+                    .with_detail(sanitize_detail(msg))
             }
         }
-        ImapError::Parse(e) => ProviderError::permanent(&format!("IMAP parse error: {e}")),
-        ImapError::Validate(e) => ProviderError::permanent(&format!("IMAP validation error: {e}")),
+        ImapError::Parse(e) => ProviderError::permanent("the IMAP response could not be parsed")
+            .with_detail(e.to_string()),
+        ImapError::Validate(e) => {
+            ProviderError::permanent("the IMAP command was invalid").with_detail(e.to_string())
+        }
         ImapError::Append => ProviderError::transient("failed to append message to IMAP mailbox"),
-        _ => ProviderError::permanent(&format!("IMAP protocol error: {err}")),
+        _ => ProviderError::permanent("IMAP protocol error").with_detail(err.to_string()),
     }
 }
 

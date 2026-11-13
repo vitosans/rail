@@ -475,12 +475,13 @@ async fn persist_imapsmtp(
         .call::<rail_core::ops::op::AccountPasswordSet>(&set_pw)
         .await
     {
-        send(&sink, Event::Persisted(Err(failure(&e))));
+        let e = rollback_failed_account(&ctx, name, e).await;
+        send(&sink, Event::Persisted(Err(e)));
         return;
     }
     if let Some(smtp_pw) = smtp_password {
         let set_smtp = rail_core::ops::AccountPasswordSetRequest {
-            account: name,
+            account: name.clone(),
             password: smtp_pw,
             service: Some("smtp".to_string()),
         };
@@ -489,12 +490,46 @@ async fn persist_imapsmtp(
             .call::<rail_core::ops::op::AccountPasswordSet>(&set_smtp)
             .await
         {
-            send(&sink, Event::Persisted(Err(failure(&e))));
+            let e = rollback_failed_account(&ctx, name, e).await;
+            send(&sink, Event::Persisted(Err(e)));
             return;
         }
     }
 
     send(&sink, Event::Persisted(Ok(saved)));
+}
+
+/// The account was written before its password; if the password cannot be stored, remove the
+/// half-created entry so a retry does not hit a duplicate name.
+async fn rollback_failed_account(ctx: &EffectContext, name: String, error: OpError) -> Failure {
+    let paths = ctx.daemon.paths().clone();
+    let rollback_name = name.clone();
+    let removed = tokio::task::spawn_blocking(move || -> Result<(), String> {
+        let config_path = paths.config_file();
+        let store_path = paths.db_file();
+        let (text, _) =
+            rail_core::config::load_text_or_empty(&config_path).map_err(|e| e.to_string())?;
+        let new_text = rail_core::config::remove_account(&text, &config_path, &rollback_name)
+            .map_err(|e| e.to_string())?;
+        rail_core::paths::replace_private_atomic(&config_path, new_text.as_bytes())
+            .map_err(|e| e.to_string())?;
+        let store = rail_core::store::Store::open(&store_path).map_err(|e| e.to_string())?;
+        store
+            .conn()
+            .execute("DELETE FROM accounts WHERE name = ?1", [&rollback_name])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    })
+    .await
+    .unwrap_or_else(|e| Err(e.to_string()));
+
+    let mut failure = failure(&error);
+    if let Err(reason) = removed {
+        failure.message.push_str(&format!(
+            "\nThe account entry could not be rolled back ({reason}); run `rail account remove {name}` before retrying."
+        ));
+    }
+    failure
 }
 
 #[cfg(test)]

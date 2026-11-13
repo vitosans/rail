@@ -27,10 +27,12 @@ pub enum Field {
     ConsentTenant,
     ImapHost,
     ImapPort,
+    ImapTls,
     ImapUser,
     Password,
     SmtpHost,
     SmtpPort,
+    SmtpTls,
     SmtpUser,
     SmtpPassword,
 }
@@ -49,10 +51,12 @@ impl Field {
             Self::ConsentTenant => "Org tenant",
             Self::ImapHost => "IMAP host",
             Self::ImapPort => "IMAP port",
+            Self::ImapTls => "IMAP TLS",
             Self::ImapUser => "IMAP username",
             Self::Password => "Password",
             Self::SmtpHost => "SMTP host",
             Self::SmtpPort => "SMTP port",
+            Self::SmtpTls => "SMTP TLS",
             Self::SmtpUser => "SMTP username",
             Self::SmtpPassword => "SMTP password",
         }
@@ -78,10 +82,12 @@ pub struct AccountDraft {
     pub help_url: Option<String>,
     pub imap_host: String,
     pub imap_port: String,
+    pub imap_tls: String,
     pub imap_user: String,
     pub password: String,
     pub smtp_host: String,
     pub smtp_port: String,
+    pub smtp_tls: String,
     pub smtp_user: String,
     pub smtp_password: String,
 }
@@ -116,10 +122,12 @@ impl fmt::Debug for AccountDraft {
             .field("preset", &self.preset)
             .field("imap_host", &self.imap_host)
             .field("imap_port", &self.imap_port)
+            .field("imap_tls", &self.imap_tls)
             .field("imap_user", &self.imap_user)
             .field("password", &password)
             .field("smtp_host", &self.smtp_host)
             .field("smtp_port", &self.smtp_port)
+            .field("smtp_tls", &self.smtp_tls)
             .field("smtp_user", &self.smtp_user)
             .field("smtp_password", &smtp_password)
             .finish_non_exhaustive()
@@ -136,7 +144,9 @@ impl AccountDraft {
         Self {
             kind: Some(kind),
             imap_port,
+            imap_tls: "required".to_string(),
             smtp_port,
+            smtp_tls: "required".to_string(),
             ..Self::default()
         }
     }
@@ -165,10 +175,12 @@ impl AccountDraft {
             Field::Tenant => &self.tenant,
             Field::ImapHost => &self.imap_host,
             Field::ImapPort => &self.imap_port,
+            Field::ImapTls => &self.imap_tls,
             Field::ImapUser => &self.imap_user,
             Field::Password => &self.password,
             Field::SmtpHost => &self.smtp_host,
             Field::SmtpPort => &self.smtp_port,
+            Field::SmtpTls => &self.smtp_tls,
             Field::SmtpUser => &self.smtp_user,
             Field::SmtpPassword => &self.smtp_password,
             Field::Admin | Field::PresetSource | Field::ConsentTenant => "",
@@ -194,10 +206,12 @@ impl AccountDraft {
             Field::Tenant => self.tenant = value,
             Field::ImapHost => self.imap_host = value,
             Field::ImapPort => self.imap_port = value,
+            Field::ImapTls => self.imap_tls = value,
             Field::ImapUser => self.imap_user = value,
             Field::Password => self.password = value,
             Field::SmtpHost => self.smtp_host = value,
             Field::SmtpPort => self.smtp_port = value,
+            Field::SmtpTls => self.smtp_tls = value,
             Field::SmtpUser => self.smtp_user = value,
             Field::SmtpPassword => self.smtp_password = value,
             Field::Admin | Field::PresetSource | Field::ConsentTenant => {}
@@ -220,9 +234,14 @@ impl AccountDraft {
             fields.extend([
                 Field::ImapHost,
                 Field::ImapPort,
+                Field::ImapTls,
+                Field::ImapUser,
                 Field::Password,
                 Field::SmtpHost,
                 Field::SmtpPort,
+                Field::SmtpTls,
+                Field::SmtpUser,
+                Field::SmtpPassword,
             ]);
             return fields;
         }
@@ -268,9 +287,11 @@ impl AccountDraft {
             (Field::Tenant, self.tenant_error()),
             (Field::ImapHost, self.imap_host_error()),
             (Field::ImapPort, self.imap_port_error()),
+            (Field::ImapTls, self.imap_tls_error()),
             (Field::Password, self.password_error()),
             (Field::SmtpHost, self.smtp_host_error()),
             (Field::SmtpPort, self.smtp_port_error()),
+            (Field::SmtpTls, self.smtp_tls_error()),
         ];
         checks
             .into_iter()
@@ -361,6 +382,22 @@ impl AccountDraft {
             .map(|_| "port must be between 1 and 65535".to_string())
     }
 
+    fn imap_tls_error(&self) -> Option<String> {
+        if self.kind == Some(AccountKind::ImapSmtp) {
+            tls_error(&self.imap_tls)
+        } else {
+            None
+        }
+    }
+
+    fn smtp_tls_error(&self) -> Option<String> {
+        if self.kind == Some(AccountKind::ImapSmtp) {
+            tls_error(&self.smtp_tls)
+        } else {
+            None
+        }
+    }
+
     fn secret_error(&self) -> Option<String> {
         (self.kind == Some(AccountKind::Gmail) && self.client_secret.trim().is_empty())
             .then(|| "Gmail desktop apps need the client secret".to_string())
@@ -389,8 +426,8 @@ impl AccountDraft {
             (
                 i_port,
                 s_port,
-                Some(TlsMode::Required),
-                Some(TlsMode::Required),
+                Some(parse_tls(&self.imap_tls)),
+                Some(parse_tls(&self.smtp_tls)),
             )
         } else {
             (None, None, None, None)
@@ -421,7 +458,23 @@ impl AccountDraft {
             smtp_tls,
             smtp_user: non_empty(&self.smtp_user),
             sent_folder: None,
+            append_to_sent: None,
         })
+    }
+}
+
+fn tls_error(text: &str) -> Option<String> {
+    match text.trim().to_ascii_lowercase().as_str() {
+        "" | "required" | "opportunistic" | "off" => None,
+        _ => Some("use required, opportunistic or off".to_string()),
+    }
+}
+
+fn parse_tls(text: &str) -> TlsMode {
+    match text.trim().to_ascii_lowercase().as_str() {
+        "opportunistic" => TlsMode::Opportunistic,
+        "off" => TlsMode::Off,
+        _ => TlsMode::Required,
     }
 }
 
@@ -640,9 +693,14 @@ mod tests {
                 Field::Color,
                 Field::ImapHost,
                 Field::ImapPort,
+                Field::ImapTls,
+                Field::ImapUser,
                 Field::Password,
                 Field::SmtpHost,
                 Field::SmtpPort,
+                Field::SmtpTls,
+                Field::SmtpUser,
+                Field::SmtpPassword,
             ]
         );
         let errors = draft.validate(&existing);

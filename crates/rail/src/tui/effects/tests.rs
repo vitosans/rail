@@ -603,5 +603,10 @@ async fn persisting_an_imapsmtp_account_writes_it_before_its_password() {
     let text = std::fs::read_to_string(paths.config_file()).unwrap();
     assert!(text.contains("name = \"personal\""), "{text}");
     let secrets = FileSecretStore::new(paths.secrets_file());
-    assert!(secrets.get_password("user@example.com").unwrap().is_some());
+    assert!(
+        secrets
+            .get_password(&rail_core::auth::password_key("user@example.com", None))
+            .unwrap()
+            .is_some()
+    );
 }

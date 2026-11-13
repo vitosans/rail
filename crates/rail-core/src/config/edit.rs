@@ -239,6 +239,16 @@ fn write_imapsmtp_fields(table: &mut Table, account: &AccountConfig) {
     set_opt_str(table, "smtp_tls", account.smtp_tls.map(|t| t.as_str()));
     set_opt_str(table, "smtp_user", account.smtp_user.as_deref());
     set_opt_str(table, "sent_folder", account.sent_folder.as_deref());
+    set_opt_bool(table, "append_to_sent", account.append_to_sent);
+}
+
+fn set_opt_bool(table: &mut Table, key: &str, val: Option<bool>) {
+    match val {
+        Some(v) => table[key] = value(v),
+        None => {
+            table.remove(key);
+        }
+    }
 }
 
 fn set_opt_str(table: &mut Table, key: &str, val: Option<&str>) {

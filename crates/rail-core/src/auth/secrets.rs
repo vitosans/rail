@@ -187,6 +187,16 @@ pub fn token_location(config: &Config, paths: &Paths, address: &str) -> String {
     }
 }
 
+/// The secret-store key for an account password. The `pw:` namespace keeps passwords out of
+/// the entries that hold OAuth tokens for the same address. `service` is `imap`, `smtp` or
+/// `None` for the account's shared password.
+pub fn password_key(address: &str, service: Option<&str>) -> String {
+    match service.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(service) => format!("pw:{address}:{}", service.to_ascii_lowercase()),
+        None => format!("pw:{address}"),
+    }
+}
+
 /// Describe a JSON error by kind and position only. serde_json's own text
 /// quotes the offending value, which here may be a token.
 pub(crate) fn json_message(e: &serde_json::Error) -> String {

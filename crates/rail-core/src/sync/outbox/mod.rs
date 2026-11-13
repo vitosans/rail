@@ -374,9 +374,11 @@ impl Worker {
         match planned {
             Plan::Nothing => Ok(Landed::Done),
             Plan::LabelGone => Err(ProviderError::permanent(&gone_words(self.kind))),
-            Plan::Send { threads, change } => unobserved(self.call_each(&threads, &change))
-                .await
-                .map(done),
+            Plan::Send { threads, change } => {
+                let moves = unobserved(self.call_each(&threads, &change)).await?;
+                self.record_moves(moves).await;
+                Ok(done(()))
+            }
             Plan::SendDraft(draft) => unobserved(self.send_draft(row, draft)).await.map(done),
             Plan::PushDraft(draft) => unobserved(self.push_draft(draft))
                 .await
@@ -387,17 +389,39 @@ impl Worker {
 
     /// One provider call per thread, stopping at the first error: a failure part-way fails the
     /// whole row (threads the provider already changed come back through the next sync).
+    /// Provider ids that changed (an IMAP move) are written before the row settles.
     async fn call_each(
         &self,
         threads: &[ThreadTarget],
         change: &Change,
-    ) -> Result<(), ProviderError> {
+    ) -> Result<Vec<(crate::provider::RemoteId, crate::provider::RemoteId)>, ProviderError> {
+        let mut moves = Vec::new();
         for thread in threads {
-            self.provider
-                .apply(std::slice::from_ref(thread), change)
-                .await?;
+            moves.extend(
+                self.provider
+                    .apply_with_moves(std::slice::from_ref(thread), change)
+                    .await?,
+            );
         }
-        Ok(())
+        Ok(moves)
+    }
+
+    /// Record moved provider ids in the store. The provider already moved them, so this is
+    /// best effort: the row keeps going, and a failure is logged by id only.
+    async fn record_moves(
+        &self,
+        moves: Vec<(crate::provider::RemoteId, crate::provider::RemoteId)>,
+    ) {
+        if moves.is_empty() {
+            return;
+        }
+        let batch = Batch {
+            moves,
+            ..Batch::new(self.account_id)
+        };
+        if let Err(error) = self.writer.write(batch).await {
+            tracing::warn!(error = %error.message, "could not record moved message ids");
+        }
     }
 
     /// The write that records `result` for `row`.

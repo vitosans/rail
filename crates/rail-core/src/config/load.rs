@@ -230,6 +230,18 @@ fn validate_accounts(config: &Config) -> Result<(), String> {
             return Err(format!("duplicate account address {:?}", account.address));
         }
         if account.kind == super::model::AccountKind::ImapSmtp {
+            if account.imap_tls() == super::model::TlsMode::Off {
+                tracing::warn!(
+                    account = %account.name,
+                    "IMAP TLS is off: the password and mail will travel in clear text"
+                );
+            }
+            if account.smtp_tls() == super::model::TlsMode::Off {
+                tracing::warn!(
+                    account = %account.name,
+                    "SMTP TLS is off: the password and mail will travel in clear text"
+                );
+            }
             if account.imap_host.as_deref().unwrap_or("").trim().is_empty() {
                 return Err(format!(
                     "account {:?}: missing required imap_host",

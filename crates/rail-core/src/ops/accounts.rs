@@ -324,6 +324,9 @@ pub struct AccountValidateResponse {
     pub smtp_ok: bool,
     pub imap_capabilities: Vec<String>,
     pub special_use_mailboxes: Vec<String>,
+    /// Things the user should read even though the account works (for example, TLS is off).
+    #[serde(default)]
+    pub warnings: Vec<String>,
 }
 
 /// `account.password.set`: store an account or service password in the secret store.

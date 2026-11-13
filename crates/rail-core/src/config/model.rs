@@ -457,6 +457,10 @@ pub struct AccountConfig {
     /// Optional Sent mailbox name override for `imapsmtp` accounts.
     #[serde(default)]
     pub sent_folder: Option<String>,
+    /// Whether Rail appends a sent message to the IMAP Sent mailbox. Unset means true. Set
+    /// false for servers such as Gmail or iCloud that already file their own copy.
+    #[serde(default)]
+    pub append_to_sent: Option<bool>,
 }
 
 /// True when `text` holds no whitespace, no control character and no Unicode format

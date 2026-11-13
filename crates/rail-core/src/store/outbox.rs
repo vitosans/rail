@@ -55,6 +55,9 @@ pub struct OutboxRow {
     pub draft_id: Option<DraftId>,
     /// The token the row was queued with: undo and retry must name it.
     pub client_token: String,
+    /// When an SMTP relay accepted this row's message, if it has. A resend after a Sent-copy
+    /// failure, or after a restart, must not submit it again.
+    pub relay_accepted_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -94,6 +97,11 @@ pub enum OutboxWrite {
     },
     /// Inflight back to pending, no attempt counted (the account needs a login).
     Release {
+        id: OutboxId,
+    },
+    /// The SMTP relay accepted this row's message: keep it, so a retry only finishes the
+    /// local Sent copy. The row itself stays inflight.
+    RelayAccepted {
         id: OutboxId,
     },
     /// Pending rows whose token matches go; any other is too late.
@@ -214,7 +222,7 @@ pub enum OutboxOutcome {
 }
 
 const COLUMNS: &str = "id, account_id, payload, thread_ids, state, attempts, not_before, \
-    last_error, reversal, draft_id, client_token, folder_remotes";
+    last_error, reversal, draft_id, client_token, folder_remotes, relay_accepted_at";
 
 fn read_row(r: &Row<'_>) -> rusqlite::Result<OutboxRow> {
     let json = |i: usize| -> rusqlite::Result<String> { r.get(i) };
@@ -237,6 +245,7 @@ fn read_row(r: &Row<'_>) -> rusqlite::Result<OutboxRow> {
         folder_remotes: serde_json::from_str(&json(11)?).map_err(|e| {
             rusqlite::Error::FromSqlConversionFailure(11, rusqlite::types::Type::Text, Box::new(e))
         })?,
+        relay_accepted_at: r.get(12)?,
     })
 }
 
@@ -468,6 +477,15 @@ pub(crate) fn release(tx: &Transaction, id: OutboxId) -> Result<(), StoreError> 
     Ok(())
 }
 
+/// Stamp relay acceptance once; a later retry must see it.
+pub(crate) fn relay_accepted(tx: &Transaction, id: OutboxId, now: i64) -> Result<(), StoreError> {
+    tx.execute(
+        "UPDATE outbox SET relay_accepted_at = COALESCE(relay_accepted_at, ?2) WHERE id = ?1",
+        params![id, now],
+    )?;
+    Ok(())
+}
+
 /// Record a failure: back to pending with the backoff, or (permanent, or the last attempt)
 /// `failed` with its local change reverted. Whether it gave up, and the row as it is now.
 pub(crate) fn fail(
@@ -637,6 +655,10 @@ impl Store {
             }
             OutboxWrite::Release { id } => {
                 release(&tx, *id)?;
+                OutboxOutcome::Done
+            }
+            OutboxWrite::RelayAccepted { id } => {
+                relay_accepted(&tx, *id, now)?;
                 OutboxOutcome::Done
             }
             OutboxWrite::Undo { rows } => {

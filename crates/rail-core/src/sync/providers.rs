@@ -101,41 +101,44 @@ pub fn imap_smtp_for(request: ProviderRequest) -> Result<Arc<dyn Provider>, OpEr
         .unwrap_or(crate::config::model::TlsMode::Required);
 
     let secrets = open_secret_store(&request.config, &request.paths, &request.ids);
-    let password = secrets
-        .get_password(&request.account.address)
-        .ok()
-        .flatten()
-        .or_else(|| {
-            secrets
-                .get_password(&format!("{}:imap", request.account.address))
-                .ok()
-                .flatten()
-        })
-        .or_else(|| secrets.get_password(&request.account.name).ok().flatten())
-        .ok_or_else(|| {
-            OpError::new(
-                crate::ops::ErrorCode::Auth,
-                crate::error::ErrorClass::Permanent,
-                "no password stored for this account; run 'rail secrets password'",
-            )
-        })?;
+    let address = &request.account.address;
+    let read = |service: Option<&str>| {
+        secrets
+            .get_password(&crate::auth::password_key(address, service))
+            .ok()
+            .flatten()
+    };
+    let imap_password = read(Some("imap")).or_else(|| read(None)).ok_or_else(|| {
+        OpError::new(
+            crate::ops::ErrorCode::Auth,
+            crate::error::ErrorClass::Permanent,
+            "no IMAP password stored for this account; run 'rail secrets password'",
+        )
+    })?;
+    let smtp_password = read(Some("smtp")).or_else(|| Some(imap_password.clone()));
 
-    let username = request.account.address.clone();
+    let username = request.account.imap_user().to_string();
+    let smtp_username = request.account.smtp_user().to_string();
     let sent_mailbox_name = request.account.sent_folder.clone();
+    let append_to_sent = request.account.append_to_sent.unwrap_or(true);
 
-    Ok(Arc::new(crate::provider::imap_smtp::ImapSmtpProvider::new(
+    let provider = crate::provider::imap_smtp::ImapSmtpProvider::new(
         imap_host,
         imap_port,
         imap_tls_mode,
-        username.clone(),
-        password.clone(),
+        username,
+        imap_password,
         smtp_host,
         smtp_port,
         smtp_tls_mode,
-        Some(username),
-        Some(password),
+        Some(smtp_username),
+        smtp_password,
         sent_mailbox_name,
-    )))
+    );
+    Ok(Arc::new(crate::provider::imap_smtp::ImapSmtpProvider {
+        append_to_sent,
+        ..provider
+    }))
 }
 
 /// The account's `history_days` as its engine gets it: `SyncSettings` from the same config
@@ -266,7 +269,7 @@ mod tests {
         );
         secrets
             .set_password(
-                &account.name,
+                &crate::auth::password_key(&account.address, None),
                 &crate::ops::Secret::new("testpass".to_string()),
             )
             .unwrap();

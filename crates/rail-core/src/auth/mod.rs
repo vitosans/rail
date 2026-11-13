@@ -22,7 +22,7 @@ pub use loopback::Redirect;
 pub use onepassword::{ItemIdCache, OnePasswordSecretStore, OpCli, store_client_secret};
 pub use secrets::{
     FileSecretStore, KeyringSecretStore, MemorySecretStore, PROBE_ADDRESS, SecretError,
-    SecretStore, TokenSet, open_secret_store, token_location,
+    SecretStore, TokenSet, open_secret_store, password_key, token_location,
 };
 
 pub use token_source::{TokenSource, unix_now};

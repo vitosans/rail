@@ -139,7 +139,9 @@ async fn test_move_with_extension() {
         let cmd = String::from_utf8_lossy(&buf[..n]);
         assert!(cmd.to_uppercase().contains("SELECT"));
         let tag = cmd.split_whitespace().next().unwrap();
-        let resp = format!("{tag} OK SELECT completed\r\n");
+        let resp = format!(
+            "* 1 EXISTS\r\n* OK [UIDVALIDITY 100] UIDs valid\r\n{tag} OK SELECT completed\r\n"
+        );
         server_io.write_all(resp.as_bytes()).await.unwrap();
 
         // UID MOVE 42 Archive
@@ -162,6 +164,7 @@ async fn test_move_fallback_copy_delete_expunge() {
     let (mut session, mut server_io) = setup_mock_session().await;
     let caps = ImapCapabilities {
         move_support: false,
+        uidplus_support: true,
         ..Default::default()
     };
 
@@ -190,7 +193,9 @@ async fn test_move_fallback_copy_delete_expunge() {
         let cmd = String::from_utf8_lossy(&buf[..n]);
         assert!(cmd.to_uppercase().contains("SELECT"));
         let tag = cmd.split_whitespace().next().unwrap();
-        let resp = format!("{tag} OK SELECT completed\r\n");
+        let resp = format!(
+            "* 1 EXISTS\r\n* OK [UIDVALIDITY 100] UIDs valid\r\n{tag} OK SELECT completed\r\n"
+        );
         server_io.write_all(resp.as_bytes()).await.unwrap();
 
         // 1. UID COPY 42 Trash
@@ -209,10 +214,10 @@ async fn test_move_fallback_copy_delete_expunge() {
         let resp = format!("* 1 FETCH (UID 42 FLAGS (\\Deleted))\r\n{tag} OK STORE completed\r\n");
         server_io.write_all(resp.as_bytes()).await.unwrap();
 
-        // 3. EXPUNGE
+        // 3. UID EXPUNGE 42
         let n = server_io.read(&mut buf).await.unwrap();
         let cmd = String::from_utf8_lossy(&buf[..n]);
-        assert!(cmd.to_uppercase().contains("EXPUNGE"));
+        assert!(cmd.to_uppercase().contains("UID EXPUNGE 42"));
         let tag = cmd.split_whitespace().next().unwrap();
         let resp = format!("* 1 EXPUNGE\r\n{tag} OK EXPUNGE completed\r\n");
         server_io.write_all(resp.as_bytes()).await.unwrap();
@@ -221,5 +226,69 @@ async fn test_move_fallback_copy_delete_expunge() {
     let change = Change::Trash;
     let result = apply_change(&mut session, &caps, &folders, &threads, &change).await;
     assert!(result.is_ok());
+    server_task.await.unwrap();
+}
+
+#[tokio::test]
+async fn test_move_returns_the_new_uid_from_copyuid() {
+    let (mut session, mut server_io) = setup_mock_session().await;
+    let caps = ImapCapabilities {
+        move_support: true,
+        uidplus_support: true,
+        ..Default::default()
+    };
+    let folders = DiscoveredFolders::new(vec![RemoteFolder {
+        remote_id: "Archive".to_string(),
+        name: "Archive".to_string(),
+        kind: FolderKind::Archive,
+        parent: None,
+    }]);
+    let threads = vec![ThreadTarget {
+        thread_id: "thread:1".to_string(),
+        messages: vec![TargetMessage {
+            id: "INBOX:100:42".to_string(),
+            folder: Some(FolderKind::Inbox),
+            unread: false,
+            ..Default::default()
+        }],
+    }];
+
+    let server_task = tokio::spawn(async move {
+        let mut buf = vec![0u8; 1024];
+        let n = server_io.read(&mut buf).await.unwrap();
+        let tag = String::from_utf8_lossy(&buf[..n])
+            .split_whitespace()
+            .next()
+            .unwrap()
+            .to_string();
+        server_io
+            .write_all(
+                format!(
+                    "* 1 EXISTS\r\n* OK [UIDVALIDITY 100] UIDs valid\r\n{tag} OK SELECT completed\r\n"
+                )
+                .as_bytes(),
+            )
+            .await
+            .unwrap();
+        let n = server_io.read(&mut buf).await.unwrap();
+        let cmd = String::from_utf8_lossy(&buf[..n]);
+        assert!(cmd.to_uppercase().contains("UID MOVE 42 ARCHIVE"));
+        let tag = cmd.split_whitespace().next().unwrap();
+        server_io
+            .write_all(
+                format!("* OK [COPYUID 777 42 99] Moved UIDs.\r\n{tag} OK MOVE completed\r\n")
+                    .as_bytes(),
+            )
+            .await
+            .unwrap();
+    });
+
+    let moves = apply_change(&mut session, &caps, &folders, &threads, &Change::Archive)
+        .await
+        .unwrap();
+    assert_eq!(
+        moves,
+        vec![("INBOX:100:42".to_string(), "Archive:777:99".to_string())]
+    );
     server_task.await.unwrap();
 }

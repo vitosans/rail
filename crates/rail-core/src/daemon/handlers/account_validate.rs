@@ -1,6 +1,6 @@
 //! `account.validate`: test IMAP and SMTP connectivity and credentials.
 
-use crate::auth::open_secret_store;
+use crate::auth::{open_secret_store, password_key};
 use crate::config::load_text_or_empty;
 use crate::config::model::TlsMode;
 use crate::daemon::registry::Call;
@@ -8,7 +8,7 @@ use crate::error::ErrorClass;
 use crate::ops::{AccountValidateRequest, AccountValidateResponse, ErrorCode, OpError, Secret};
 use crate::provider::imap_smtp::client::connect_and_login_imap;
 use crate::provider::imap_smtp::folders::discover_folders;
-use crate::provider::imap_smtp::smtp::build_smtp_transport;
+use crate::provider::imap_smtp::smtp::{build_smtp_transport, validate_smtp_connection};
 
 /// Validates IMAP and SMTP connections and credentials.
 pub(super) async fn validate(
@@ -31,7 +31,7 @@ pub(super) async fn validate(
         .await
         .map_err(OpError::from)?;
 
-    let _transport = build_smtp_transport(
+    let transport = build_smtp_transport(
         &smtp_params.host,
         Some(smtp_params.port),
         smtp_params.tls,
@@ -39,6 +39,9 @@ pub(super) async fn validate(
         Some(&smtp_params.password),
     )
     .map_err(OpError::from)?;
+    validate_smtp_connection(&transport)
+        .await
+        .map_err(OpError::from)?;
 
     let mut cap_strings = Vec::new();
     if caps.move_support {
@@ -57,11 +60,26 @@ pub(super) async fn validate(
         .map(|f| format!("{}:{}", f.name, f.kind.as_str()))
         .collect();
 
+    let mut warnings = Vec::new();
+    if imap_params.tls == TlsMode::Off {
+        warnings.push(
+            "IMAP TLS is off: your password and mail travel in clear text. Use required or opportunistic."
+                .to_string(),
+        );
+    }
+    if smtp_params.tls == TlsMode::Off {
+        warnings.push(
+            "SMTP TLS is off: your password and mail travel in clear text. Use required or opportunistic."
+                .to_string(),
+        );
+    }
+
     Ok(AccountValidateResponse {
         imap_ok: true,
         smtp_ok: true,
         imap_capabilities: cap_strings,
         special_use_mailboxes: special_mailboxes,
+        warnings,
     })
 }
 
@@ -102,55 +120,46 @@ async fn resolve_from_account(
 
     let store = open_secret_store(&config, &call.ctx.paths, &call.ctx.op_ids);
 
+    let stored = |service: Option<&str>| {
+        store
+            .get_password(&password_key(&account.address, service))
+            .map_err(|e| OpError::internal(e.to_string()))
+    };
     let imap_pass = match req.password {
         Some(ref p) => p.clone(),
-        None => store
-            .get_password(&format!("{}:imap", account.address))
-            .or_else(|_| store.get_password(&account.address))
-            .map_err(|e| OpError::internal(e.to_string()))?
-            .ok_or_else(|| {
-                OpError::new(
-                    ErrorCode::Auth,
-                    ErrorClass::Permanent,
-                    "IMAP password not found in secret store",
-                )
-            })?,
+        None => stored(Some("imap"))?.or(stored(None)?).ok_or_else(|| {
+            OpError::new(
+                ErrorCode::Auth,
+                ErrorClass::Permanent,
+                "IMAP password not found in secret store",
+            )
+        })?,
     };
 
-    let smtp_pass = match req.smtp_password.as_ref().or(req.password.as_ref()) {
+    let smtp_pass = match req.smtp_password.as_ref() {
         Some(p) => p.clone(),
-        None => store
-            .get_password(&format!("{}:smtp", account.address))
-            .or_else(|_| store.get_password(&account.address))
-            .map_err(|e| OpError::internal(e.to_string()))?
-            .ok_or_else(|| {
-                OpError::new(
-                    ErrorCode::Auth,
-                    ErrorClass::Permanent,
-                    "SMTP password not found in secret store",
-                )
-            })?,
+        None => match stored(Some("smtp"))? {
+            Some(p) => p,
+            None => match req.password.as_ref() {
+                Some(p) => p.clone(),
+                None => stored(None)?.unwrap_or_else(|| imap_pass.clone()),
+            },
+        },
     };
 
     let imap = EndpointParams {
         host: account.imap_host.clone().unwrap_or_default(),
-        port: account.imap_port.unwrap_or(993),
-        tls: account.imap_tls.unwrap_or(TlsMode::Required),
-        username: account
-            .imap_user
-            .clone()
-            .unwrap_or_else(|| account.address.clone()),
+        port: account.imap_port(),
+        tls: account.imap_tls(),
+        username: account.imap_user().to_string(),
         password: imap_pass,
     };
 
     let smtp = EndpointParams {
         host: account.smtp_host.clone().unwrap_or_default(),
-        port: account.smtp_port.unwrap_or(465),
-        tls: account.smtp_tls.unwrap_or(TlsMode::Required),
-        username: account
-            .smtp_user
-            .clone()
-            .unwrap_or_else(|| account.address.clone()),
+        port: account.smtp_port(),
+        tls: account.smtp_tls(),
+        username: account.smtp_user().to_string(),
         password: smtp_pass,
     };
 

@@ -308,10 +308,13 @@ async fn add_imapsmtp(paths: &Paths, args: ImapSmtpAddArgs) -> color_eyre::Resul
             .or_else(|| Some(args.address.clone())),
         smtp_password: None,
     };
-    client
+    let validated = client
         .call::<rail_core::ops::op::AccountValidate>(&validate_req)
         .await
         .map_err(report)?;
+    for warning in &validated.warnings {
+        eprintln!("warning: {warning}");
+    }
 
     let name = args.name.unwrap_or_else(|| {
         let (name, _) = args.address.split_once('@').unwrap_or((&args.address, ""));
@@ -340,6 +343,7 @@ async fn add_imapsmtp(paths: &Paths, args: ImapSmtpAddArgs) -> color_eyre::Resul
         smtp_tls: Some(rail_core::config::model::TlsMode::Required),
         smtp_user: args.smtp_user,
         sent_folder: None,
+        append_to_sent: None,
     };
 
     // Write the account before its password: the password operation resolves the account by
@@ -400,10 +404,13 @@ pub async fn relogin(paths: &Paths, who: &str) -> color_eyre::Result<()> {
             password: Some(rail_core::ops::Secret::new(pass.clone())),
             ..Default::default()
         };
-        client
+        let validated = client
             .call::<rail_core::ops::op::AccountValidate>(&validate)
             .await
             .map_err(report)?;
+        for warning in &validated.warnings {
+            eprintln!("warning: {warning}");
+        }
         let set_res = client
             .call::<rail_core::ops::op::AccountPasswordSet>(
                 &rail_core::ops::AccountPasswordSetRequest {

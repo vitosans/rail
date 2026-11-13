@@ -215,6 +215,7 @@ host to the capture in each.
 | `smtp_tls` | no | SMTP TLS mode: `"required"` (default), `"opportunistic"`, or `"off"`. |
 | `smtp_user` | no | SMTP username when different from `address`. |
 | `sent_folder` | no | Sent mailbox name override for `imapsmtp` accounts (discovered automatically by default). |
+| `append_to_sent` | no | Whether to append sent mail to the IMAP Sent mailbox. Defaults to `true`; set `false` for servers such as Gmail or iCloud that already file their own copy. |
 | `color` | no | Account colour in the UI. |
 | `label` | no | The account's name on screen: the sidebar, the header, `Write from`, the account states and the palette (at most 40 characters; `name` stays what commands, `--account` and `account:` use). `rail doctor` warns when two accounts show the same one. |
 | `history_days`, `body_cache_days` | no | Per-account overrides of the `[general]` values. |

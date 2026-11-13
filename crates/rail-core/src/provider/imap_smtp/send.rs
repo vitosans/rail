@@ -88,16 +88,8 @@ pub async fn check_sent_already(
     sent_mailbox: &str,
     message_id: &str,
 ) -> Result<bool, ProviderError> {
-    match find_draft(session, sent_mailbox, message_id).await {
-        Ok(Some(_)) => Ok(true),
-        Ok(None) => Ok(false),
-        Err(e) => {
-            tracing::warn!(
-                message_id,
-                error = %e,
-                "failed to query Sent folder for existing message"
-            );
-            Ok(false)
-        }
+    match find_draft(session, sent_mailbox, message_id).await? {
+        Some(_) => Ok(true),
+        None => Ok(false),
     }
 }

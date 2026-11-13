@@ -56,7 +56,8 @@ fn build_tls_setting(host: &str, port: u16, tls_mode: TlsMode) -> Result<Tls, Pr
     match tls_mode {
         TlsMode::Required => {
             let tls_params = TlsParameters::new(host.to_string()).map_err(|e| {
-                ProviderError::permanent(&format!("invalid TLS parameters for {host}: {e}"))
+                ProviderError::permanent("the SMTP server hostname is not valid for TLS")
+                    .with_detail(e.to_string())
             })?;
             if port == 465 {
                 Ok(Tls::Wrapper(tls_params))
@@ -64,14 +65,18 @@ fn build_tls_setting(host: &str, port: u16, tls_mode: TlsMode) -> Result<Tls, Pr
                 Ok(Tls::Required(tls_params))
             }
         }
+        // Lettre's Opportunistic silently stays in clear when STARTTLS is stripped. Rail's
+        // opportunistic mode may use the STARTTLS port, but it still refuses to authenticate
+        // without TLS; only `off` allows a clear connection.
         TlsMode::Opportunistic => {
             let tls_params = TlsParameters::new(host.to_string()).map_err(|e| {
-                ProviderError::permanent(&format!("invalid TLS parameters for {host}: {e}"))
+                ProviderError::permanent("the SMTP server hostname is not valid for TLS")
+                    .with_detail(e.to_string())
             })?;
             if port == 465 {
                 Ok(Tls::Wrapper(tls_params))
             } else {
-                Ok(Tls::Opportunistic(tls_params))
+                Ok(Tls::Required(tls_params))
             }
         }
         TlsMode::Off => Ok(Tls::None),
@@ -102,8 +107,9 @@ async fn send_smtp_timed(
     mail: &OutgoingMail,
 ) -> Result<SentReceipt, ProviderError> {
     let raw = crate::provider::gmail::mime::build(&mail.outgoing)?;
-    let from_addr = Address::from_str(&mail.outgoing.from)
-        .map_err(|e| ProviderError::permanent(&format!("invalid From address: {e}")))?;
+    let from_addr = Address::from_str(&mail.outgoing.from).map_err(|e| {
+        ProviderError::permanent("the From address is not valid").with_detail(e.to_string())
+    })?;
 
     let to_addrs = collect_recipient_addresses(mail)?;
     if to_addrs.is_empty() {
@@ -112,8 +118,10 @@ async fn send_smtp_timed(
         ));
     }
 
-    let envelope = Envelope::new(Some(from_addr), to_addrs)
-        .map_err(|e| ProviderError::permanent(&format!("failed to construct envelope: {e}")))?;
+    let envelope = Envelope::new(Some(from_addr), to_addrs).map_err(|e| {
+        ProviderError::permanent("failed to construct the message envelope")
+            .with_detail(e.to_string())
+    })?;
 
     transport
         .send_raw(&envelope, &raw)
@@ -137,24 +145,21 @@ pub fn collect_recipient_addresses(mail: &OutgoingMail) -> Result<Vec<Address>, 
         .chain(&mail.outgoing.bcc)
     {
         let addr = Address::from_str(&mb.address).map_err(|e| {
-            ProviderError::permanent(&format!("invalid recipient address '{}': {e}", mb.address))
+            ProviderError::permanent("a recipient address is not valid").with_detail(e.to_string())
         })?;
         to_addrs.push(addr);
     }
     Ok(to_addrs)
 }
 
-/// Classify a Lettre `SmtpError` into Rail's `ProviderError`.
+/// Classify a Lettre `SmtpError` into Rail's `ProviderError`. Server text is detail only.
 pub fn classify_smtp_error(err: &SmtpError) -> ProviderError {
     let msg = err.to_string();
     if err.is_timeout() {
         return ProviderError::transient("SMTP connection timed out");
     }
     if err.is_transient() {
-        return ProviderError::transient(&format!(
-            "SMTP transient error: {}",
-            sanitize_detail(&msg)
-        ));
+        return ProviderError::transient("SMTP transient error").with_detail(sanitize_detail(&msg));
     }
     if let Some(code) = err.status() {
         let num: u16 = code.into();
@@ -169,9 +174,10 @@ pub fn classify_smtp_error(err: &SmtpError) -> ProviderError {
         };
     }
     if err.is_permanent() {
-        return ProviderError::permanent(&format!("SMTP error: {}", sanitize_detail(&msg)));
+        return ProviderError::permanent("the SMTP server refused the message")
+            .with_detail(sanitize_detail(&msg));
     }
-    ProviderError::transient(&format!("SMTP network error: {}", sanitize_detail(&msg)))
+    ProviderError::transient("SMTP network error").with_detail(sanitize_detail(&msg))
 }
 
 fn is_smtp_auth_failure(msg: &str) -> bool {

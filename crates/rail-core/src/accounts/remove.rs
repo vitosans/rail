@@ -2,7 +2,7 @@
 //! Rail never deletes mail.
 
 use super::login::account_for_login;
-use crate::auth::{ItemIdCache, open_secret_store, token_location};
+use crate::auth::{ItemIdCache, open_secret_store, password_key, token_location};
 use crate::config::{self, SecretsBackend, load_text_or_empty};
 use crate::ops::{
     AccountRemoveResponse, ConfirmPlan, OpError, plan_digest, shown, write_config_text,
@@ -95,11 +95,11 @@ pub(crate) fn remove_account(
     let deleted = store.delete_tokens(&account.address);
     let mut pass_err = None;
     for key in [
-        account.address.as_str(),
-        &format!("{}:imap", account.address),
-        &format!("{}:smtp", account.address),
+        password_key(&account.address, None),
+        password_key(&account.address, Some("imap")),
+        password_key(&account.address, Some("smtp")),
     ] {
-        if let Err(e) = store.delete_password(key) {
+        if let Err(e) = store.delete_password(&key) {
             pass_err = Some(e);
         }
     }

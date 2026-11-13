@@ -241,6 +241,9 @@ impl Wizard {
             Field::ClientSecret => Some("required for Gmail".into()),
             Field::ImapPort => Some("default 993".into()),
             Field::SmtpPort => Some("default 465".into()),
+            Field::ImapTls | Field::SmtpTls => Some("required, opportunistic or off".into()),
+            Field::ImapUser => Some("optional, defaults to the email address".into()),
+            Field::SmtpUser => Some("optional, defaults to the email address".into()),
             Field::SmtpPassword => Some("optional if same as IMAP".into()),
             Field::Tenant => Some(format!(
                 "empty means common; try {}",

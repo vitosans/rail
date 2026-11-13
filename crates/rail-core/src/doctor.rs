@@ -102,15 +102,19 @@ fn check_accounts(
 ) {
     for account in &config.accounts {
         let (has_tokens, token_error) = match account.kind {
-            AccountKind::ImapSmtp => match secrets.has_password(&account.address) {
-                Ok(true) => (true, None),
-                Ok(false) => match secrets.has_password(&format!("{}:imap", account.address)) {
+            AccountKind::ImapSmtp => {
+                match secrets.has_password(&crate::auth::password_key(&account.address, None)) {
                     Ok(true) => (true, None),
-                    Ok(false) => (false, None),
+                    Ok(false) => match secrets
+                        .has_password(&crate::auth::password_key(&account.address, Some("imap")))
+                    {
+                        Ok(true) => (true, None),
+                        Ok(false) => (false, None),
+                        Err(e) => (false, Some(Untrusted::new(e.to_string()))),
+                    },
                     Err(e) => (false, Some(Untrusted::new(e.to_string()))),
-                },
-                Err(e) => (false, Some(Untrusted::new(e.to_string()))),
-            },
+                }
+            }
             _ => match secrets.has_tokens(&account.address) {
                 Ok(present) => (present, None),
                 Err(e) => (false, Some(Untrusted::new(e.to_string()))),

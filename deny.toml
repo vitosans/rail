@@ -13,7 +13,7 @@ ignore = [
   { id = "RUSTSEC-2026-0370", reason = "zvariant: transitive keyring dependency; migration requires zbus 6" },
   { id = "RUSTSEC-2026-0371", reason = "zbus_names: transitive keyring dependency; migration requires zbus 6" },
   { id = "RUSTSEC-2026-0372", reason = "zvariant_derive: transitive keyring dependency; migration requires zbus 6" },
-  { id = "RUSTSEC-2026-0441", reason = "pin-utils: transitive async-imap dependency; upstream repository archived" },
+  { id = "RUSTSEC-2026-0441", reason = "pin-utils: unmaintained-crate advisory, not a vulnerability; transitive async-imap dependency; upstream repository archived" },
 ]
 
 [bans]

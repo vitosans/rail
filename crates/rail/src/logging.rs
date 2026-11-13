@@ -26,15 +26,19 @@ pub fn init(paths: &Paths, mcp: bool) -> Option<WorkerGuard> {
     }
 }
 
-/// HTTP and TLS libraries kept at `warn` whatever `RUST_LOG` says: at debug and trace they
-/// log request lines with query strings (Gmail's `q` is the user's search text), headers
-/// (the bearer token) and bodies (mail). Rail logs its own requests without those.
+/// Libraries kept at `warn` whatever `RUST_LOG` says: at debug and trace they log request
+/// lines with query strings (Gmail's `q` is the user's search text), headers (the bearer
+/// token), bodies (mail), IMAP commands (LOGIN with the password) and SMTP writes (AUTH
+/// PLAIN and the message). Rail logs its own requests without those.
 const PINNED: &[&str] = &[
     "hyper=warn",
     "hyper_util=warn",
     "h2=warn",
     "reqwest=warn",
     "rustls=warn",
+    "async_imap=warn",
+    "imap_proto=warn",
+    "lettre=warn",
 ];
 
 /// `RUST_LOG`, or `info`, with `PINNED` on top; for `rail mcp` also `rmcp=error`.
@@ -82,15 +86,64 @@ mod tests {
         assert!(init(&paths, false).is_none());
     }
 
-    /// Review minor 11: the HTTP and TLS libraries stay at `warn` even when `RUST_LOG` asks
-    /// for more of them.
+    /// The HTTP, TLS, IMAP and SMTP libraries stay at `warn` even when `RUST_LOG` asks for
+    /// more of them. A trace-level login must not put credentials in the log.
     #[test]
-    fn http_and_tls_libraries_stay_at_warn() {
-        let filter = pinned(EnvFilter::new("trace,hyper=trace,reqwest=debug"), false).to_string();
+    fn libraries_that_can_log_credentials_stay_at_warn() {
+        let filter = pinned(
+            EnvFilter::new(
+                "trace,hyper=trace,reqwest=debug,async_imap=trace,imap_proto=trace,lettre=trace",
+            ),
+            false,
+        )
+        .to_string();
         for pin in PINNED {
             assert!(filter.contains(pin), "{filter}");
         }
-        assert!(!filter.contains("hyper=trace") && !filter.contains("reqwest=debug"));
+        for unpinned in [
+            "hyper=trace",
+            "reqwest=debug",
+            "async_imap=trace",
+            "imap_proto=trace",
+            "lettre=trace",
+        ] {
+            assert!(!filter.contains(unpinned), "{filter}");
+        }
+    }
+
+    #[test]
+    fn a_trace_level_login_is_not_written_to_the_log() {
+        use std::io::Write;
+        use std::sync::{Arc, Mutex};
+
+        #[derive(Clone, Default)]
+        struct Buffer(Arc<Mutex<Vec<u8>>>);
+        impl Write for Buffer {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let buffer = Buffer::default();
+        let writer = buffer.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .with_env_filter(pinned(EnvFilter::new("trace"), false))
+            .with_writer(move || writer.clone())
+            .with_ansi(false)
+            .finish();
+        tracing::subscriber::with_default(subscriber, || {
+            tracing::trace!(target: "async_imap::client", "LOGIN \"user\" \"hunter2\"");
+            tracing::debug!(target: "lettre::transport::smtp", "AUTH PLAIN AHVzZXIAaHVudGVyMg==");
+            tracing::info!(target: "rail", "this line is kept");
+        });
+        let log = String::from_utf8(buffer.0.lock().unwrap().clone()).unwrap();
+        assert!(!log.contains("hunter2"), "{log}");
+        assert!(!log.contains("AUTH PLAIN"), "{log}");
+        assert!(log.contains("this line is kept"), "{log}");
     }
 
     #[test]
