@@ -94,6 +94,11 @@ scripts/                 update-schemes.sh: regenerates the vendored colour-sche
 
 ## Development loop
 
+`rust-toolchain.toml` pins the exact Rust version Rail is developed, tested and released with, so
+rustfmt and clippy agree everywhere. With [rustup](https://rustup.rs), the first `cargo` command
+in the repository installs it, with clippy and rustfmt. A Rust installed another way (Homebrew's
+`rust`, a distribution package) ignores the file and may format or lint differently from CI.
+
     cargo test --workspace
     cargo clippy --workspace --all-targets -- -D warnings
     cargo fmt --all
@@ -117,15 +122,16 @@ minimum supported Rust version (1.89), and reports line coverage.
 
 GitHub also scans Rust and Actions workflows with CodeQL on pull requests, pushes to `main`
 and weekly. Workflows use actions pinned to commit SHAs, read-only default tokens and explicit
-timeouts. Keep action pins current through Dependabot; select Rust toolchains through the
-action's `toolchain` input.
+timeouts. Keep action pins current through Dependabot. CI and release builds install the
+compiler `rust-toolchain.toml` names; only the `msrv` job overrides it, with `RUSTUP_TOOLCHAIN`.
 
-Dependabot checks Cargo and Actions weekly and opens security updates:
+Dependabot checks Cargo, Actions and the Rust toolchain weekly and opens security updates:
 
 | Update | What happens |
 |---|---|
 | Patch or minor (Cargo is grouped) | Proposed after a cooldown (3 days for a Cargo patch, 7 otherwise), then merged on its own once every required check passes |
 | Major | Labelled `major update`; a person reviews and merges it |
+| Rust toolchain (`rust-toolchain.toml`) | Proposed 7 days after a Rust release and labelled `toolchain update`; a person merges it, with any fixes for new rustfmt or clippy rules in the same pull request |
 | Security | Proposed at once, no cooldown; merged like the rows above |
 
 Auto-merged updates reach users only in the next release, whose pull request lists them.
