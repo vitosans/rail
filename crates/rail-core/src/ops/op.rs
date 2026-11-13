@@ -153,146 +153,251 @@ macro_rules! operation {
 
 operation!(
     /// Everything `rail doctor` reports, plus the daemon's own state.
-    Status, names::STATUS, StatusRequest, StatusResponse
+    Status,
+    names::STATUS,
+    StatusRequest,
+    StatusResponse
 );
 operation!(
     /// Configured accounts, token presence and `ai_send` policy.
-    AccountsList, names::ACCOUNTS_LIST, AccountsListRequest, AccountsListResponse
+    AccountsList,
+    names::ACCOUNTS_LIST,
+    AccountsListRequest,
+    AccountsListResponse
 );
 operation!(
     /// Presets in the known directories.
-    PresetsList, names::PRESETS_LIST, PresetsListRequest, PresetsListResponse
+    PresetsList,
+    names::PRESETS_LIST,
+    PresetsListRequest,
+    PresetsListResponse
 );
 operation!(
     /// One preset from an `https` URL or a file.
-    PresetFetch, names::PRESET_FETCH, PresetFetchRequest, PresetFetchResponse
+    PresetFetch,
+    names::PRESET_FETCH,
+    PresetFetchRequest,
+    PresetFetchResponse
 );
 operation!(
     /// Validate a new account, start its login and return the URL; persists on completion.
-    AccountAddBegin, names::ACCOUNT_ADD_BEGIN, AccountAddRequest, BeginResponse
+    AccountAddBegin,
+    names::ACCOUNT_ADD_BEGIN,
+    AccountAddRequest,
+    BeginResponse
 );
 operation!(
     /// Log in again to an account already in `config.toml`.
-    AccountLoginBegin, names::ACCOUNT_LOGIN_BEGIN, LoginBeginRequest, BeginResponse
+    AccountLoginBegin,
+    names::ACCOUNT_LOGIN_BEGIN,
+    LoginBeginRequest,
+    BeginResponse
 );
 operation!(
     /// Microsoft admin consent for one concrete tenant.
-    ConsentBegin, names::CONSENT_BEGIN, ConsentBeginRequest, BeginResponse
+    ConsentBegin,
+    names::CONSENT_BEGIN,
+    ConsentBeginRequest,
+    BeginResponse
 );
 operation!(
     /// Remove an account's config entry and tokens; its mail rows stay.
-    AccountRemove, names::ACCOUNT_REMOVE, AccountRemoveRequest, AccountRemoveResponse
+    AccountRemove,
+    names::ACCOUNT_REMOVE,
+    AccountRemoveRequest,
+    AccountRemoveResponse
 );
 operation!(
     /// Choose the token backend and optionally move existing tokens.
-    SecretsConfigure, names::SECRETS_CONFIGURE, SecretsConfigureRequest, SecretsConfigureResponse
+    SecretsConfigure,
+    names::SECRETS_CONFIGURE,
+    SecretsConfigureRequest,
+    SecretsConfigureResponse
 );
 operation!(
     /// Step-by-step provider setup for an agent.
-    GuideProvider, names::GUIDE_PROVIDER, GuideRequest, GuideResponse
+    GuideProvider,
+    names::GUIDE_PROVIDER,
+    GuideRequest,
+    GuideResponse
 );
 operation!(
     /// Wait, at most five minutes per call, for a begun login or consent.
-    PendingWait, names::PENDING_WAIT, WaitRequest, WaitResponse
+    PendingWait,
+    names::PENDING_WAIT,
+    WaitRequest,
+    WaitResponse
 );
 operation!(
     /// Cancel a begun login or consent. A save in progress is never cancelled.
-    PendingCancel, names::PENDING_CANCEL, CancelRequest, WaitResponse
+    PendingCancel,
+    names::PENDING_CANCEL,
+    CancelRequest,
+    WaitResponse
 );
 operation!(
     /// Every account's sync status, or one account's.
-    SyncStatus, names::SYNC_STATUS, SyncStatusRequest, SyncStatusResponse
+    SyncStatus,
+    names::SYNC_STATUS,
+    SyncStatusRequest,
+    SyncStatusResponse
 );
 operation!(
     /// Wake one account's sync, or every account's.
-    SyncNow, names::SYNC_NOW, SyncNowRequest, SyncNowResponse
+    SyncNow,
+    names::SYNC_NOW,
+    SyncNowRequest,
+    SyncNowResponse
 );
 operation!(
     /// Search the store and the provider's whole mailbox.
-    Search, names::SEARCH, SearchRequest, SearchResponse
+    Search,
+    names::SEARCH,
+    SearchRequest,
+    SearchResponse
 );
 operation!(
     /// Fetch bodies the store does not hold yet; one outcome per message, never a body.
-    BodyFetch, names::BODY_FETCH, BodyFetchRequest, BodyFetchResponse
+    BodyFetch,
+    names::BODY_FETCH,
+    BodyFetchRequest,
+    BodyFetchResponse
 );
 operation!(
     /// Change threads now in the store and queue the change for Gmail. Terminal-only.
-    ActionApply, names::ACTION_APPLY, ActionApplyRequest, ActionApplyResponse
+    ActionApply,
+    names::ACTION_APPLY,
+    ActionApplyRequest,
+    ActionApplyResponse
 );
 operation!(
     /// Take back queued changes that have not been sent. Terminal-only.
-    ActionUndo, names::ACTION_UNDO, ActionUndoRequest, ActionUndoResponse
+    ActionUndo,
+    names::ACTION_UNDO,
+    ActionUndoRequest,
+    ActionUndoResponse
 );
 operation!(
     /// Send a refused change again. Terminal-only.
-    ActionRetry, names::ACTION_RETRY, ActionRetryRequest, ActionRetryResponse
+    ActionRetry,
+    names::ACTION_RETRY,
+    ActionRetryRequest,
+    ActionRetryResponse
 );
 operation!(
     /// Create or update a draft, checked before anything is stored. Terminal-only.
-    DraftSave, names::DRAFT_SAVE, DraftSaveRequest, DraftSaveResponse
+    DraftSave,
+    names::DRAFT_SAVE,
+    DraftSaveRequest,
+    DraftSaveResponse
 );
 operation!(
     /// Queue a draft to be sent once the undo grace is over. Terminal-only.
-    DraftSend, names::DRAFT_SEND, DraftSendRequest, DraftSendResponse
+    DraftSend,
+    names::DRAFT_SEND,
+    DraftSendRequest,
+    DraftSendResponse
 );
 operation!(
     /// Delete a draft that is not being sent. Terminal-only.
-    DraftDiscard, names::DRAFT_DISCARD, DraftDiscardRequest, DraftDiscardResponse
+    DraftDiscard,
+    names::DRAFT_DISCARD,
+    DraftDiscardRequest,
+    DraftDiscardResponse
 );
 operation!(
     /// Queue a draft's save to Gmail's Drafts, after the undo grace. Terminal-only.
-    DraftPush, names::DRAFT_PUSH, DraftPushRequest, DraftPushResponse
+    DraftPush,
+    names::DRAFT_PUSH,
+    DraftPushRequest,
+    DraftPushResponse
 );
 operation!(
     /// Make a local draft of a Gmail draft, keeping its Gmail ids. Terminal-only.
-    DraftImport, names::DRAFT_IMPORT, DraftImportRequest, DraftImportResponse
+    DraftImport,
+    names::DRAFT_IMPORT,
+    DraftImportRequest,
+    DraftImportResponse
 );
 operation!(
     /// Write a message's attachments into a directory the client resolved; answers one outcome
     /// and a path per part, never bytes. Terminal-only.
-    AttachmentSave, names::ATTACHMENT_SAVE, AttachmentSaveRequest, AttachmentSaveResponse
+    AttachmentSave,
+    names::ATTACHMENT_SAVE,
+    AttachmentSaveRequest,
+    AttachmentSaveResponse
 );
 operation!(
     /// Write one attachment into a private cache directory for the system opener; answers its
     /// path, never bytes. Terminal-only.
-    AttachmentOpen, names::ATTACHMENT_OPEN, AttachmentOpenRequest, AttachmentOpenResponse
+    AttachmentOpen,
+    names::ATTACHMENT_OPEN,
+    AttachmentOpenRequest,
+    AttachmentOpenResponse
 );
 operation!(
     /// Write one inline picture into Rail's image cache for the reader; answers its path,
     /// never bytes. Terminal-only.
-    AttachmentImage, names::ATTACHMENT_IMAGE, AttachmentImageRequest, AttachmentImageResponse
+    AttachmentImage,
+    names::ATTACHMENT_IMAGE,
+    AttachmentImageRequest,
+    AttachmentImageResponse
 );
 operation!(
     /// Write one picture a mail names by its web address into Rail's image cache for the
     /// reader; answers its path, never bytes. Terminal-only.
-    ImageRemote, names::IMAGE_REMOTE, RemoteImageRequest, RemoteImageResponse
+    ImageRemote,
+    names::IMAGE_REMOTE,
+    RemoteImageRequest,
+    RemoteImageResponse
 );
 operation!(
     /// Save a search, or rename one, in `config.toml`; answers the whole new list.
     /// Terminal-only.
-    SavedSearchPut, names::SAVED_SEARCH_PUT, SavedSearchPutRequest, SavedSearchListResponse
+    SavedSearchPut,
+    names::SAVED_SEARCH_PUT,
+    SavedSearchPutRequest,
+    SavedSearchListResponse
 );
 operation!(
     /// Remove a saved search; the mail it finds is not touched. Terminal-only.
-    SavedSearchRemove, names::SAVED_SEARCH_REMOVE, SavedSearchRemoveRequest, SavedSearchListResponse
+    SavedSearchRemove,
+    names::SAVED_SEARCH_REMOVE,
+    SavedSearchRemoveRequest,
+    SavedSearchListResponse
 );
 operation!(
     /// The handshake: protocol and Rail versions.
-    Hello, names::HELLO, HelloRequest, HelloResponse
+    Hello,
+    names::HELLO,
+    HelloRequest,
+    HelloResponse
 );
 operation!(
     /// The daemon's pid, version, socket and load, without touching config or store.
-    DaemonInfoOp, names::DAEMON_INFO, DaemonInfoRequest, DaemonInfo
+    DaemonInfoOp,
+    names::DAEMON_INFO,
+    DaemonInfoRequest,
+    DaemonInfo
 );
 operation!(
     /// Ask the daemon to exit once running saves finish.
-    DaemonStop, names::DAEMON_STOP, DaemonStopRequest, DaemonStopResponse
+    DaemonStop,
+    names::DAEMON_STOP,
+    DaemonStopRequest,
+    DaemonStopResponse
 );
 operation!(
     /// Archive threads now and put them back at a time. Terminal-only.
-    SnoozeSet, names::SNOOZE_SET, SnoozeSetRequest, SnoozeSetResponse
+    SnoozeSet,
+    names::SNOOZE_SET,
+    SnoozeSetRequest,
+    SnoozeSetResponse
 );
 operation!(
     /// Put snoozed threads back now. Terminal-only.
-    SnoozeClear, names::SNOOZE_CLEAR, SnoozeClearRequest, SnoozeClearResponse
+    SnoozeClear,
+    names::SNOOZE_CLEAR,
+    SnoozeClearRequest,
+    SnoozeClearResponse
 );
