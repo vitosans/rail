@@ -119,6 +119,19 @@ an earlier build of the same version. When an upgrade changes the store, the new
 it the first time it starts (rebuilding the search index can take a moment on a large mailbox);
 until then the mail screen says the store is not set up.
 
+### Arch Linux
+
+[`rail-bin`](https://aur.archlinux.org/packages/rail-bin) on the AUR packages the release binaries
+for x86_64 and ARM64, with the docs and licences:
+
+```sh
+yay -S rail-bin    # or: paru -S rail-bin
+```
+
+A community member maintains it, not this repository, and it follows each release within a day or
+so. Its checksums are the ones in the release's `SHA256SUMS`. If it falls behind, flag it out of
+date on its AUR page.
+
 ### Nix and NixOS
 
 The repository ships a `flake.nix` with the package, a development shell and a formatter:

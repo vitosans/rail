@@ -8,6 +8,8 @@ All notable changes to Rail are recorded here. The format follows
 
 ### Added
 
+- **Arch Linux in the README.** The install section points to the community-maintained
+  [`rail-bin`](https://aur.archlinux.org/packages/rail-bin) AUR package.
 - **A Nix flake.** `nix run github:vitosans/rail` runs Rail without installing it, `nix profile
   install` puts it on the path, and `nix develop` opens the development shell with the toolchain
   from `rust-toolchain.toml` plus `cargo-deny` and `cargo-llvm-cov`. `nix build` packages the
