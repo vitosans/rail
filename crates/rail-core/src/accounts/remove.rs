@@ -2,7 +2,7 @@
 //! Rail never deletes mail.
 
 use super::login::account_for_login;
-use crate::auth::{ItemIdCache, open_secret_store, token_location};
+use crate::auth::{ItemIdCache, open_secret_store, password_key, token_location};
 use crate::config::{self, SecretsBackend, load_text_or_empty};
 use crate::ops::{
     AccountRemoveResponse, ConfirmPlan, OpError, plan_digest, shown, write_config_text,
@@ -91,13 +91,26 @@ pub(crate) fn remove_account(
     let (text, _) = load_text_or_empty(&path)?;
     let new_text = config::remove_account(&text, &path, &account.name)?;
     write_config_text(&path, &new_text)?;
-    let deleted = open_secret_store(&config, paths, ids).delete_tokens(&account.address);
+    let store = open_secret_store(&config, paths, ids);
+    let deleted = store.delete_tokens(&account.address);
+    let mut pass_err = None;
+    for key in [
+        password_key(&account.address, None),
+        password_key(&account.address, Some("imap")),
+        password_key(&account.address, Some("smtp")),
+    ] {
+        if let Err(e) = store.delete_password(&key) {
+            pass_err = Some(e);
+        }
+    }
+    let removed = deleted.is_ok() && pass_err.is_none();
+    let err = deleted.err().or(pass_err);
     Ok(AccountRemoveResponse {
         name: account.name,
         kind: account.kind,
         address: account.address,
-        tokens_removed: deleted.is_ok(),
-        token_error: deleted.err().map(|e| e.to_string().into()),
+        tokens_removed: removed,
+        token_error: err.map(|e| e.to_string().into()),
         mail_kept: true,
     })
 }

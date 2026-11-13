@@ -28,7 +28,11 @@ fn the_registry_serves_exactly_the_implemented_operations() {
     let expected = [
         names::ACCOUNT_ADD_BEGIN,
         names::ACCOUNT_LOGIN_BEGIN,
+        names::ACCOUNT_PASSWORD_CHECK,
+        names::ACCOUNT_PASSWORD_DELETE,
+        names::ACCOUNT_PASSWORD_SET,
         names::ACCOUNT_REMOVE,
+        names::ACCOUNT_VALIDATE,
         names::ACCOUNTS_LIST,
         names::ACTION_APPLY,
         names::ACTION_RETRY,

@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use serde::{Deserialize, Serialize};
 
 use super::onepassword::{ItemIdCache, OnePasswordSecretStore, OpCli};
 use crate::config::{Config, SecretsBackend};
 use crate::error::ErrorClass;
+use crate::ops::Secret;
 use crate::paths::{Paths, write_private_atomic};
 
 const KEYRING_SERVICE: &str = "rail";
@@ -117,6 +118,24 @@ pub trait SecretStore: Send + Sync {
     fn delete_tokens(&self, address: &str) -> Result<(), SecretError>;
     fn backend_name(&self) -> &'static str;
 
+    fn get_password(&self, _key: &str) -> Result<Option<Secret<String>>, SecretError> {
+        Err(SecretError::Encoding("get_password not implemented".into()))
+    }
+
+    fn set_password(&self, _key: &str, _password: &Secret<String>) -> Result<(), SecretError> {
+        Err(SecretError::Encoding("set_password not implemented".into()))
+    }
+
+    fn delete_password(&self, _key: &str) -> Result<(), SecretError> {
+        Err(SecretError::Encoding(
+            "delete_password not implemented".into(),
+        ))
+    }
+
+    fn has_password(&self, key: &str) -> Result<bool, SecretError> {
+        self.get_password(key).map(|p| p.is_some())
+    }
+
     /// Whether `address` has tokens. Stores that can answer without reading the tokens
     /// override this; the default reads them.
     fn has_tokens(&self, address: &str) -> Result<bool, SecretError> {
@@ -165,6 +184,16 @@ pub fn token_location(config: &Config, paths: &Paths, address: &str) -> String {
             let vault = config.onepassword.as_ref().map_or("", |o| o.vault.as_str());
             format!("1Password vault \"{vault}\", item \"Rail: {address}\"")
         }
+    }
+}
+
+/// The secret-store key for an account password. The `pw:` namespace keeps passwords out of
+/// the entries that hold OAuth tokens for the same address. `service` is `imap`, `smtp` or
+/// `None` for the account's shared password.
+pub fn password_key(address: &str, service: Option<&str>) -> String {
+    match service.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(service) => format!("pw:{address}:{}", service.to_ascii_lowercase()),
+        None => format!("pw:{address}"),
     }
 }
 
@@ -230,12 +259,42 @@ impl SecretStore for KeyringSecretStore {
         }
     }
 
+    fn get_password(&self, key: &str) -> Result<Option<Secret<String>>, SecretError> {
+        match entry(key)?.get_password() {
+            Ok(pass) => Ok(Some(Secret::new(pass))),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(e) => Err(map_keyring(e)),
+        }
+    }
+
+    fn set_password(&self, key: &str, password: &Secret<String>) -> Result<(), SecretError> {
+        entry(key)?
+            .set_password(password.expose())
+            .map_err(map_keyring)
+    }
+
+    fn delete_password(&self, key: &str) -> Result<(), SecretError> {
+        match entry(key)?.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(e) => Err(map_keyring(e)),
+        }
+    }
+
     fn backend_name(&self) -> &'static str {
         "keyring"
     }
 }
 
 // ---- 0600 JSON file ----
+
+#[derive(Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FileSecrets {
+    #[serde(default)]
+    tokens: HashMap<String, TokenSet>,
+    #[serde(default)]
+    passwords: HashMap<String, String>,
+}
 
 pub struct FileSecretStore {
     path: PathBuf,
@@ -253,39 +312,69 @@ impl FileSecretStore {
         }
     }
 
-    fn read_all(&self) -> Result<HashMap<String, TokenSet>, SecretError> {
+    fn read_all(&self) -> Result<FileSecrets, SecretError> {
         match std::fs::read_to_string(&self.path) {
-            Ok(text) => serde_json::from_str(&text).map_err(|e| SecretError::Corrupt {
-                path: self.path.clone(),
-                message: json_message(&e),
-            }),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(HashMap::new()),
+            Ok(text) => {
+                if let Ok(secrets) = serde_json::from_str::<FileSecrets>(&text) {
+                    return Ok(secrets);
+                }
+                serde_json::from_str::<HashMap<String, TokenSet>>(&text)
+                    .map(|tokens| FileSecrets {
+                        tokens,
+                        passwords: HashMap::new(),
+                    })
+                    .map_err(|e| SecretError::Corrupt {
+                        path: self.path.clone(),
+                        message: json_message(&e),
+                    })
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(FileSecrets::default()),
             Err(e) => Err(self.io_err(e)),
         }
     }
 
-    fn write_all(&self, map: &HashMap<String, TokenSet>) -> Result<(), SecretError> {
-        let json =
-            serde_json::to_vec_pretty(map).map_err(|e| SecretError::Encoding(json_message(&e)))?;
+    fn write_all(&self, secrets: &FileSecrets) -> Result<(), SecretError> {
+        let json = serde_json::to_vec_pretty(secrets)
+            .map_err(|e| SecretError::Encoding(json_message(&e)))?;
         write_private_atomic(&self.path, &json).map_err(|e| self.io_err(e))
     }
 }
 
 impl SecretStore for FileSecretStore {
     fn get_tokens(&self, address: &str) -> Result<Option<TokenSet>, SecretError> {
-        Ok(self.read_all()?.remove(address))
+        Ok(self.read_all()?.tokens.remove(address))
     }
 
     fn set_tokens(&self, address: &str, tokens: &TokenSet) -> Result<(), SecretError> {
-        let mut map = self.read_all()?;
-        map.insert(address.to_string(), tokens.clone());
-        self.write_all(&map)
+        let mut secrets = self.read_all()?;
+        secrets.tokens.insert(address.to_string(), tokens.clone());
+        self.write_all(&secrets)
     }
 
     fn delete_tokens(&self, address: &str) -> Result<(), SecretError> {
-        let mut map = self.read_all()?;
-        if map.remove(address).is_some() {
-            self.write_all(&map)?;
+        let mut secrets = self.read_all()?;
+        if secrets.tokens.remove(address).is_some() {
+            self.write_all(&secrets)?;
+        }
+        Ok(())
+    }
+
+    fn get_password(&self, key: &str) -> Result<Option<Secret<String>>, SecretError> {
+        Ok(self.read_all()?.passwords.remove(key).map(Secret::new))
+    }
+
+    fn set_password(&self, key: &str, password: &Secret<String>) -> Result<(), SecretError> {
+        let mut secrets = self.read_all()?;
+        secrets
+            .passwords
+            .insert(key.to_string(), password.expose().to_string());
+        self.write_all(&secrets)
+    }
+
+    fn delete_password(&self, key: &str) -> Result<(), SecretError> {
+        let mut secrets = self.read_all()?;
+        if secrets.passwords.remove(key).is_some() {
+            self.write_all(&secrets)?;
         }
         Ok(())
     }
@@ -300,6 +389,7 @@ impl SecretStore for FileSecretStore {
 #[derive(Default)]
 pub struct MemorySecretStore {
     inner: Mutex<HashMap<String, TokenSet>>,
+    passwords: Mutex<HashMap<String, Secret<String>>>,
 }
 
 impl SecretStore for MemorySecretStore {
@@ -307,7 +397,7 @@ impl SecretStore for MemorySecretStore {
         Ok(self
             .inner
             .lock()
-            .expect("secrets mutex")
+            .unwrap_or_else(PoisonError::into_inner)
             .get(address)
             .cloned())
     }
@@ -315,13 +405,41 @@ impl SecretStore for MemorySecretStore {
     fn set_tokens(&self, address: &str, tokens: &TokenSet) -> Result<(), SecretError> {
         self.inner
             .lock()
-            .expect("secrets mutex")
+            .unwrap_or_else(PoisonError::into_inner)
             .insert(address.to_string(), tokens.clone());
         Ok(())
     }
 
     fn delete_tokens(&self, address: &str) -> Result<(), SecretError> {
-        self.inner.lock().expect("secrets mutex").remove(address);
+        self.inner
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(address);
+        Ok(())
+    }
+
+    fn get_password(&self, key: &str) -> Result<Option<Secret<String>>, SecretError> {
+        Ok(self
+            .passwords
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(key)
+            .cloned())
+    }
+
+    fn set_password(&self, key: &str, password: &Secret<String>) -> Result<(), SecretError> {
+        self.passwords
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(key.to_string(), password.clone());
+        Ok(())
+    }
+
+    fn delete_password(&self, key: &str) -> Result<(), SecretError> {
+        self.passwords
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(key);
         Ok(())
     }
 
@@ -353,6 +471,24 @@ mod tests {
     }
 
     #[test]
+    fn password_operations_roundtrip_in_memory_store() {
+        let store = MemorySecretStore::default();
+        let pass = Secret::new("hunter2");
+        assert_eq!(store.get_password("a@x.com").unwrap(), None);
+        store.set_password("a@x.com", &pass).unwrap();
+        assert_eq!(
+            store
+                .get_password("a@x.com")
+                .unwrap()
+                .as_ref()
+                .map(|s| s.expose()),
+            Some("hunter2")
+        );
+        store.delete_password("a@x.com").unwrap();
+        assert_eq!(store.get_password("a@x.com").unwrap(), None);
+    }
+
+    #[test]
     fn file_store_roundtrips_and_creates_parent_dir() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("deep").join("secrets.json");
@@ -370,6 +506,46 @@ mod tests {
         assert_eq!(store.get_tokens("a@x.com").unwrap(), None);
         assert_eq!(store.get_tokens("b@x.com").unwrap(), Some(tokens()));
         assert!(!path.with_extension("json.tmp").exists());
+    }
+
+    #[test]
+    fn file_store_passwords_roundtrip_and_coexist_with_tokens() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("secrets.json");
+        let store = FileSecretStore::new(path.clone());
+        let pass = Secret::new("imap-pass-123");
+        assert_eq!(store.get_password("user@example.com").unwrap(), None);
+        store.set_password("user@example.com", &pass).unwrap();
+        store.set_tokens("oauth@example.com", &tokens()).unwrap();
+
+        let reopened = FileSecretStore::new(path);
+        assert_eq!(
+            reopened
+                .get_password("user@example.com")
+                .unwrap()
+                .as_ref()
+                .map(|s| s.expose()),
+            Some("imap-pass-123")
+        );
+        assert_eq!(
+            reopened.get_tokens("oauth@example.com").unwrap(),
+            Some(tokens())
+        );
+
+        reopened.delete_password("user@example.com").unwrap();
+        assert_eq!(reopened.get_password("user@example.com").unwrap(), None);
+        assert_eq!(
+            reopened.get_tokens("oauth@example.com").unwrap(),
+            Some(tokens())
+        );
+    }
+
+    #[test]
+    fn secret_debug_and_display_redact() {
+        let pass = Secret::new("topsecret123");
+        assert_eq!(format!("{pass:?}"), "Secret(<redacted>)");
+        assert_eq!(format!("{pass}"), "<redacted>");
+        assert_eq!(pass.expose(), "topsecret123");
     }
 
     #[cfg(unix)]

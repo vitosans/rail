@@ -27,6 +27,7 @@ impl From<KindArg> for AccountKind {
         match kind {
             KindArg::Gmail => AccountKind::Gmail,
             KindArg::M365 => AccountKind::M365,
+            KindArg::ImapSmtp => AccountKind::ImapSmtp,
         }
     }
 }
@@ -83,12 +84,29 @@ pub(crate) fn quoted(text: &str) -> String {
     format!("{text:?}")
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum NewAccount {
+    OAuth(AccountAddRequest),
+    ImapSmtp(ImapSmtpAddArgs),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct ImapSmtpAddArgs {
+    pub address: String,
+    pub name: Option<String>,
+    pub color: Option<String>,
+    pub imap_host: String,
+    pub imap_port: Option<u16>,
+    pub imap_user: Option<String>,
+    pub smtp_host: String,
+    pub smtp_port: Option<u16>,
+    pub smtp_user: Option<String>,
+}
+
 /// The flag form of `rail account add`, or `None` when no flag asks for it and the wizard
 /// should open (no arguments, or only a provider). A partial set of flags is an error that
 /// names the missing one. `--client-secret op://...` is a 1Password reference.
-pub(crate) fn new_account_from_args(
-    args: AddArgs,
-) -> color_eyre::Result<Option<AccountAddRequest>> {
+pub(crate) fn new_account_from_args(args: AddArgs) -> color_eyre::Result<Option<NewAccount>> {
     let Some(address) = args.address else {
         let others = [
             ("--client-id", args.client_id.is_some()),
@@ -100,6 +118,8 @@ pub(crate) fn new_account_from_args(
                 "--store-secret-in-1password",
                 args.store_secret_in_1password,
             ),
+            ("--imap-host", args.imap_host.is_some()),
+            ("--smtp-host", args.smtp_host.is_some()),
         ];
         if let Some((flag, _)) = others.iter().find(|(_, given)| *given) {
             bail!("{flag} needs --address");
@@ -107,12 +127,31 @@ pub(crate) fn new_account_from_args(
         return Ok(None);
     };
     let Some(kind) = args.kind else {
-        bail!("--address needs a provider: `rail account add <gmail|m365> --address ...`");
+        bail!("--address needs a provider: `rail account add <gmail|m365|imapsmtp> --address ...`");
     };
+    if kind == crate::cli::KindArg::ImapSmtp {
+        let Some(imap_host) = args.imap_host else {
+            bail!("imapsmtp accounts need --imap-host");
+        };
+        let Some(smtp_host) = args.smtp_host else {
+            bail!("imapsmtp accounts need --smtp-host");
+        };
+        return Ok(Some(NewAccount::ImapSmtp(ImapSmtpAddArgs {
+            address,
+            name: args.name,
+            color: args.color,
+            imap_host,
+            imap_port: args.imap_port,
+            imap_user: args.imap_user,
+            smtp_host,
+            smtp_port: args.smtp_port,
+            smtp_user: args.smtp_user,
+        })));
+    }
     let Some(client_id) = args.client_id else {
         bail!("--address needs --client-id");
     };
-    Ok(Some(AccountAddRequest {
+    Ok(Some(NewAccount::OAuth(AccountAddRequest {
         kind: kind.into(),
         address,
         client_id: Some(client_id),
@@ -122,7 +161,7 @@ pub(crate) fn new_account_from_args(
         color: args.color,
         store_secret_in_1password: args.store_secret_in_1password,
         open_browser: true,
-    }))
+    })))
 }
 
 async fn client(paths: &Paths) -> color_eyre::Result<DaemonClient> {
@@ -218,7 +257,14 @@ fn warn_if_file_backend(paths: &Paths, account: &SavedAccount) {
 }
 
 /// `rail account add` with flags: the daemon validates, logs in and saves.
-pub async fn add(paths: &Paths, request: AccountAddRequest) -> color_eyre::Result<()> {
+pub async fn add(paths: &Paths, new: NewAccount) -> color_eyre::Result<()> {
+    match new {
+        NewAccount::OAuth(request) => add_oauth(paths, request).await,
+        NewAccount::ImapSmtp(args) => add_imapsmtp(paths, args).await,
+    }
+}
+
+async fn add_oauth(paths: &Paths, request: AccountAddRequest) -> color_eyre::Result<()> {
     let client = client(paths).await?;
     let mut interrupt = interrupts()?;
     let begun = client
@@ -238,10 +284,150 @@ pub async fn add(paths: &Paths, request: AccountAddRequest) -> color_eyre::Resul
     Ok(())
 }
 
+async fn add_imapsmtp(paths: &Paths, args: ImapSmtpAddArgs) -> color_eyre::Result<()> {
+    let client = client(paths).await?;
+    let pass =
+        crate::cmd::password_prompt::read_password(&format!("Password for {}: ", args.address))?;
+
+    let validate_req = rail_core::ops::AccountValidateRequest {
+        account: None,
+        imap_host: Some(args.imap_host.clone()),
+        imap_port: args.imap_port.or(Some(993)),
+        imap_tls: Some(rail_core::config::model::TlsMode::Required),
+        username: args
+            .imap_user
+            .clone()
+            .or_else(|| Some(args.address.clone())),
+        password: Some(rail_core::ops::Secret::new(pass.clone())),
+        smtp_host: Some(args.smtp_host.clone()),
+        smtp_port: args.smtp_port.or(Some(465)),
+        smtp_tls: Some(rail_core::config::model::TlsMode::Required),
+        smtp_username: args
+            .smtp_user
+            .clone()
+            .or_else(|| Some(args.address.clone())),
+        smtp_password: None,
+    };
+    let validated = client
+        .call::<rail_core::ops::op::AccountValidate>(&validate_req)
+        .await
+        .map_err(report)?;
+    for warning in &validated.warnings {
+        eprintln!("warning: {warning}");
+    }
+
+    let name = args.name.unwrap_or_else(|| {
+        let (name, _) = args.address.split_once('@').unwrap_or((&args.address, ""));
+        name.to_string()
+    });
+    let account = rail_core::config::AccountConfig {
+        name: name.clone(),
+        kind: rail_core::config::AccountKind::ImapSmtp,
+        address: args.address.trim().to_ascii_lowercase(),
+        color: args.color,
+        label: None,
+        client_id: String::new(),
+        client_secret: None,
+        tenant: None,
+        signature: None,
+        from_name: None,
+        ai_send: None,
+        history_days: None,
+        body_cache_days: None,
+        imap_host: Some(args.imap_host),
+        imap_port: args.imap_port.or(Some(993)),
+        imap_tls: Some(rail_core::config::model::TlsMode::Required),
+        imap_user: args.imap_user,
+        smtp_host: Some(args.smtp_host),
+        smtp_port: args.smtp_port.or(Some(465)),
+        smtp_tls: Some(rail_core::config::model::TlsMode::Required),
+        smtp_user: args.smtp_user,
+        sent_folder: None,
+        append_to_sent: None,
+    };
+
+    // Write the account before its password: the password operation resolves the account by
+    // name against the config, and refuses one that is not there yet.
+    let config_path = paths.config_file();
+    let store_path = paths.db_file();
+    let account_clone = account.clone();
+    tokio::task::spawn_blocking(move || -> color_eyre::Result<()> {
+        let (text, _) = rail_core::config::load_text_or_empty(&config_path)?;
+        let new_text = rail_core::config::append_account(&text, &config_path, &account_clone)?;
+        if let Some(dir) = config_path
+            .parent()
+            .filter(|d| !d.as_os_str().is_empty() && !d.is_dir())
+        {
+            rail_core::paths::create_private_dir(dir)?;
+        }
+        rail_core::paths::replace_private_atomic(&config_path, new_text.as_bytes())?;
+        rail_core::store::Store::open(&store_path)?.upsert_account(&account_clone)?;
+        Ok(())
+    })
+    .await??;
+
+    let set_pw = rail_core::ops::AccountPasswordSetRequest {
+        account: account.name.clone(),
+        password: rail_core::ops::Secret::new(pass),
+        service: None,
+    };
+    let pw_res = client
+        .call::<rail_core::ops::op::AccountPasswordSet>(&set_pw)
+        .await
+        .map_err(report)?;
+
+    println!(
+        "Added {} (imapsmtp) as \"{}\". Password stored in the {}.",
+        account.address, account.name, pw_res.backend
+    );
+    Ok(())
+}
+
 /// `rail account login <name-or-address>`: log in again and replace the stored tokens.
 /// An unknown account fails before the browser opens.
 pub async fn relogin(paths: &Paths, who: &str) -> color_eyre::Result<()> {
     let client = client(paths).await?;
+    let listed = client
+        .call::<AccountsList>(&AccountsListRequest {})
+        .await
+        .map_err(report)?;
+    if let Some(acc) = listed
+        .accounts
+        .iter()
+        .find(|a| a.name.eq_ignore_ascii_case(who) || a.address.eq_ignore_ascii_case(who))
+        && acc.kind == rail_core::config::AccountKind::ImapSmtp
+    {
+        let pass =
+            crate::cmd::password_prompt::read_password(&format!("Password for {}: ", acc.address))?;
+        let validate = rail_core::ops::AccountValidateRequest {
+            account: Some(acc.name.clone()),
+            password: Some(rail_core::ops::Secret::new(pass.clone())),
+            ..Default::default()
+        };
+        let validated = client
+            .call::<rail_core::ops::op::AccountValidate>(&validate)
+            .await
+            .map_err(report)?;
+        for warning in &validated.warnings {
+            eprintln!("warning: {warning}");
+        }
+        let set_res = client
+            .call::<rail_core::ops::op::AccountPasswordSet>(
+                &rail_core::ops::AccountPasswordSetRequest {
+                    account: acc.name.clone(),
+                    password: rail_core::ops::Secret::new(pass),
+                    service: None,
+                },
+            )
+            .await
+            .map_err(report)?;
+        println!(
+            "Updated password for {} (imapsmtp) as \"{}\". Password stored in the {}.",
+            acc.address, acc.name, set_res.backend
+        );
+        return Ok(());
+    }
+
     let mut interrupt = interrupts()?;
     let request = LoginBeginRequest {
         account: who.to_string(),
@@ -360,228 +546,5 @@ pub(crate) fn table(accounts: &[AccountSummary]) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use rail_core::config::AiSend;
-    use rail_core::ops::Secret;
-
-    fn parse_add(args: &[&str]) -> AddArgs {
-        use crate::cli::{AccountCommand, Cli, Command};
-        use clap::Parser;
-        match Cli::try_parse_from(args).unwrap().command {
-            Some(Command::Account {
-                command: AccountCommand::Add(add),
-            }) => add,
-            other => panic!("{other:?}"),
-        }
-    }
-
-    fn from_args(args: &[&str]) -> color_eyre::Result<Option<AccountAddRequest>> {
-        let mut all = vec!["rail", "account", "add"];
-        all.extend_from_slice(args);
-        new_account_from_args(parse_add(&all))
-    }
-
-    fn message(args: &[&str]) -> String {
-        from_args(args)
-            .expect_err("partial set refused")
-            .to_string()
-    }
-
-    #[test]
-    fn no_provider_and_no_flags_opens_the_wizard() {
-        assert!(from_args(&[]).unwrap().is_none());
-    }
-
-    #[test]
-    fn a_provider_alone_opens_the_wizard() {
-        assert!(from_args(&["gmail"]).unwrap().is_none());
-    }
-
-    #[test]
-    fn address_and_client_id_with_a_provider_build_the_account() {
-        let flags = [
-            "m365",
-            "--address",
-            "a@b.c",
-            "--client-id",
-            "x",
-            "--tenant",
-            "t",
-        ];
-        let new = from_args(&flags).unwrap().unwrap();
-        assert_eq!(new.kind, AccountKind::M365);
-        assert_eq!(new.address, "a@b.c");
-        assert_eq!(new.client_id.as_deref(), Some("x"));
-        assert_eq!(new.tenant.as_deref(), Some("t"));
-        assert_eq!(new.name, None);
-        assert!(new.open_browser);
-    }
-
-    #[test]
-    fn a_client_secret_flag_may_be_a_1password_reference() {
-        let base = [
-            "gmail",
-            "--address",
-            "a@b.c",
-            "--client-id",
-            "x",
-            "--client-secret",
-        ];
-        let mut reference = base.to_vec();
-        reference.push("op://Rail/google/client_secret");
-        assert_eq!(
-            from_args(&reference).unwrap().unwrap().client_secret,
-            Some(ClientSecretInput::Reference(
-                "op://Rail/google/client_secret".into()
-            ))
-        );
-        let mut value = base.to_vec();
-        value.push("GOCSPX-x");
-        assert_eq!(
-            from_args(&value).unwrap().unwrap().client_secret,
-            Some(ClientSecretInput::Value(Secret::new("GOCSPX-x")))
-        );
-    }
-
-    /// Final review F4: the flag reaches the request; without it the request stays false. On
-    /// its own (no --address) it names the missing flag like every other.
-    #[test]
-    fn store_secret_in_1password_maps_to_the_request() {
-        let base = [
-            "gmail",
-            "--address",
-            "a@b.c",
-            "--client-id",
-            "x",
-            "--client-secret",
-            "GOCSPX-x",
-        ];
-        assert!(!from_args(&base).unwrap().unwrap().store_secret_in_1password);
-        let mut flagged = base.to_vec();
-        flagged.push("--store-secret-in-1password");
-        assert!(
-            from_args(&flagged)
-                .unwrap()
-                .unwrap()
-                .store_secret_in_1password
-        );
-        let msg = message(&["gmail", "--store-secret-in-1password"]);
-        assert!(
-            msg.contains("--store-secret-in-1password needs --address"),
-            "{msg}"
-        );
-    }
-
-    #[test]
-    fn address_without_a_provider_names_the_provider() {
-        let msg = message(&["--address", "a@b.c", "--client-id", "x"]);
-        assert!(msg.contains("provider"), "{msg}");
-    }
-
-    #[test]
-    fn address_without_a_client_id_names_the_flag() {
-        let msg = message(&["gmail", "--address", "a@b.c"]);
-        assert!(msg.contains("--client-id"), "{msg}");
-    }
-
-    #[test]
-    fn any_other_flag_without_an_address_names_the_address_flag() {
-        for flag in [
-            ["--client-id", "x"],
-            ["--client-secret", "x"],
-            ["--tenant", "x"],
-            ["--name", "x"],
-            ["--color", "x"],
-        ] {
-            let msg = message(&["gmail", flag[0], flag[1]]);
-            assert!(msg.contains("--address"), "{flag:?}: {msg}");
-        }
-    }
-
-    #[test]
-    fn a_report_carries_the_hint() {
-        let error = OpError::invalid_input("bad").with_hint("do this");
-        assert_eq!(report(error).to_string(), "bad\nhint: do this");
-    }
-    /// Parked item 1: Rail's own message and hint are escaped too, as defence in depth.
-    #[test]
-    fn control_characters_in_message_and_hint_are_escaped() {
-        let error = OpError::invalid_input("bad \u{1b}[2J message").with_hint("run\n\u{7}this");
-        let text = error_text(&error);
-        assert!(
-            !text.contains('\u{1b}') && !text.contains('\u{7}'),
-            "{text:?}"
-        );
-        let lines: Vec<&str> = text.lines().collect();
-        assert_eq!(lines, ["bad \\u{1b}[2J message", "hint: run\\n\\u{7}this"]);
-    }
-
-    #[test]
-    fn outside_detail_is_quoted_escaped_and_on_its_own_line() {
-        let error = OpError::invalid_input("the provider refused")
-            .with_detail("bad\nline \u{1b}[2J \"quoted\"")
-            .with_hint("try again");
-        let text = error_text(&error);
-        let lines: Vec<&str> = text.lines().collect();
-        assert_eq!(lines.len(), 3, "{text}");
-        assert_eq!(lines[0], "the provider refused");
-        assert_eq!(
-            lines[1],
-            r#"from outside Rail (the provider or the system): "bad\nline \u{1b}[2J \"quoted\"""#
-        );
-        assert_eq!(lines[2], "hint: try again");
-        assert!(!text.contains('\u{1b}'), "{text:?}");
-    }
-
-    fn summary(name: &str, address: &str, tokens: TokenState) -> AccountSummary {
-        AccountSummary {
-            name: name.into(),
-            kind: AccountKind::Gmail,
-            address: address.into(),
-            color: None,
-            tokens,
-            ai_send: AiSend::Confirm,
-        }
-    }
-
-    #[test]
-    fn long_names_and_addresses_keep_the_columns_aligned() {
-        let text = table(&[
-            summary(
-                "a-very-long-account-name",
-                "someone.with.a.long.address@example.com",
-                TokenState::Present,
-            ),
-            summary("w", "w@x.io", TokenState::Present),
-        ]);
-        let lines: Vec<&str> = text.lines().collect();
-        let column = |line: &str, word: &str| line.find(word).unwrap();
-        assert_eq!(column(lines[0], "KIND"), column(lines[1], "gmail"));
-        assert_eq!(column(lines[1], "gmail"), column(lines[2], "gmail"));
-        assert_eq!(column(lines[0], "TOKENS"), column(lines[2], "yes"));
-        assert!(lines[2].starts_with("w "), "{text}");
-    }
-
-    #[test]
-    fn a_token_store_error_in_the_table_is_quoted() {
-        let message = "locked\n\u{1b}[31m".to_string().into();
-        let text = table(&[summary("w", "w@x.io", TokenState::Error { message })]);
-        assert_eq!(text.lines().count(), 2, "{text:?}");
-        assert!(
-            text.contains(
-                r#"error from outside Rail (the provider or the system): "locked\n\u{1b}[31m""#
-            ),
-            "{text:?}"
-        );
-        assert!(!text.contains('\u{1b}'), "{text:?}");
-    }
-
-    #[test]
-    fn an_unanswered_cancel_says_the_login_may_still_be_pending() {
-        let text = cancel_unanswered(CANCEL_TIMEOUT).to_string();
-        assert!(text.starts_with("the daemon did not answer the cancel within 5 seconds"));
-        assert!(text.contains("the login may still be pending"), "{text}");
-        assert!(text.contains("\nhint: run `rail daemon status`"), "{text}");
-    }
-}
+#[path = "account_tests.rs"]
+mod tests;

@@ -88,6 +88,14 @@ pub enum SecretsCommand {
     /// tokens there. Shows what changes and asks first, so it runs only on an interactive
     /// terminal.
     Set(SecretsSetArgs),
+    /// Set or update the stored password for an account.
+    Password {
+        /// Account name or email address.
+        account: String,
+        /// Service name: imap or smtp (default: account-level, used for both).
+        #[arg(long)]
+        service: Option<String>,
+    },
 }
 
 #[derive(Debug, clap::Args)]
@@ -116,7 +124,7 @@ pub enum BackendArg {
 #[derive(Debug, Subcommand)]
 pub enum AccountCommand {
     /// Add an account. With no arguments, or only a provider, the setup wizard opens.
-    Add(AddArgs),
+    Add(Box<AddArgs>),
     /// Log in again to an account already in config.toml and replace its tokens.
     Login {
         /// Account name or email address.
@@ -161,12 +169,32 @@ pub struct AddArgs {
     /// vault) and write an op:// reference into config.toml instead of the value.
     #[arg(long)]
     pub store_secret_in_1password: bool,
+    /// IMAP server hostname for imapsmtp accounts.
+    #[arg(long)]
+    pub imap_host: Option<String>,
+    /// IMAP server port for imapsmtp accounts (default: 993).
+    #[arg(long)]
+    pub imap_port: Option<u16>,
+    /// IMAP username override when different from address.
+    #[arg(long)]
+    pub imap_user: Option<String>,
+    /// SMTP server hostname for imapsmtp accounts.
+    #[arg(long)]
+    pub smtp_host: Option<String>,
+    /// SMTP server port for imapsmtp accounts (default: 465).
+    #[arg(long)]
+    pub smtp_port: Option<u16>,
+    /// SMTP username override when different from address.
+    #[arg(long)]
+    pub smtp_user: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum KindArg {
     Gmail,
     M365,
+    #[value(name = "imapsmtp")]
+    ImapSmtp,
 }
 
 #[cfg(test)]

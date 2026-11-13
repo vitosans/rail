@@ -19,6 +19,7 @@ pub(crate) fn sample_account() -> AccountConfig {
         ai_send: None,
         history_days: None,
         body_cache_days: None,
+        ..Default::default()
     }
 }
 
@@ -75,6 +76,15 @@ pub(crate) fn m365_details(address: &str, tenant: &str) -> Vec<Input> {
         edit(Field::Address, address),
         edit(Field::ClientId, "cid"),
         edit(Field::Tenant, tenant),
+    ]
+}
+
+pub(crate) fn imapsmtp_details(address: &str, password: &str) -> Vec<Input> {
+    vec![
+        edit(Field::Address, address),
+        edit(Field::ImapHost, "mail.example.com"),
+        edit(Field::Password, password),
+        edit(Field::SmtpHost, "mail.example.com"),
     ]
 }
 

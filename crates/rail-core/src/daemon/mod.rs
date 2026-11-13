@@ -39,6 +39,8 @@ mod draft_gmail_tests;
 #[cfg(test)]
 mod draft_tests;
 #[cfg(test)]
+mod imap_tests;
+#[cfg(test)]
 mod login_tests;
 #[cfg(test)]
 mod m365_draft_tests;

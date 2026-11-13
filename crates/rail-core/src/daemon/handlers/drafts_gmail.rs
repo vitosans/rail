@@ -405,7 +405,7 @@ async fn from_gmail(
 ) -> Result<(ImportSource, Vec<Attachment>, PathBuf), OpError> {
     let mut source = match kind {
         AccountKind::M365 => refresh_outlook_body(ctx, provider, source).await?,
-        AccountKind::Gmail => with_body(ctx, account, source).await?,
+        AccountKind::Gmail | AccountKind::ImapSmtp => with_body(ctx, account, source).await?,
     };
     // Only plain files: an Outlook draft's attached messages and links stay in Outlook, where
     // the reconcile leaves them, and its inline pictures go when the reconcile writes the text

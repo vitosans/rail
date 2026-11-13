@@ -4,6 +4,7 @@ pub mod daemon;
 pub mod doctor;
 pub mod mail;
 pub mod mcp;
+pub mod password_prompt;
 pub mod search;
 pub mod secrets;
 pub mod service;

@@ -26,10 +26,14 @@ Then ask the agent to run Rail's `setup` prompt. It:
 
 1. checks `rail_status`;
 2. asks which providers you want;
-3. walks through `rail_provider_guide` one step at a time: it runs the `gcloud` or `az` commands
-   with your approval, and hands you the browser for the pages only you can complete (the Google
-   consent screen, the client download, every login);
+3. for Gmail and Microsoft 365, walks through `rail_provider_guide` one step at a time: it runs the
+   `gcloud` or `az` commands with your approval, and hands you the browser for the pages only
+   you can complete (the Google consent screen, the client download, every login);
 4. finishes with `rail_account_add` and `rail_wait`.
+
+IMAP/SMTP is offered too, but the agent hands that back to you: add the account with
+`rail account add imapsmtp` and set its password with `rail secrets password` in a terminal.
+MCP never takes a password.
 
 The steps are the same as in [Account setup](accounts.md).
 
@@ -56,9 +60,13 @@ The steps are the same as in [Account setup](accounts.md).
 
 - No tool returns mail content (subjects, senders, snippets or bodies), and none sends mail.
 - No MCP tool archives, trashes, labels, snoozes or otherwise changes mail.
+- `rail_account_add` and `rail_account_login` refuse IMAP/SMTP accounts: they need a password,
+  which never passes through an agent. Add and sign in to them with `rail account add imapsmtp`
+  and `rail secrets password` in a terminal; `rail_status` and `rail_accounts_list` then show
+  them, saying `no password (needs rail secrets password)` until one is stored.
 - No secret passes through the agent. `rail_account_add` takes the absolute path of the
   client-secret JSON you downloaded, an `op://` reference or a preset, never the secret itself,
-  and a `client_secret` sent by an agent is refused.
+  and a `client_secret`, `password` or `smtp_password` sent by an agent is refused.
 - Tokens stay in the daemon.
 - Tools refuse unknown arguments and relative file paths.
 

@@ -41,11 +41,16 @@ async fn run(cli: Cli) -> color_eyre::Result<ExitCode> {
         None => cmd::setup::first_run(&paths).await,
         Some(Command::Setup) => cmd::setup::wizard(&paths, None).await,
         Some(Command::Account { command }) => account(&paths, command).await,
-        Some(Command::Secrets {
-            command: SecretsCommand::Set(args),
-        }) => cmd::secrets::set(&paths, &args)
-            .await
-            .map(|()| ExitCode::SUCCESS),
+        Some(Command::Secrets { command }) => match command {
+            SecretsCommand::Set(args) => cmd::secrets::set(&paths, &args)
+                .await
+                .map(|()| ExitCode::SUCCESS),
+            SecretsCommand::Password { account, service } => {
+                cmd::secrets::password(&paths, &account, service)
+                    .await
+                    .map(|()| ExitCode::SUCCESS)
+            }
+        },
         Some(Command::Sync { account, no_wait }) => cmd::sync::run(&paths, account, no_wait).await,
         Some(Command::Search {
             query,
@@ -68,7 +73,7 @@ async fn account(paths: &Paths, command: AccountCommand) -> color_eyre::Result<E
     match command {
         AccountCommand::Add(args) => {
             let kind_hint = args.kind.map(Into::into);
-            match cmd::account::new_account_from_args(args)? {
+            match cmd::account::new_account_from_args(*args)? {
                 Some(new) => cmd::account::add(paths, new)
                     .await
                     .map(|()| ExitCode::SUCCESS),

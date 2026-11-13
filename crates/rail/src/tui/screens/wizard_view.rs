@@ -154,8 +154,17 @@ impl WizardScreen {
     }
 
     fn render_fields(&self, frame: &mut Frame, area: Rect, theme: &Theme, fields: &[FieldView]) {
-        for (index, view) in fields.iter().enumerate() {
-            let offset = u16::try_from(index)
+        let max_visible = usize::from(area.height / FIELD_HEIGHT);
+        let start_index = if fields.len() <= max_visible || max_visible == 0 {
+            0
+        } else if self.focus >= max_visible {
+            self.focus + 1 - max_visible
+        } else {
+            0
+        };
+
+        for (slot, (index, view)) in fields.iter().enumerate().skip(start_index).enumerate() {
+            let offset = u16::try_from(slot)
                 .unwrap_or(u16::MAX)
                 .saturating_mul(FIELD_HEIGHT);
             if offset.saturating_add(FIELD_HEIGHT) > area.height {

@@ -5,8 +5,11 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use super::accounts::{
-    AccountAddRequest, AccountRemoveRequest, AccountRemoveResponse, BeginResponse,
-    ConsentBeginRequest, LoginBeginRequest,
+    AccountAddRequest, AccountPasswordCheckRequest, AccountPasswordCheckResponse,
+    AccountPasswordDeleteRequest, AccountPasswordDeleteResponse, AccountPasswordSetRequest,
+    AccountPasswordSetResponse, AccountRemoveRequest, AccountRemoveResponse,
+    AccountValidateRequest, AccountValidateResponse, BeginResponse, ConsentBeginRequest,
+    LoginBeginRequest,
 };
 use super::actions::{
     ActionApplyRequest, ActionApplyResponse, ActionRetryRequest, ActionRetryResponse,
@@ -75,9 +78,13 @@ pub mod names {
     pub const SAVED_SEARCH_REMOVE: &str = "saved_search.remove";
     pub const ATTACHMENT_IMAGE: &str = "attachment.image";
     pub const IMAGE_REMOTE: &str = "image.remote";
+    pub const ACCOUNT_VALIDATE: &str = "account.validate";
+    pub const ACCOUNT_PASSWORD_SET: &str = "account.password.set";
+    pub const ACCOUNT_PASSWORD_CHECK: &str = "account.password.check";
+    pub const ACCOUNT_PASSWORD_DELETE: &str = "account.password.delete";
 
     /// Every user operation, in the order of the specs' tables.
-    pub const ALL: [&str; 32] = [
+    pub const ALL: [&str; 36] = [
         STATUS,
         ACCOUNTS_LIST,
         PRESETS_LIST,
@@ -110,6 +117,10 @@ pub mod names {
         SAVED_SEARCH_REMOVE,
         ATTACHMENT_IMAGE,
         IMAGE_REMOTE,
+        ACCOUNT_VALIDATE,
+        ACCOUNT_PASSWORD_SET,
+        ACCOUNT_PASSWORD_CHECK,
+        ACCOUNT_PASSWORD_DELETE,
     ];
 
     /// The daemon's own methods: the handshake and its lifecycle. Not user operations.
@@ -295,4 +306,20 @@ operation!(
 operation!(
     /// Put snoozed threads back now. Terminal-only.
     SnoozeClear, names::SNOOZE_CLEAR, SnoozeClearRequest, SnoozeClearResponse
+);
+operation!(
+    /// Test IMAP and SMTP connectivity and credentials.
+    AccountValidate, names::ACCOUNT_VALIDATE, AccountValidateRequest, AccountValidateResponse
+);
+operation!(
+    /// Store an account or service password in the secret store.
+    AccountPasswordSet, names::ACCOUNT_PASSWORD_SET, AccountPasswordSetRequest, AccountPasswordSetResponse
+);
+operation!(
+    /// Check whether a password is stored without revealing it.
+    AccountPasswordCheck, names::ACCOUNT_PASSWORD_CHECK, AccountPasswordCheckRequest, AccountPasswordCheckResponse
+);
+operation!(
+    /// Remove a stored password from the secret store.
+    AccountPasswordDelete, names::ACCOUNT_PASSWORD_DELETE, AccountPasswordDeleteRequest, AccountPasswordDeleteResponse
 );

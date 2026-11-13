@@ -1,17 +1,24 @@
 //! User configuration: `config.toml`.
 
 pub mod edit;
+#[cfg(test)]
+mod edit_tests;
 pub mod link;
 pub mod load;
+#[cfg(test)]
+mod load_tests;
 pub mod lock;
 #[cfg(test)]
 mod lock_tests;
 pub mod model;
+#[cfg(test)]
+mod model_tests;
 pub mod saved;
 
 pub use edit::{
     append_account, default_account_name, put_saved_search, remove_account, remove_saved_search,
     set_general, set_general_bool, set_general_number, set_general_text, set_secrets,
+    update_account,
 };
 pub use link::{
     Compiled as CompiledLinkAction, LinkAction, MAX_LINK_ACTION_NAME_CHARS, MAX_LINK_ACTIONS,

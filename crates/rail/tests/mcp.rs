@@ -309,6 +309,10 @@ async fn the_tools_carry_their_hints_and_no_raw_secret_input() {
         .cloned()
         .collect();
     assert!(!add.contains("client_secret"), "{add:?}");
+    assert!(
+        !add.contains("password") && !add.contains("smtp_password"),
+        "{add:?}"
+    );
     assert!(add.contains("client_secret_file") && add.contains("client_secret_ref"));
     assert_eq!(schema("rail_account_add")["additionalProperties"], false);
     let remove = schema("rail_account_remove").to_string();
@@ -471,6 +475,8 @@ fn config_text(dir: &tempfile::TempDir) -> String {
 
 #[path = "mcp/guarded.rs"]
 mod guarded;
+#[path = "mcp/imapsmtp.rs"]
+mod imapsmtp;
 #[path = "mcp/sync.rs"]
 mod sync;
 

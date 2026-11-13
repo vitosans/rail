@@ -45,21 +45,33 @@ impl From<&str> for Untrusted<String> {
 /// It serialises as a plain string.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
-pub struct Secret(String);
+pub struct Secret<T = String>(T);
 
-impl Secret {
-    pub fn new(value: impl Into<String>) -> Self {
+impl<T> Secret<T> {
+    pub fn new(value: impl Into<T>) -> Self {
         Self(value.into())
     }
 
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
+
+impl Secret<String> {
     /// The value itself, for the one place that needs it (an OAuth client, a 1Password write).
     pub fn expose(&self) -> &str {
         &self.0
     }
 }
 
-impl fmt::Debug for Secret {
+impl<T> fmt::Debug for Secret<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Secret(<redacted>)")
+    }
+}
+
+impl<T> fmt::Display for Secret<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("<redacted>")
     }
 }

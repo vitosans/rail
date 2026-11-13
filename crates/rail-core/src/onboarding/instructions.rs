@@ -17,6 +17,7 @@ pub fn portal_url(kind: AccountKind) -> Url {
     let url = match kind {
         AccountKind::Gmail => GOOGLE_CONSOLE,
         AccountKind::M365 => AZURE_PORTAL,
+        AccountKind::ImapSmtp => "http://127.0.0.1",
     };
     Url::parse(url).expect("constant portal URL parses")
 }
@@ -25,7 +26,21 @@ pub fn instructions(kind: AccountKind) -> String {
     match kind {
         AccountKind::Gmail => gmail(),
         AccountKind::M365 => microsoft(),
+        AccountKind::ImapSmtp => imap_smtp(),
     }
+}
+
+fn imap_smtp() -> String {
+    [
+        "1. Obtain your mail provider's IMAP and SMTP server hostnames and ports.".to_string(),
+        "2. For secure connections (TLS), default ports are 993 for IMAP and 465 for SMTP."
+            .to_string(),
+        "3. Enter your email address, servers, and password in the next step.".to_string(),
+        String::new(),
+        "Your password will be stored securely in Rail's secret store, never in plain config."
+            .to_string(),
+    ]
+    .join("\n")
 }
 
 fn gmail() -> String {

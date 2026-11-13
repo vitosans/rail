@@ -13,6 +13,7 @@ use super::instructions::portal_url;
 use super::preset::Preset;
 use crate::auth::TokenSet;
 use crate::config::{AccountKind, Config, KeymapPreset};
+use crate::ops::Secret;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Step {
@@ -50,7 +51,11 @@ pub enum Busy {
 }
 
 pub const START_CHOICES: [&str; 2] = ["Use a preset from my organisation", "Set up my own app"];
-pub const PROVIDER_CHOICES: [&str; 2] = ["Gmail / Google Workspace", "Microsoft 365 / Outlook"];
+pub const PROVIDER_CHOICES: [&str; 3] = [
+    "Gmail / Google Workspace",
+    "Microsoft 365 / Outlook",
+    "Generic IMAP / SMTP",
+];
 pub const DONE_CHOICES: [&str; 2] = ["Add another account", "Finish"];
 
 #[derive(Debug)]
@@ -301,6 +306,10 @@ impl Wizard {
                 self.pick_provider(AccountKind::M365);
                 Vec::new()
             }
+            (Step::Provider, 2) => {
+                self.pick_provider(AccountKind::ImapSmtp);
+                Vec::new()
+            }
             (Step::Done, 0) => {
                 self.add_another();
                 Vec::new()
@@ -410,7 +419,11 @@ impl Wizard {
             return Vec::new();
         }
         self.go(Step::Login);
-        self.start_login()
+        if self.draft.kind == Some(AccountKind::ImapSmtp) {
+            self.start_validate_imapsmtp()
+        } else {
+            self.start_login()
+        }
     }
 
     /// Admin consent needs one organisation's tenant. Ask for it when the draft has none.
@@ -455,6 +468,34 @@ impl Wizard {
         }]
     }
 
+    pub(super) fn start_validate_imapsmtp(&mut self) -> Vec<Action> {
+        let Some(account) = self.draft.to_account() else {
+            return Vec::new();
+        };
+        self.clear_status();
+        self.busy = Some(Busy::Login);
+        vec![Action::ValidateImapSmtp {
+            account,
+            password: Secret::new(self.draft.password.clone()),
+            smtp_password: (!self.draft.smtp_password.trim().is_empty())
+                .then(|| Secret::new(self.draft.smtp_password.clone())),
+        }]
+    }
+
+    pub(super) fn start_persist_imapsmtp(&mut self) -> Vec<Action> {
+        let Some(account) = self.draft.to_account() else {
+            return Vec::new();
+        };
+        self.clear_status();
+        self.busy = Some(Busy::Persisting);
+        vec![Action::PersistImapSmtp {
+            account,
+            password: Secret::new(self.draft.password.clone()),
+            smtp_password: (!self.draft.smtp_password.trim().is_empty())
+                .then(|| Secret::new(self.draft.smtp_password.clone())),
+        }]
+    }
+
     pub(super) fn start_login(&mut self) -> Vec<Action> {
         let Some(account) = self.draft.to_account() else {
             return Vec::new();
@@ -482,10 +523,16 @@ impl Wizard {
             return Vec::new();
         }
         match self.step {
-            Step::Login => match self.tokens.clone() {
-                Some(tokens) => self.start_persist(tokens),
-                None => self.start_login(),
-            },
+            Step::Login => {
+                if self.draft.kind == Some(AccountKind::ImapSmtp) {
+                    self.start_validate_imapsmtp()
+                } else {
+                    match self.tokens.clone() {
+                        Some(tokens) => self.start_persist(tokens),
+                        None => self.start_login(),
+                    }
+                }
+            }
             Step::AdminConsent => self.start_consent(),
             Step::Preset => self.load_preset_source(),
             _ => Vec::new(),
@@ -494,7 +541,9 @@ impl Wizard {
 
     fn open_portal(&self) -> Vec<Action> {
         let url = match (self.step, self.draft.kind) {
-            (Step::Instructions, Some(kind)) => Some(portal_url(kind)),
+            (Step::Instructions, Some(kind)) if kind != AccountKind::ImapSmtp => {
+                Some(portal_url(kind))
+            }
             _ => self
                 .draft
                 .help_url

@@ -214,6 +214,7 @@ pub fn existing_config() -> Config {
             ai_send: None,
             history_days: None,
             body_cache_days: None,
+            ..Default::default()
         }],
         ..Config::default()
     }

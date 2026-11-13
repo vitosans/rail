@@ -36,9 +36,12 @@ mod snooze_tests;
 mod tests;
 
 pub use accounts::{
-    AccountAddRequest, AccountRemoveRequest, AccountRemoveResponse, AgentAccountAdd,
-    AgentAccountRemove, BeginResponse, ClientSecretInput, ConsentBeginRequest, LoginBeginRequest,
-    NO_SECRETS_FROM_AGENTS, OP_REFERENCE_PREFIX, SavedAccount,
+    AccountAddRequest, AccountPasswordCheckRequest, AccountPasswordCheckResponse,
+    AccountPasswordDeleteRequest, AccountPasswordDeleteResponse, AccountPasswordSetRequest,
+    AccountPasswordSetResponse, AccountRemoveRequest, AccountRemoveResponse,
+    AccountValidateRequest, AccountValidateResponse, AgentAccountAdd, AgentAccountRemove,
+    BeginResponse, ClientSecretInput, ConsentBeginRequest, LoginBeginRequest,
+    NO_PASSWORDS_FROM_AGENTS, NO_SECRETS_FROM_AGENTS, OP_REFERENCE_PREFIX, SavedAccount,
 };
 pub use actions::{
     Action, ActionApplyRequest, ActionApplyResponse, ActionFailed, ActionRetryRequest,

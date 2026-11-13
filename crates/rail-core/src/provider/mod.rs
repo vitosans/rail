@@ -15,6 +15,7 @@ mod html_style_tests;
 #[cfg(test)]
 mod html_tests;
 pub mod http;
+pub mod imap_smtp;
 pub(crate) mod limits;
 pub mod links;
 #[cfg(test)]
@@ -82,12 +83,47 @@ pub trait Provider: Send + Sync {
     /// scope rule (`actions::scope`) picks from each target's facts. Trash is restorable.
     async fn apply(&self, threads: &[ThreadTarget], change: &Change) -> Result<(), ProviderError>;
 
+    /// `apply`, plus any provider ids that changed (an IMAP move gives the message a new
+    /// UID): old id to new id. Providers without such ids return none.
+    async fn apply_with_moves(
+        &self,
+        threads: &[ThreadTarget],
+        change: &Change,
+    ) -> Result<Vec<(RemoteId, RemoteId)>, ProviderError> {
+        self.apply(threads, change).await?;
+        Ok(Vec::new())
+    }
+
     /// Send `mail`. NEVER retried blindly: a request that may have reached the provider is not
     /// repeated, so a transient error here means "unknown" and the caller asks `sent_already`
     /// before it sends again. A thread or source the provider no longer has (404) sends it as
     /// a message of its own. Gmail sends the message Rail built; Graph sends its own draft of
     /// it, saving it first.
     async fn send(&self, mail: &OutgoingMail) -> Result<SentReceipt, ProviderError>;
+
+    /// True when `send` is split into a relay step and a Sent-copy step (SMTP then IMAP
+    /// APPEND). The outbox records relay acceptance between the two, so a retry never submits
+    /// the message again.
+    fn two_phase_send(&self) -> bool {
+        false
+    }
+
+    /// The relay half of a two-phase send: submit the message, and nothing more. Only called
+    /// when [`Self::two_phase_send`] is true.
+    async fn relay_send(&self, mail: &OutgoingMail) -> Result<SentReceipt, ProviderError> {
+        self.send(mail).await
+    }
+
+    /// The local-copy half of a two-phase send, after the relay accepted `receipt`. A failure
+    /// here must not make the caller submit the message again.
+    async fn finish_send(
+        &self,
+        _mail: &OutgoingMail,
+        receipt: SentReceipt,
+    ) -> Result<SentReceipt, ProviderError> {
+        Ok(receipt)
+    }
+
     /// Save `mail` as the provider's draft: create it when `mail.remote` is `None`, else
     /// update that draft (one deleted at the provider is created again; one in a thread or on
     /// a source the provider no longer has is saved on its own). Its ids at the provider, and

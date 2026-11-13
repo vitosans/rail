@@ -11,6 +11,7 @@ use super::preset::Preset;
 use crate::auth::{AuthError, TokenSet};
 use crate::config::{AccountConfig, KeymapPreset};
 use crate::error::ErrorClass;
+use crate::ops::Secret;
 
 /// What the user does.
 #[derive(Clone, PartialEq, Eq)]
@@ -34,9 +35,12 @@ impl fmt::Debug for Input {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Choose(index) => f.debug_tuple("Choose").field(index).finish(),
-            Self::Edit(Field::ClientSecret, _) => f
+            Self::Edit(
+                field @ (Field::ClientSecret | Field::Password | Field::SmtpPassword),
+                _,
+            ) => f
                 .debug_tuple("Edit")
-                .field(&Field::ClientSecret)
+                .field(field)
                 .field(&"<redacted>")
                 .finish(),
             Self::Edit(field, value) => f.debug_tuple("Edit").field(field).field(value).finish(),
@@ -67,10 +71,22 @@ pub enum Action {
     },
     /// Check the account can be added, then run the browser login.
     RunLogin(AccountConfig),
+    /// Validate IMAP and SMTP connectivity and credentials.
+    ValidateImapSmtp {
+        account: AccountConfig,
+        password: Secret<String>,
+        smtp_password: Option<Secret<String>>,
+    },
     /// Tokens, then the store row, then config.toml.
     Persist {
         account: AccountConfig,
         tokens: TokenSet,
+    },
+    /// Save an ImapSmtp account: passwords into secret store, store row, config.toml.
+    PersistImapSmtp {
+        account: AccountConfig,
+        password: Secret<String>,
+        smtp_password: Option<Secret<String>>,
     },
     /// Write `keymap` under `[general]` of the config the account was saved to, once checked
     /// against that config's `[keys]`.
@@ -147,6 +163,7 @@ pub enum Event {
     /// The login URL, as soon as the browser is asked to open it.
     LoginUrl(Url),
     LoginFinished(Result<TokenSet, Failure>),
+    ImapSmtpValidated(Result<(), Failure>),
     Persisted(Result<DoneReport, Failure>),
     KeymapSaved(Result<(), Failure>),
 }

@@ -288,8 +288,8 @@ pub fn switch_backend(
     Ok(response)
 }
 
-/// The accounts that have tokens in `store`. One it cannot read counts as holding them: an
-/// old copy that might exist is reported rather than assumed gone.
+/// The accounts that have tokens or passwords in `store`. One it cannot read counts as holding
+/// them: an old copy that might exist is reported rather than assumed gone.
 fn present_accounts(config: &Config, store: &dyn SecretStore) -> Vec<String> {
     config
         .accounts
@@ -299,6 +299,13 @@ fn present_accounts(config: &Config, store: &dyn SecretStore) -> Vec<String> {
                 .has_tokens(&a.address)
                 .inspect_err(|e| tracing::warn!(error = %e, "could not check an account's tokens"))
                 .unwrap_or(true)
+                || store.has_password(&a.address).unwrap_or(false)
+                || store
+                    .has_password(&format!("{}:imap", a.address))
+                    .unwrap_or(false)
+                || store
+                    .has_password(&format!("{}:smtp", a.address))
+                    .unwrap_or(false)
         })
         .map(|a| a.address.clone())
         .collect()
@@ -360,21 +367,39 @@ fn copy_tokens(
 
 /// Copy one account's tokens, if it has any, and read them back from `new`.
 fn copy_one(address: &str, old: &dyn SecretStore, new: &dyn SecretStore) -> Result<(), OpError> {
-    let Some(tokens) = old.get_tokens(address)? else {
-        return Ok(());
-    };
-    new.set_tokens(address, &tokens)?;
-    if new.get_tokens(address)?.as_ref() == Some(&tokens) {
-        return Ok(());
+    if let Some(tokens) = old.get_tokens(address)? {
+        new.set_tokens(address, &tokens)?;
+        if new.get_tokens(address)?.as_ref() != Some(&tokens) {
+            return Err(OpError::new(
+                ErrorCode::Secrets,
+                ErrorClass::Permanent,
+                format!(
+                    "the tokens for {address} did not read back from the {} backend",
+                    new.backend_name()
+                ),
+            ));
+        }
     }
-    Err(OpError::new(
-        ErrorCode::Secrets,
-        ErrorClass::Permanent,
-        format!(
-            "the tokens for {address} did not read back from the {} backend",
-            new.backend_name()
-        ),
-    ))
+    for key in [
+        address,
+        &format!("{address}:imap"),
+        &format!("{address}:smtp"),
+    ] {
+        if let Some(pass) = old.get_password(key)? {
+            new.set_password(key, &pass)?;
+            if new.get_password(key)?.as_ref() != Some(&pass) {
+                return Err(OpError::new(
+                    ErrorCode::Secrets,
+                    ErrorClass::Permanent,
+                    format!(
+                        "the password for {key} did not read back from the {} backend",
+                        new.backend_name()
+                    ),
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// `error`, extended with which accounts were copied before it and which were not reached.
@@ -427,14 +452,9 @@ enum Outcome {
     InPlace,
 }
 
-/// Item stores are checked with uncached lookups (nothing revealed): the old copy is the
-/// new one when the ids match, and "no such item" on delete only counts when a fresh lookup
-/// agrees the item is gone.
-fn retire_one(old: &dyn SecretStore, new: &dyn SecretStore, address: &str) -> Outcome {
+fn retire_token_copy(old: &dyn SecretStore, new: &dyn SecretStore, address: &str) -> Outcome {
     let by_item = old.backend_name() == ONEPASSWORD;
     if by_item {
-        // If the new copy cannot be identified, the old one cannot be told apart from it
-        // (they may be the same item), so it stays.
         let new_id = if new.backend_name() == ONEPASSWORD {
             match new.item_id(address) {
                 Ok(id) => id,
@@ -458,6 +478,61 @@ fn retire_one(old: &dyn SecretStore, new: &dyn SecretStore, address: &str) -> Ou
         return Outcome::Kept;
     }
     Outcome::Deleted
+}
+
+fn retire_password_copy(old: &dyn SecretStore, new: &dyn SecretStore, key: &str) -> Outcome {
+    if !old.has_password(key).unwrap_or(false) {
+        return Outcome::Deleted;
+    }
+    let by_item = old.backend_name() == ONEPASSWORD;
+    if by_item {
+        let new_id = if new.backend_name() == ONEPASSWORD {
+            match new.item_id(key) {
+                Ok(id) => id,
+                Err(e) => return kept(&e, "could not look up the new password copy"),
+            }
+        } else {
+            None
+        };
+        match old.item_id(key) {
+            Err(e) => return kept(&e, "could not look up an old password copy"),
+            Ok(Some(id)) if new_id.as_ref() == Some(&id) => return Outcome::InPlace,
+            Ok(None) => return Outcome::Deleted,
+            Ok(Some(_)) => {}
+        }
+    }
+    if let Err(e) = old.delete_password(key) {
+        return kept(&e, "could not delete an old password copy");
+    }
+    if by_item && !matches!(old.item_id(key), Ok(None)) {
+        tracing::warn!("an old password copy is still there after its delete");
+        return Outcome::Kept;
+    }
+    Outcome::Deleted
+}
+
+/// Item stores are checked with uncached lookups (nothing revealed): the old copy is the
+/// new one when the ids match, and "no such item" on delete only counts when a fresh lookup
+/// agrees the item is gone.
+fn retire_one(old: &dyn SecretStore, new: &dyn SecretStore, address: &str) -> Outcome {
+    let mut outcome = Outcome::Deleted;
+    match retire_token_copy(old, new, address) {
+        Outcome::Kept => return Outcome::Kept,
+        Outcome::InPlace => outcome = Outcome::InPlace,
+        Outcome::Deleted => {}
+    }
+    for key in [
+        address,
+        &format!("{address}:imap"),
+        &format!("{address}:smtp"),
+    ] {
+        match retire_password_copy(old, new, key) {
+            Outcome::Kept => return Outcome::Kept,
+            Outcome::InPlace => outcome = Outcome::InPlace,
+            Outcome::Deleted => {}
+        }
+    }
+    outcome
 }
 
 fn kept(error: &super::secrets::SecretError, what: &str) -> Outcome {

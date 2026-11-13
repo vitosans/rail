@@ -6,6 +6,30 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+Generic IMAP and SMTP provider support: connect standard-compliant mail servers alongside
+Gmail and Microsoft 365, with secure password storage across OS keyring, private files, and
+1Password.
+
+### Added
+
+- **Generic IMAP and SMTP provider.** Rail now supports standard IMAP and SMTP mailboxes alongside
+  Gmail and Microsoft 365, with automatic mailbox discovery (RFC 6154 special-use attributes),
+  TLS modes (`required`, `opportunistic`, `off`), safe UID-based moves and expunges, and
+  polling when the server has no `IDLE`.
+- **Password credentials management.** Added secure password storage in `SecretStore` across the
+  OS keyring, private files, and 1Password. Passwords are never stored in `config.toml`, are masked
+  without echo during terminal input, and are redacted at the type level (`Secret<String>`).
+- **Setup wizard & CLI support for IMAP/SMTP.** The setup wizard (`rail setup`) supports
+  adding and testing generic IMAP/SMTP accounts with interactive password prompts. The CLI supports
+  adding IMAP/SMTP accounts via `rail account add imapsmtp` and managing stored passwords via
+  `rail secrets password <account> [--service <imap|smtp>]`.
+- **Two-phase send for SMTP.** Outgoing mail is sent via SMTP relay and subsequently appended to
+  the IMAP Sent mailbox. Relay acceptance is recorded durably before the append, so a retry or
+  restart never submits the message again. Servers that file their own Sent copy can set
+  `append_to_sent = false`.
+- **MCP agent guardrails.** MCP tools (`rail_account_add`, etc.) reject pasted passwords and
+  disallow configuring IMAP/SMTP accounts from agents to preserve credential security.
+
 ## [0.10.3] - 2026-11-11
 
 Trusting your own company's domain now works on Microsoft 365 (#190).

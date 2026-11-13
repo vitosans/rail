@@ -10,6 +10,7 @@ use super::pending::{PendingId, PendingKind};
 use super::untrusted::{Secret, Untrusted};
 use super::yes;
 use crate::config::AccountKind;
+use crate::config::model::TlsMode;
 
 /// A 1Password secret reference starts with this.
 pub const OP_REFERENCE_PREFIX: &str = "op://";
@@ -109,6 +110,24 @@ pub struct AgentAccountAdd {
     )]
     #[schemars(skip)]
     pub pasted_client_secret: bool,
+    /// Set when an agent sent a `password` field. Dropped unread, never kept or echoed.
+    #[serde(
+        default,
+        rename = "password",
+        deserialize_with = "pasted",
+        skip_serializing
+    )]
+    #[schemars(skip)]
+    pub pasted_password: bool,
+    /// Set when an agent sent an `smtp_password` field. Dropped unread, never kept or echoed.
+    #[serde(
+        default,
+        rename = "smtp_password",
+        deserialize_with = "pasted",
+        skip_serializing
+    )]
+    #[schemars(skip)]
+    pub pasted_smtp_password: bool,
 }
 
 /// Every field but the `op://` reference, which an agent may have filled with a pasted secret:
@@ -128,12 +147,17 @@ impl std::fmt::Debug for AgentAccountAdd {
             .field("color", &self.color)
             .field("store_secret_in_1password", &self.store_secret_in_1password)
             .field("pasted_client_secret", &self.pasted_client_secret)
+            .field("pasted_password", &self.pasted_password)
+            .field("pasted_smtp_password", &self.pasted_smtp_password)
             .finish()
     }
 }
 
 /// The refusal of a `client_secret` sent by an agent. Fixed text: the value is never echoed.
 pub const NO_SECRETS_FROM_AGENTS: &str = "Rail does not take client secrets from agents; pass an op:// reference, a preset, or an absolute path to the client JSON file";
+
+/// The refusal of a password sent by an agent. Fixed text: the value is never echoed.
+pub const NO_PASSWORDS_FROM_AGENTS: &str = "Rail does not take passwords from agents; configure IMAP/SMTP accounts using the setup wizard or `rail account add --kind imapsmtp` in a terminal";
 
 /// Any value at all: skipped without being read into memory as text.
 fn pasted<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<bool, D::Error> {
@@ -146,6 +170,14 @@ impl AgentAccountAdd {
     pub fn into_request(self) -> Result<AccountAddRequest, OpError> {
         if self.pasted_client_secret {
             return Err(OpError::invalid_input(NO_SECRETS_FROM_AGENTS));
+        }
+        if self.pasted_password || self.pasted_smtp_password {
+            return Err(OpError::invalid_input(NO_PASSWORDS_FROM_AGENTS));
+        }
+        if self.kind == AccountKind::ImapSmtp {
+            return Err(OpError::invalid_input(
+                "IMAP/SMTP accounts do not use OAuth browser login; configure IMAP/SMTP accounts using the setup wizard or `rail account add --kind imapsmtp` in a terminal",
+            ));
         }
         let sources = [
             self.client_secret_file.map(ClientSecretInput::JsonFile),
@@ -256,4 +288,91 @@ pub struct AccountRemoveResponse {
     pub token_error: Option<Untrusted<String>>,
     /// Always true: Rail never deletes mail. The account's rows stay in the store.
     pub mail_kept: bool,
+}
+
+/// `account.validate`: test IMAP and SMTP connectivity and credentials.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct AccountValidateRequest {
+    /// An existing account name or address; when given, missing fields default from it.
+    #[serde(default)]
+    pub account: Option<String>,
+    #[serde(default)]
+    pub imap_host: Option<String>,
+    #[serde(default)]
+    pub imap_port: Option<u16>,
+    #[serde(default)]
+    pub imap_tls: Option<TlsMode>,
+    #[serde(default)]
+    pub username: Option<String>,
+    #[serde(default)]
+    pub password: Option<Secret<String>>,
+    #[serde(default)]
+    pub smtp_host: Option<String>,
+    #[serde(default)]
+    pub smtp_port: Option<u16>,
+    #[serde(default)]
+    pub smtp_tls: Option<TlsMode>,
+    #[serde(default)]
+    pub smtp_username: Option<String>,
+    #[serde(default)]
+    pub smtp_password: Option<Secret<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct AccountValidateResponse {
+    pub imap_ok: bool,
+    pub smtp_ok: bool,
+    pub imap_capabilities: Vec<String>,
+    pub special_use_mailboxes: Vec<String>,
+    /// Things the user should read even though the account works (for example, TLS is off).
+    #[serde(default)]
+    pub warnings: Vec<String>,
+}
+
+/// `account.password.set`: store an account or service password in the secret store.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct AccountPasswordSetRequest {
+    pub account: String,
+    pub password: Secret<String>,
+    /// Optional service name: "imap" or "smtp". Unset stores the account-level password.
+    #[serde(default)]
+    pub service: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct AccountPasswordSetResponse {
+    pub account: String,
+    pub service: Option<String>,
+    pub backend: String,
+}
+
+/// `account.password.check`: check whether a password is stored without revealing it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct AccountPasswordCheckRequest {
+    pub account: String,
+    #[serde(default)]
+    pub service: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct AccountPasswordCheckResponse {
+    pub account: String,
+    pub service: Option<String>,
+    pub has_password: bool,
+    pub backend: String,
+}
+
+/// `account.password.delete`: remove a stored password from the secret store.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct AccountPasswordDeleteRequest {
+    pub account: String,
+    #[serde(default)]
+    pub service: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct AccountPasswordDeleteResponse {
+    pub account: String,
+    pub service: Option<String>,
+    pub deleted: bool,
 }

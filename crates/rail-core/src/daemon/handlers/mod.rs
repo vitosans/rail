@@ -1,5 +1,6 @@
 //! Every operation the daemon serves.
 
+mod account_validate;
 mod actions;
 mod attachment_image;
 pub(super) mod attachments;
@@ -16,6 +17,7 @@ mod guide;
 mod image_cache_tests;
 pub(super) mod inline_refresh;
 mod login;
+mod passwords;
 mod pending;
 mod presets;
 mod remote_image;
@@ -67,5 +69,9 @@ pub(crate) fn registry() -> Registry {
     registry.register::<op::ImageRemote, _, _>(remote_image::image);
     registry.register::<op::SavedSearchPut, _, _>(saved::put);
     registry.register::<op::SavedSearchRemove, _, _>(saved::remove);
+    registry.register::<op::AccountValidate, _, _>(account_validate::validate);
+    registry.register::<op::AccountPasswordSet, _, _>(passwords::set);
+    registry.register::<op::AccountPasswordCheck, _, _>(passwords::check);
+    registry.register::<op::AccountPasswordDelete, _, _>(passwords::delete);
     registry
 }

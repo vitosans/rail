@@ -14,7 +14,7 @@ use super::Worker;
 use super::compose::{self, Assembly};
 use crate::ops::{DraftId, OutboxId};
 use crate::paths::{import_dir_in, remove_dir_if_present};
-use crate::provider::{DraftIds, ProviderError};
+use crate::provider::{DraftIds, ProviderError, SentReceipt};
 use crate::store::drafts::ListedFile;
 use crate::store::outbox::{OutboxOutcome, OutboxRow, OutboxWrite};
 
@@ -119,7 +119,48 @@ impl Worker {
             remote = Some(saved.ids);
         }
         self.stamp(draft, remote, listed).await?;
-        self.provider.send(&mail).await.map(|_| ())
+        if self.provider.two_phase_send() {
+            let receipt = if row.relay_accepted_at.is_some() {
+                SentReceipt {
+                    message_id: Some(mail.outgoing.message_id.clone()),
+                    thread_id: None,
+                }
+            } else {
+                let receipt = self.provider.relay_send(&mail).await?;
+                // The relay accepted it: record that before touching the Sent copy, so a
+                // restart or a retry never submits the message a second time.
+                self.record_relay_accepted(row.id).await?;
+                receipt
+            };
+            self.provider.finish_send(&mail, receipt).await.map(|_| ())
+        } else {
+            self.provider.send(&mail).await.map(|_| ())
+        }
+    }
+
+    /// Persist relay acceptance, retrying only this write: the message has left Rail and must
+    /// never be submitted again, so giving up here would risk a duplicate.
+    async fn record_relay_accepted(&self, id: OutboxId) -> Result<(), ProviderError> {
+        let mut wait = super::MIN_IDLE;
+        loop {
+            match self.writer.outbox(OutboxWrite::RelayAccepted { id }).await {
+                Ok(_) => return Ok(()),
+                Err(error) if self.writer.is_closed() => {
+                    return Err(ProviderError::transient(&error.message));
+                }
+                Err(error) => {
+                    tracing::warn!(
+                        account = %self.name,
+                        row = id,
+                        error = %error.message,
+                        retry_secs = wait.as_secs(),
+                        "could not record relay acceptance; retrying the write"
+                    );
+                    tokio::time::sleep(wait).await;
+                    wait = wait.saturating_mul(2).min(super::MAX_IDLE);
+                }
+            }
+        }
     }
 
     /// The import directory the draft owns: the one its own client token names under the draft

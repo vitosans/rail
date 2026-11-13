@@ -70,6 +70,8 @@ pub struct Batch {
     /// The origin of `upserts`.
     pub origin: Origin,
     pub deletes: Vec<RemoteId>,
+    /// Provider ids that changed at the same mailbox position, old to new (an IMAP move).
+    pub moves: Vec<(RemoteId, RemoteId)>,
     pub relabels: Vec<Relabel>,
     pub bodies: Vec<(RemoteId, Body)>,
     /// Search hits already stored: their `searched_at` becomes now.

@@ -63,6 +63,39 @@ pub async fn set(paths: &Paths, args: &SecretsSetArgs) -> color_eyre::Result<()>
     Ok(())
 }
 
+/// Set or update the stored password for an account or service.
+pub async fn password(paths: &Paths, who: &str, service: Option<String>) -> color_eyre::Result<()> {
+    let client = daemon_link::connector(paths)
+        .client()
+        .await
+        .map_err(report)?;
+    let prompt_label = match &service {
+        Some(s) => format!("Password for {who} ({s}): "),
+        None => format!("Password for {who}: "),
+    };
+    let pass = crate::cmd::password_prompt::read_password(&prompt_label)?;
+    let res = client
+        .call::<rail_core::ops::op::AccountPasswordSet>(
+            &rail_core::ops::AccountPasswordSetRequest {
+                account: who.to_string(),
+                password: rail_core::ops::Secret::new(pass),
+                service,
+            },
+        )
+        .await
+        .map_err(report)?;
+    let svc = res
+        .service
+        .as_ref()
+        .map(|s| format!(" ({s})"))
+        .unwrap_or_default();
+    println!(
+        "Stored password for \"{}\"{}. Stored in {}.",
+        res.account, svc, res.backend
+    );
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -110,5 +143,21 @@ mod tests {
             );
         }
         assert!(Cli::try_parse_from(["rail", "secrets", "set", "vault"]).is_err());
+    }
+
+    #[test]
+    fn secrets_password_parses_account_and_service() {
+        match Cli::try_parse_from(["rail", "secrets", "password", "my-acc", "--service", "smtp"])
+            .unwrap()
+            .command
+        {
+            Some(Command::Secrets {
+                command: SecretsCommand::Password { account, service },
+            }) => {
+                assert_eq!(account, "my-acc");
+                assert_eq!(service.as_deref(), Some("smtp"));
+            }
+            other => panic!("{other:?}"),
+        }
     }
 }
