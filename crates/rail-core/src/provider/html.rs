@@ -495,8 +495,9 @@ impl Scanner<'_> {
         let limit = self.bytes.len().min(start + MAX_TAG_BYTES);
         let mut quote: Option<u8> = None;
         let mut after_equals = false;
-        for index in at.min(limit)..limit {
-            let b = self.bytes[index];
+        let from = at.min(limit);
+        for (offset, &b) in self.bytes[from..limit].iter().enumerate() {
+            let index = from + offset;
             match quote {
                 Some(q) if b == q => quote = None,
                 Some(_) => {}

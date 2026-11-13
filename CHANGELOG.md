@@ -6,6 +6,13 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Builds clean on Rust 1.100.** The new rustfmt lays out the `operation!` calls one argument per
+  line, a byte loop in the HTML reader now walks a slice instead of indexing (clippy's
+  `needless_range_loop`), and the crates drop `homepage`, which only repeated `repository`.
+  Nothing changes for users.
+
 ## [0.10.3] - 2026-11-11
 
 Trusting your own company's domain now works on Microsoft 365 (#190).
