@@ -13,6 +13,18 @@ All notable changes to Rail are recorded here. The format follows
   no longer break every open pull request overnight. Dependabot proposes each new version as a
   pull request that a person merges.
 
+### Fixed
+
+- **CI checks the minimum Rust version again.** `rust-toolchain.toml` outranked the toolchain the
+  `msrv` job installed, so the job had been checking with the latest stable Rust instead of the
+  minimum. The job is now just `msrv`, so raising the minimum no longer renames a required check.
+
+### Upgrading
+
+- Building Rail from source needs Rust 1.90 or newer (was 1.89). It already did in practice:
+  `quantette`, which inline pictures use since 0.10.0, requires 1.90, and the unchecked job
+  hid that. The release binaries are unaffected.
+
 ## [0.10.3] - 2026-11-11
 
 Trusting your own company's domain now works on Microsoft 365 (#190).
