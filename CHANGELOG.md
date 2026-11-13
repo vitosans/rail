@@ -6,6 +6,13 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **One pinned Rust version.** `rust-toolchain.toml` now names Rust 1.100.0, not the latest
+  stable, and CI, release builds and the development shell all use it, so a new Rust release can
+  no longer break every open pull request overnight. Dependabot proposes each new version as a
+  pull request that a person merges.
+
 ## [0.10.3] - 2026-11-11
 
 Trusting your own company's domain now works on Microsoft 365 (#190).

@@ -11,6 +11,7 @@ on:
       - .github/workflows/release.yml
       - scripts/package-release.sh
       - scripts/release-notes.sh
+      - rust-toolchain.toml
 
 permissions:
   contents: read
@@ -19,11 +20,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+# Release binaries are built with the compiler rust-toolchain.toml pins, like CI.
 env:
   CARGO_TERM_COLOR: always
-  # The compiler release binaries are built with. It overrides rust-toolchain.toml, which
-  # follows stable for development.
-  RUSTUP_TOOLCHAIN: 1.99.1
 
 jobs:
   linux:
@@ -37,11 +36,13 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
-    # Debian Bookworm keeps the binary's glibc floor at 2.36, as for v0.2.2.
-    container: docker.io/library/rust:1.99.1-bookworm
+    # Debian Bookworm keeps the binary's glibc floor at 2.36, as for v0.2.2. The image supplies
+    # glibc and rustup; rustup installs the compiler rust-toolchain.toml names if the image's
+    # differs.
+    container: docker.io/library/rust:1.100.0-bookworm
     timeout-minutes: 30
     env:
-      BUILD_ENVIRONMENT: docker.io/library/rust:1.99.1-bookworm on ${{ matrix.runner }}
+      BUILD_ENVIRONMENT: docker.io/library/rust:1.100.0-bookworm on ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -79,8 +80,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - name: Install the release compiler
-        run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
+      - name: Install the pinned compiler
+        run: rustup toolchain install --profile minimal
       - name: Build
         run: cargo build --release --locked --workspace
       - name: Package

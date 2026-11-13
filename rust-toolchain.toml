@@ -1,3 +1,5 @@
 [toolchain]
-channel = "stable"
+# One exact compiler for development, CI, release builds and the Nix shell. Dependabot proposes
+# each new release as a pull request; bump it on purpose, fixing new lints in the same change.
+channel = "1.100.0"
 components = ["clippy", "rustfmt"]

@@ -1,7 +1,8 @@
 name: dependabot auto-merge
 
 # Patch and minor updates from Dependabot merge on their own once every required check on
-# main passes (the "Protect main" ruleset). Major updates are labelled and wait for a person.
+# main passes (the "Protect main" ruleset). Major updates and Rust toolchain updates are
+# labelled and wait for a person.
 # This job never checks out or runs the pull request's code.
 
 on:
@@ -25,7 +26,9 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Merge patch and minor updates when checks pass
-        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+        if: >-
+          steps.metadata.outputs.update-type != 'version-update:semver-major' &&
+          steps.metadata.outputs.package-ecosystem != 'rust-toolchain'
         run: gh pr merge --auto --merge "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
@@ -33,6 +36,15 @@ jobs:
       - name: Label major updates for review
         if: steps.metadata.outputs.update-type == 'version-update:semver-major'
         run: gh pr edit "$PR_URL" --add-label "major update"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # A new compiler can change formatting, lints and code generation, so a person merges it.
+      - name: Label Rust toolchain updates for review
+        if: >-
+          steps.metadata.outputs.update-type != 'version-update:semver-major' &&
+          steps.metadata.outputs.package-ecosystem == 'rust-toolchain'
+        run: gh pr edit "$PR_URL" --add-label "toolchain update"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
