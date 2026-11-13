@@ -121,7 +121,7 @@ The same four commands run inside the Nix shell, which pins the toolchain to
     nix build              # the packaged binary at ./result/bin/rail
 
 `nix build` does not run the tests: the suite binds loopback sockets and drives the binary in a
-pseudo-terminal, and the Nix sandbox blocks both. Run `cargo test --workspace` from `nix develop`
+pseudo-terminal, and the Nix sandbox blocks both. Run `cargo test --workspace --locked` from `nix develop`
 instead.
 
 Run tests in the default (debug) profile. Under `cargo test --release` the test URL overrides

@@ -128,27 +128,32 @@ nix run github:vitosans/rail               # run Rail without installing it
 nix profile install github:vitosans/rail   # put `rail` on your PATH
 ```
 
+Both build the latest commit on `main`; `nix profile upgrade rail` rebuilds from it again.
+
 On NixOS or with home-manager, add the flake as an input and install its package:
 
 ```nix
 inputs.rail.url = "github:vitosans/rail";
 
-# NixOS: environment.systemPackages = [ inputs.rail.packages.${pkgs.system}.default ];
-# home-manager: home.packages = [ inputs.rail.packages.${pkgs.system}.default ];
+# NixOS: environment.systemPackages = [ inputs.rail.packages.${pkgs.stdenv.hostPlatform.system}.default ];
+# home-manager: home.packages = [ inputs.rail.packages.${pkgs.stdenv.hostPlatform.system}.default ];
 ```
 
-For development, the shell has Rust 1.88 or newer with `clippy`, `rustfmt`, `cargo-deny` and
+For development, the shell has Rust 1.89 or newer with `clippy`, `rustfmt`, `cargo-deny` and
 `cargo-llvm-cov`, the same set CI uses:
 
 ```sh
-nix develop                    # the same shell, entered by hand
-nix build                      # the binary at ./result/bin/rail
-cargo test --workspace         # inside `nix develop`
+nix develop                       # enter the development shell
+nix build                         # the binary at ./result/bin/rail
+cargo test --workspace --locked   # inside `nix develop`
 ```
 
 `direnv allow` loads that shell automatically when direnv and nix-direnv are installed. The Nix
 package builds with `doCheck = false`: the test suite binds loopback sockets and drives the binary
 in a pseudo-terminal, and the Nix sandbox allows neither, so run the tests from `nix develop`.
+
+The Nix package links nixpkgs' SQLite rather than the copy Rail bundles, as nixpkgs does for every
+Rust package, so SQLite updates come with nixpkgs.
 
 ## Quick start
 

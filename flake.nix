@@ -61,19 +61,24 @@
 
             cargoLock.lockFile = ./Cargo.lock;
 
-            # The TLS stack is rustls, so no OpenSSL is needed. rusqlite is built with its
-            # bundled SQLite, but it also keeps the `-lsqlite3` link directive (its default
-            # `ffi-sqlite-wasm-rs` feature), so the library nixpkgs provides is what the final
-            # link resolves against.
+            # The TLS stack is rustls, so no OpenSSL is needed. nixpkgs' cargo setup hook sets
+            # LIBSQLITE3_SYS_USE_PKG_CONFIG=1, so the package links nixpkgs' SQLite (which has
+            # FTS5) instead of the copy rusqlite bundles, as nixpkgs does for every Rust package.
             nativeBuildInputs = [ pkgs.pkg-config ];
             buildInputs = [ pkgs.sqlite ];
 
+            # The daemon tells two builds of one version apart by the build stamp, which
+            # rail-core's build.rs takes from SOURCE_DATE_EPOCH. The stdenv fixes that at 1980,
+            # so every Nix build would share one stamp and a newer `rail` would keep talking to
+            # an older daemon. The commit time keeps builds reproducible and still ordered.
+            env.SOURCE_DATE_EPOCH = toString self.lastModified;
+
             # The test suite binds loopback sockets and drives the binary in a pty, and the
-            # Nix sandbox has no network. Run `cargo test --workspace` in `nix develop`.
+            # Nix sandbox has no network. Run `cargo test --workspace --locked` in `nix develop`.
             doCheck = false;
 
             meta = {
-              description = "A terminal mail client for Gmail, Microsoft 365 and IMAP/SMTP";
+              description = "A terminal mail client for Gmail and Microsoft 365";
               homepage = "https://github.com/vitosans/rail";
               license = with pkgs.lib.licenses; [
                 mit
@@ -105,13 +110,14 @@
               rustToolchain
               pkgs.cargo-deny
               pkgs.cargo-llvm-cov
-              # The crate the binary links `-lsqlite3` against, as in the package.
+              # The same SQLite as the package, found through pkg-config.
               pkgs.sqlite
               pkgs.pkg-config
               pkgs.python3
             ];
 
-            # macOS needs a higher descriptor limit for the test suite to spawn daemons.
+            # The test suite spawns many daemons; macOS's default descriptor limit is too low for it.
+            # Raising it is harmless elsewhere.
             shellHook = ''
               ulimit -n 10240 2>/dev/null || true
             '';
