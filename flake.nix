@@ -17,10 +17,11 @@
       rust-overlay,
     }:
     let
+      # nixpkgs 26.11 dropped Intel macOS (x86_64-darwin); Intel Macs use the release binary or
+      # `cargo install` instead.
       systems = [
         "x86_64-linux"
         "aarch64-linux"
-        "x86_64-darwin"
         "aarch64-darwin"
       ];
 
@@ -89,7 +90,6 @@
               platforms = [
                 "x86_64-linux"
                 "aarch64-linux"
-                "x86_64-darwin"
                 "aarch64-darwin"
               ];
             };
