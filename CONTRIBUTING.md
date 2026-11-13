@@ -125,8 +125,11 @@ pseudo-terminal, and the Nix sandbox blocks both. Run `cargo test --workspace --
 `nix develop` instead.
 
 The flake reads the Rust version from `rust-toolchain.toml` through rust-overlay, which only knows
-releases up to the date `flake.lock` pins it at. A pull request that bumps the toolchain therefore
-also runs `nix flake update rust-overlay`, or the Nix shell and package stop building.
+releases up to the date `flake.lock` pins it at. Dependabot updates `flake.lock` weekly, so by the
+time it proposes a new Rust version the lock usually knows it. The `nix` workflow builds the
+package and shell on every pull request that touches the flake, `rust-toolchain.toml` or the Cargo
+manifests; if it fails on a toolchain bump, merge Dependabot's pending `flake.lock` update first, or
+run `nix flake update rust-overlay` in the same pull request.
 
 Run tests in the default (debug) profile. Under `cargo test --release` the test URL overrides
 (`with_graph_url`, `with_gmail_url`, `with_token_url`) are compiled out, so tests that rely on them
@@ -140,13 +143,15 @@ and weekly. Workflows use actions pinned to commit SHAs, read-only default token
 timeouts. Keep action pins current through Dependabot. CI and release builds install the
 compiler `rust-toolchain.toml` names; only the `msrv` job overrides it, with `RUSTUP_TOOLCHAIN`.
 
-Dependabot checks Cargo, Actions and the Rust toolchain weekly and opens security updates:
+Dependabot checks Cargo, Actions, the Rust toolchain and the Nix flake's inputs weekly and opens
+security updates:
 
 | Update | What happens |
 |---|---|
 | Patch or minor (Cargo is grouped) | Proposed after a cooldown (3 days for a Cargo patch, 7 otherwise), then merged on its own once every required check passes |
 | Major | Labelled `major update`; a person reviews and merges it |
-| Rust toolchain (`rust-toolchain.toml`) | Proposed 7 days after a Rust release and labelled `toolchain update`; a person merges it, with `nix flake update rust-overlay` and any fixes for new rustfmt or clippy rules in the same pull request |
+| Rust toolchain (`rust-toolchain.toml`) | Proposed 7 days after a Rust release and labelled `toolchain update`; a person merges it, with any fixes for new rustfmt or clippy rules in the same pull request. If the `nix` check fails, the `flake.lock` update below goes first |
+| Nix flake inputs (`flake.lock`) | Proposed 3 days after an upstream change; the `nix` workflow turns on auto-merge once the flake builds, and it merges when every required check passes |
 | Security | Proposed at once, no cooldown; merged like the rows above |
 
 Auto-merged updates reach users only in the next release, whose pull request lists them.

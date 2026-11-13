@@ -1,0 +1,80 @@
+name: nix
+
+# Builds the flake's package and development shell when something they depend on changes:
+# the flake itself, the pinned Rust toolchain, or the Cargo manifests and lock. rust-overlay
+# only knows Rust releases up to the date flake.lock pins it at, so a toolchain bump that gets
+# ahead of the lock fails here rather than on someone's `nix develop`.
+on:
+  push:
+    branches: [main]
+    paths:
+      - flake.nix
+      - flake.lock
+      - rust-toolchain.toml
+      - Cargo.toml
+      - Cargo.lock
+      - crates/*/Cargo.toml
+      - .github/workflows/nix.yml
+  pull_request:
+    paths:
+      - flake.nix
+      - flake.lock
+      - rust-toolchain.toml
+      - Cargo.toml
+      - Cargo.lock
+      - crates/*/Cargo.toml
+      - .github/workflows/nix.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flake-check:
+    name: nix flake check
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+      # Builds checks.package (the binary) and the development shell for x86_64-linux and
+      # evaluates the other systems.
+      - run: nix flake check -L --all-systems
+      - name: The development shell has the pinned compiler
+        run: |
+          set -euo pipefail
+          pinned="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)"
+          nix develop -c rustc --version | tee /dev/stderr | grep -F "rustc $pinned "
+
+  # Dependabot's flake.lock updates merge only once the flake builds. This check can't be a
+  # required one (it runs only for some paths), so the general auto-merge workflow leaves Nix
+  # updates alone and this job turns on auto-merge after it passes.
+  auto-merge:
+    name: auto-merge flake.lock update
+    needs: flake-check
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.repository == 'vitosans/rail'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Merge when every required check passes
+        if: steps.metadata.outputs.package-ecosystem == 'nix'
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
