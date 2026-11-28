@@ -280,20 +280,25 @@ fn apply<S: Screen>(
 /// Draw a frame; after the terminal came back from the editor, repaint all of it. The repaint
 /// is `resize` to the current size, not `clear`: `clear` asks the terminal for the cursor
 /// position, which cannot be read while the event stream's reader waits for input.
-fn redraw<B: Backend, S: Screen>(
+pub(super) fn redraw<B: Backend, S: Screen>(
     terminal: &mut Terminal<B>,
     app: &App<S>,
     suspend: &mut impl Suspend,
 ) -> io::Result<()> {
+    let size = terminal
+        .size()
+        .map_err(|e| io::Error::other(e.to_string()))?;
+    // `draw` clears the screen when the size changed, and Kitty images go with it (#213).
+    let resized = Rect::from(size) != terminal.get_frame().area();
     if suspend.take_returned() {
-        let size = terminal
-            .size()
-            .map_err(|e| io::Error::other(e.to_string()))?;
         terminal
             .resize(Rect::from(size))
             .map_err(|e| io::Error::other(e.to_string()))?;
     }
     draw(terminal, app)?;
+    if resized {
+        suspend.invalidate_classic();
+    }
     suspend.draw_classic(&app.screen.classic_placements())
 }
 

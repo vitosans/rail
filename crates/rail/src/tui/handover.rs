@@ -19,6 +19,9 @@ pub trait Suspend {
         Ok(())
     }
 
+    /// The screen was cleared: the images it showed must be placed again.
+    fn invalidate_classic(&mut self) {}
+
     /// Give the terminal to the user.
     fn suspend(&mut self) -> io::Result<()>;
     /// Take it back.
@@ -72,6 +75,10 @@ impl Suspend for Handover {
     fn draw_classic(&mut self, placements: &[Placement]) -> io::Result<()> {
         self.restored
             .draw_classic(&mut self.picture_output, placements)
+    }
+
+    fn invalidate_classic(&mut self) {
+        self.restored.invalidate_classic();
     }
 
     fn suspend(&mut self) -> io::Result<()> {

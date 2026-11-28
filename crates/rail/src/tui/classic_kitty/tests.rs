@@ -143,3 +143,28 @@ fn a_failed_flush_cleans_up_an_uncertain_transfer_even_if_the_reader_closes() {
     assert!(frame(&mut layer, &[]).contains(&format!("d=I,i={}", image.id)));
     assert!(frame(&mut layer, &[]).is_empty());
 }
+
+#[test]
+fn an_invalidated_layer_deletes_uploads_and_places_every_shown_image_again() {
+    let image = bitmap(2, 3);
+    let placement = Placement::clipped(image.clone(), Rect::new(1, 2, 9, 20), 0).unwrap();
+    let placements = [placement];
+    let mut layer = Layer::default();
+    frame(&mut layer, &placements);
+    layer.invalidate();
+    let redrawn = frame(&mut layer, &placements);
+    assert!(
+        redrawn.contains(&format!("a=d,d=I,i={},", image.id)),
+        "{redrawn:?}"
+    );
+    assert_eq!(redrawn.matches("a=t,").count(), 1);
+    assert_eq!(redrawn.matches("a=p,").count(), 1);
+    assert!(frame(&mut layer, &placements).is_empty());
+}
+
+#[test]
+fn invalidating_an_empty_layer_writes_nothing() {
+    let mut layer = Layer::default();
+    layer.invalidate();
+    assert!(frame(&mut layer, &[]).is_empty());
+}
