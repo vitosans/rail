@@ -6,6 +6,11 @@ All notable changes to Rail are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-28
+
+Pixel pictures in Zellij inside Kitty (#212), a Nix flake (#193) and an AUR package in the
+install instructions. Building from source now needs Rust 1.90.
+
 ### Added
 
 - **Arch Linux in the README.** The install section points to the community-maintained
@@ -35,7 +40,8 @@ All notable changes to Rail are recorded here. The format follows
 
 - **Pictures in Zellij inside Kitty.** The reader uses classic Kitty image placements
   when the pane supports them, so pictures display at pixel resolution, follow the
-  message as you scroll and are placed again after the pane is resized (#213).
+  message as you scroll and are placed again after the pane is resized (#213). Contributed by
+  @armangurkan (#212).
 - **CI checks the minimum Rust version again.** `rust-toolchain.toml` outranked the toolchain the
   `msrv` job installed, so the job had been checking with the latest stable Rust instead of the
   minimum. The job is now just `msrv`, so raising the minimum no longer renames a required check.
