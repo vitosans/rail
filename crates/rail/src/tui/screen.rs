@@ -4,6 +4,7 @@ use crossterm::event::KeyEvent;
 use ratatui::Frame;
 
 use super::app::{Effect, Msg};
+use super::classic_kitty::Placement;
 use super::theme::Theme;
 
 /// One full-screen view driven by the event loop.
@@ -13,6 +14,12 @@ pub trait Screen {
 
     /// Draw the whole frame.
     fn view(&self, frame: &mut Frame, theme: &Theme);
+
+    /// Classic Kitty placements in the frame just drawn. The terminal emits these
+    /// after ratatui has flushed its text cells.
+    fn classic_placements(&self) -> Vec<Placement> {
+        Vec::new()
+    }
 
     /// The effects to run before the first frame (the mail screen's first reads and its
     /// daemon subscription).

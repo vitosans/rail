@@ -3,6 +3,9 @@
 //! screen is up.
 
 pub mod app;
+pub(crate) mod classic_kitty;
+#[cfg(test)]
+mod classic_lifetime_tests;
 pub mod clock;
 pub mod data;
 pub mod editor;

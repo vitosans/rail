@@ -2,17 +2,23 @@
 //! is dropped before and made again after, so its reader thread cannot race the child for the
 //! tty, and Ctrl-C meant for the child cannot kill Rail.
 
-use std::io;
+use std::io::{self, Write};
 use std::path::Path;
 
 use crossterm::event::Event as TermEvent;
 use futures_util::{Stream, StreamExt};
 
+use super::classic_kitty::Placement;
 use super::editor;
 use super::terminal;
 
 /// How the loop leaves the terminal to a child process and takes it back.
 pub trait Suspend {
+    /// Update images after the text frame is flushed. Memory backends have no image layer.
+    fn draw_classic(&mut self, _placements: &[Placement]) -> io::Result<()> {
+        Ok(())
+    }
+
     /// Give the terminal to the user.
     fn suspend(&mut self) -> io::Result<()>;
     /// Take it back.
@@ -26,14 +32,21 @@ type TerminalStep = fn() -> io::Result<()>;
 
 /// The real terminal's hand-over; the guard in `terminal::enter` still restores it once.
 pub struct Handover {
+    restored: terminal::Restored,
+    picture_output: Box<dyn Write + Send>,
     returned: bool,
     give: TerminalStep,
     take_back: TerminalStep,
 }
 
-impl Default for Handover {
-    fn default() -> Self {
+impl Handover {
+    pub(super) fn for_terminal(
+        restored: terminal::Restored,
+        out: impl Write + Send + 'static,
+    ) -> Self {
         Self {
+            restored,
+            picture_output: Box::new(out),
             returned: false,
             give: terminal::suspend,
             take_back: terminal::resume,
@@ -45,16 +58,24 @@ impl Default for Handover {
 impl Handover {
     /// A hand-over through `give` and `take_back` instead of the real terminal.
     pub(crate) fn with(give: TerminalStep, take_back: TerminalStep) -> Self {
-        Self {
-            returned: false,
-            give,
-            take_back,
-        }
+        Self::for_terminal(terminal::Restored::default(), io::sink()).with_steps(give, take_back)
+    }
+
+    pub(super) fn with_steps(mut self, give: TerminalStep, take_back: TerminalStep) -> Self {
+        self.give = give;
+        self.take_back = take_back;
+        self
     }
 }
 
 impl Suspend for Handover {
+    fn draw_classic(&mut self, placements: &[Placement]) -> io::Result<()> {
+        self.restored
+            .draw_classic(&mut self.picture_output, placements)
+    }
+
     fn suspend(&mut self) -> io::Result<()> {
+        self.draw_classic(&[])?;
         (self.give)()
     }
 

@@ -247,6 +247,164 @@ fn a_picture_keeps_one_encoding_whatever_sizes_it_is_drawn_at() {
     }
 }
 
+fn ready_kitty_reader() -> super::Reader {
+    let mut reader = reader_with_pictures(1);
+    reader.in_zellij_kitty = true;
+    reader
+        .picker
+        .as_mut()
+        .unwrap()
+        .set_protocol_type(ratatui_image::picker::ProtocolType::Kitty);
+    reader.picture_read(
+        4,
+        Source::Inline("p0@x".into()),
+        Some(DecodedPicture {
+            image: DynamicImage::new_rgba8(160, 64),
+            natural: (160, 64),
+        }),
+    );
+    reader
+}
+
+#[test]
+fn zellij_kitty_places_each_visible_picture_once_and_clips_it_while_scrolling() {
+    use crate::tui::theme::Theme;
+
+    let mut reader = ready_kitty_reader();
+    for (width, height) in [(90, 24), (150, 40), (12, 3)] {
+        let row = reader
+            .lines(width)
+            .iter()
+            .position(|line| matches!(line.kind, LineKind::Picture { row: 0, .. }))
+            .unwrap();
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, height)).unwrap();
+        let mut draw_at = |reader: &mut super::Reader, scroll| {
+            reader.scroll = scroll;
+            reader.cursor = scroll;
+            terminal
+                .draw(|frame| {
+                    reader.render(frame, frame.area(), &Theme::default(), false, true);
+                })
+                .unwrap();
+        };
+        draw_at(&mut reader, row);
+        let first = reader.classic_placements();
+        assert_eq!(first.len(), 1);
+        assert!(reader.classic_placements().is_empty());
+        draw_at(&mut reader, row);
+        assert_eq!(reader.classic_placements(), first, "reuse the same bitmap");
+        draw_at(&mut reader, row + 1);
+        let clipped = reader.classic_placements();
+        assert_eq!(clipped.len(), 1);
+        assert_ne!(clipped, first);
+        draw_at(&mut reader, row);
+        let end = reader.lines(width).len();
+        draw_at(&mut reader, end);
+        assert!(
+            reader.classic_placements().is_empty(),
+            "discard the previous frame"
+        );
+    }
+}
+
+#[test]
+fn only_kitty_in_zellij_uses_the_classic_picture_layer() {
+    use ratatui_image::picker::ProtocolType;
+    for (in_zellij_kitty, protocol) in [
+        (false, ProtocolType::Kitty),
+        (true, ProtocolType::Halfblocks),
+    ] {
+        let mut reader = ready_kitty_reader();
+        reader.in_zellij_kitty = in_zellij_kitty;
+        reader.picker.as_mut().unwrap().set_protocol_type(protocol);
+        assert!(matches!(
+            reader.protocol(3, 0, 20, 4),
+            Some(super::pictures::PictureProtocol::Sliced(_))
+        ));
+    }
+}
+
+#[test]
+fn repeated_source_at_two_sizes_keeps_both_visible_encodings() {
+    use crate::tui::classic_kitty::Layer;
+    use crate::tui::theme::Theme;
+
+    let mut reader = ready_kitty_reader();
+    reader.rich_read(
+        4,
+        Some(from_html(
+            r#"<img src="cid:p0@x" width="160"><img src="cid:p0@x" width="80">"#,
+        )),
+    );
+    reader.scroll = 0;
+    reader.cursor = 0;
+    let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(90, 40)).unwrap();
+    let mut draw = |reader: &super::Reader| {
+        terminal
+            .draw(|frame| {
+                reader.render(frame, frame.area(), &Theme::default(), false, true);
+            })
+            .unwrap();
+        reader.classic_placements()
+    };
+    let first = draw(&reader);
+    assert_eq!(first.len(), 2);
+    let mut layer = Layer::default();
+    layer.draw(&mut Vec::new(), &first).unwrap();
+    let second = draw(&reader);
+    assert_eq!(second, first);
+    let mut wire = Vec::new();
+    layer.draw(&mut wire, &second).unwrap();
+    assert!(wire.is_empty());
+
+    reader.scroll = reader.lines(90).len();
+    reader.cursor = reader.scroll;
+    assert!(draw(&reader).is_empty());
+    reader.scroll = 0;
+    reader.cursor = 0;
+    let restored = draw(&reader);
+    assert_eq!(restored.len(), 2);
+    assert_ne!(restored, first, "offscreen encodings were released");
+}
+
+#[test]
+fn classic_placements_respect_an_empty_or_one_column_pane() {
+    use crate::tui::theme::Theme;
+    use ratatui::layout::Rect;
+
+    let mut reader = ready_kitty_reader();
+    let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(8, 4)).unwrap();
+    for (width, height) in [(0, 3), (1, 0), (1, 1), (1, 3)] {
+        let area = Rect::new(2, 1, width, height);
+        let row = reader
+            .lines(width)
+            .iter()
+            .position(|line| matches!(line.kind, LineKind::Picture { row: 0, .. }))
+            .unwrap();
+        reader.cursor = row;
+        reader.scroll = row;
+        terminal
+            .draw(|frame| reader.render(frame, area, &Theme::default(), false, true))
+            .unwrap();
+        let expected = usize::from(width > 0 && height > 0);
+        assert_eq!(reader.classic_placements().len(), expected);
+    }
+}
+
+#[test]
+fn switching_to_plain_text_releases_classic_encodings() {
+    let mut reader = ready_kitty_reader();
+    let Some(super::pictures::PictureProtocol::Classic(bitmap)) = reader.protocol(3, 0, 20, 4)
+    else {
+        panic!("expected a classic bitmap");
+    };
+    let weak = std::sync::Arc::downgrade(&bitmap);
+    drop(bitmap);
+    reader.set_rich(false);
+    assert!(weak.upgrade().is_none());
+}
+
 #[test]
 fn pictures_of_a_message_gone_from_the_thread_do_not_hold_up_the_rest() {
     let mut reader = reader_with_pictures(MAX_PICTURES_IN_FLIGHT);

@@ -285,6 +285,9 @@ blocks when the answer is none of those. It does not ask, and uses half blocks, 
 
 Start Rail in an attached tmux session to get full pictures there.
 
+In Zellij inside Kitty, Rail uses pixel images when the pane reports Kitty graphics
+support. If the pane does not advertise Kitty graphics, Rail draws colored half blocks.
+
 ### Remote pictures
 
 **Remote pictures**, the ones an HTML message loads from the web, are held back, because fetching

@@ -133,6 +133,11 @@ pub struct Reader {
     pictures: pictures::Pictures,
     /// Each drawn picture encoded for the terminal at its last size, by (message id, source).
     protocols: RefCell<pictures::Protocols>,
+    /// Zellij hosted by Kitty needs regular Kitty placements in place of Unicode placeholders.
+    in_zellij_kitty: bool,
+    classic_cache: RefCell<pictures::ClassicCache>,
+    /// Placements collected while drawing the current frame, consumed after its text is flushed.
+    classic: RefCell<Vec<crate::tui::classic_kitty::Placement>>,
     /// This thread's remote pictures are fetched (`remote_images`, or the key).
     remote: bool,
     /// Senders whose remote pictures are always fetched (`remote_images_from`), lower case.
@@ -194,6 +199,9 @@ impl Reader {
             picker: None,
             pictures: HashMap::new(),
             protocols: RefCell::new(HashMap::new()),
+            in_zellij_kitty: crate::tui::classic_kitty::in_zellij_kitty(),
+            classic_cache: RefCell::default(),
+            classic: RefCell::new(Vec::new()),
             remote: false,
             trusted: HashSet::new(),
             remote_hint: String::new(),
@@ -227,6 +235,9 @@ impl Reader {
         }
         let message = self.message_near();
         self.rich = on;
+        if !on {
+            self.clear_classic_pictures();
+        }
         self.changed();
         self.land(message);
         self.scroll =

@@ -21,7 +21,7 @@ use tokio::task::JoinHandle;
 use tokio::time::MissedTickBehavior;
 
 use super::app::{App, Effect, Job, Msg, Osc52, TaggedResult, TaskResult, TaskSink, update, view};
-use super::handover::{Hand, Handover, Hands, Input, Suspend};
+use super::handover::{Hand, Hands, Input, Suspend};
 use super::keys::Keymap;
 use super::screen::Screen;
 use super::terminal;
@@ -46,7 +46,7 @@ pub async fn run_app<S: Screen>(screen: S, keymap: Arc<Keymap>, theme: Theme) ->
         &mut tui.terminal,
         &mut app,
         || Box::pin(EventStream::new()),
-        &mut Handover::default(),
+        &mut tui.handover,
     )
     .await;
     drop(tui);
@@ -76,39 +76,31 @@ where
     F: FnMut() -> E,
     X: Suspend,
 {
+    let result = drive_loop(terminal, app, make, suspend).await;
+    result.and(suspend.draw_classic(&[]))
+}
+
+async fn drive_loop<E: Stream<Item = io::Result<TermEvent>> + Unpin>(
+    terminal: &mut Terminal<impl Backend>,
+    app: &mut App<impl Screen>,
+    make: impl FnMut() -> E,
+    suspend: &mut impl Suspend,
+) -> io::Result<()> {
     let mut input = Input::new(make);
     let (sink, mut results) = mpsc::unbounded_channel();
     let mut tasks = Tasks::new(sink);
     let mut tick = tokio::time::interval(TICK);
     tick.set_missed_tick_behavior(MissedTickBehavior::Skip);
     let mut signals = QuitSignals::new()?;
-    let mut pending: VecDeque<Msg> = VecDeque::new();
-    for effect in app.screen.start() {
-        pending.extend(apply(
-            effect,
-            app,
-            &mut tasks,
-            &mut Hands {
-                suspend,
-                input: &mut input,
-            },
-        ));
-    }
-    for msg in pending {
-        dispatch(
-            msg,
-            app,
-            &mut tasks,
-            &mut Hands {
-                suspend,
-                input: &mut input,
-            },
-        );
-    }
-    redraw(terminal, app, suspend)?;
+    let mut hands = Hands {
+        suspend,
+        input: &mut input,
+    };
+    start_screen(app, &mut tasks, &mut hands);
+    redraw(terminal, app, hands.suspend)?;
     while !app.quit {
         let msg = tokio::select! {
-            event = input.next() => match event {
+            event = hands.input.next() => match event {
                 Some(Ok(event)) => match to_msg(event) {
                     Some(msg) => msg,
                     None => continue,
@@ -126,18 +118,20 @@ where
                 continue;
             }
         };
-        dispatch(
-            msg,
-            app,
-            &mut tasks,
-            &mut Hands {
-                suspend,
-                input: &mut input,
-            },
-        );
-        redraw(terminal, app, suspend)?;
+        dispatch(msg, app, &mut tasks, &mut hands);
+        redraw(terminal, app, hands.suspend)?;
     }
     Ok(())
+}
+
+fn start_screen(app: &mut App<impl Screen>, tasks: &mut Tasks, hand: &mut impl Hand) {
+    let mut pending = VecDeque::new();
+    for effect in app.screen.start() {
+        pending.extend(apply(effect, app, tasks, hand));
+    }
+    for msg in pending {
+        dispatch(msg, app, tasks, hand);
+    }
 }
 
 /// SIGHUP (the terminal window closed) and SIGTERM. Either ends the loop as `q` does, so the
@@ -299,7 +293,8 @@ fn redraw<B: Backend, S: Screen>(
             .resize(Rect::from(size))
             .map_err(|e| io::Error::other(e.to_string()))?;
     }
-    draw(terminal, app)
+    draw(terminal, app)?;
+    suspend.draw_classic(&app.screen.classic_placements())
 }
 
 fn draw<B: Backend, S: Screen>(terminal: &mut Terminal<B>, app: &App<S>) -> io::Result<()> {

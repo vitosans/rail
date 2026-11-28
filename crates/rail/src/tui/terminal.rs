@@ -16,10 +16,14 @@ use crossterm::terminal::{
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 
+use super::classic_kitty::{Layer, Placement};
+use super::handover::Handover;
+
 /// The terminal the shell draws on, plus the guard that puts the user's terminal back.
 pub struct Tui {
     /// Declared first so it drops before the guard restores the terminal.
     pub terminal: Terminal<CrosstermBackend<Stdout>>,
+    pub(super) handover: Handover,
     _guard: TerminalGuard<Stdout>,
 }
 
@@ -51,11 +55,12 @@ pub fn enter() -> io::Result<Tui> {
     let restored = Restored::default();
     activate_after(hook_state(), restored.clone(), move || {
         enable_raw_mode()?;
-        let guard = TerminalGuard::new(io::stdout(), restored);
+        let guard = TerminalGuard::new(io::stdout(), restored.clone());
         execute!(io::stdout(), EnterAlternateScreen)?;
         let terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
         Ok(Tui {
             terminal,
+            handover: Handover::for_terminal(restored, io::stdout()),
             _guard: guard,
         })
     })
@@ -80,12 +85,27 @@ fn activate_after<T>(
 /// One terminal session's restore. Whichever of the panic hook and the guard's drop gets
 /// there first restores the terminal; the other writes nothing.
 #[derive(Clone, Default)]
-pub struct Restored(Arc<AtomicBool>);
+pub struct Restored {
+    claimed: Arc<AtomicBool>,
+    images: Arc<Mutex<Layer>>,
+}
 
 impl Restored {
     /// True for the first caller only.
     fn claim(&self) -> bool {
-        !self.0.swap(true, Ordering::SeqCst)
+        !self.claimed.swap(true, Ordering::SeqCst)
+    }
+
+    pub(super) fn draw_classic(
+        &self,
+        out: &mut impl Write,
+        placements: &[Placement],
+    ) -> io::Result<()> {
+        let mut layer = self
+            .images
+            .lock()
+            .map_err(|_| io::Error::other("image layer poisoned"))?;
+        layer.draw(out, placements)
     }
 }
 
@@ -107,7 +127,7 @@ impl<W: Write> TerminalGuard<W> {
 impl<W: Write> Drop for TerminalGuard<W> {
     fn drop(&mut self) {
         if self.restored.claim() {
-            restore(&mut self.out);
+            restore(&mut self.out, &self.restored);
         }
     }
 }
@@ -115,7 +135,11 @@ impl<W: Write> Drop for TerminalGuard<W> {
 /// Best effort by design: this runs while dropping or panicking, where an error has nowhere
 /// to go, and each step is attempted even if an earlier one failed. Disabling raw mode is a
 /// no-op when this process never enabled it.
-fn restore(out: &mut impl Write) {
+fn restore(out: &mut impl Write, restored: &Restored) {
+    // A panic hook can run while the renderer itself holds the lock.
+    if let Ok(mut images) = restored.images.try_lock() {
+        let _ = images.draw(out, &[]);
+    }
     let _ = disable_raw_mode();
     let _ = execute!(out, LeaveAlternateScreen, Show);
 }
@@ -130,7 +154,7 @@ struct Active {
 /// What the panic hook reads: the active session, and how to restore the terminal.
 struct HookState {
     active: Mutex<Option<Active>>,
-    restore: Box<dyn Fn() + Send + Sync>,
+    restore: Box<dyn Fn(&Restored) + Send + Sync>,
 }
 
 impl HookState {
@@ -161,8 +185,8 @@ impl HookState {
             .lock()
             .ok()
             .and_then(|slot| slot.as_ref().map(|active| active.restored.clone()));
-        if restored.is_some_and(|restored| restored.claim()) {
-            (self.restore)();
+        if let Some(restored) = restored.filter(|restored| restored.claim()) {
+            (self.restore)(&restored);
         }
     }
 }
@@ -217,7 +241,7 @@ fn hook_state() -> &'static Arc<HookState> {
     STATE.get_or_init(|| {
         Arc::new(HookState {
             active: Mutex::new(None),
-            restore: Box::new(|| restore(&mut io::stdout())),
+            restore: Box::new(|restored| restore(&mut io::stdout(), restored)),
         })
     })
 }
@@ -295,7 +319,7 @@ mod tests {
             })),
             restore: {
                 let restored = restored.clone();
-                Box::new(move || restored.store(true, Ordering::SeqCst))
+                Box::new(move |_| restored.store(true, Ordering::SeqCst))
             },
         });
         let previous = {
@@ -342,7 +366,7 @@ mod tests {
     fn fresh_state() -> HookState {
         HookState {
             active: Mutex::new(None),
-            restore: Box::new(|| {}),
+            restore: Box::new(|_| {}),
         }
     }
 
@@ -383,7 +407,7 @@ mod tests {
             })),
             restore: {
                 let restores = restores.clone();
-                Box::new(move || {
+                Box::new(move |_| {
                     restores.fetch_add(1, Ordering::SeqCst);
                 })
             },
@@ -413,7 +437,7 @@ mod tests {
                 thread: thread::current().id(),
                 restored: Restored::default(),
             })),
-            restore: Box::new(|| {}),
+            restore: Box::new(|_| {}),
         });
         let original = std::panic::take_hook();
         std::panic::set_hook(panic_hook(state, Box::new(|_: &PanicHookInfo<'_>| {})));

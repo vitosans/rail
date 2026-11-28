@@ -14,7 +14,9 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use ratatui_image::sliced::{SignedPosition, SlicedImage};
 
+use super::pictures::PictureProtocol;
 use super::{LineKind, Reader, ReaderLine, Tone};
+use crate::tui::classic_kitty::Placement;
 use crate::tui::screens::mail::visible_offset;
 use crate::tui::text::{markers, osc8, safe_link};
 use crate::tui::theme::Theme;
@@ -116,6 +118,8 @@ impl Reader {
     /// Each picture with a row in view, once, over the rows its lines keep for it: from above
     /// the area when its top has scrolled away, so only its visible slices are drawn.
     fn draw_pictures(&self, frame: &mut Frame, area: Rect, lines: &[ReaderLine], scroll: usize) {
+        let mut placements = self.classic.borrow_mut();
+        placements.clear();
         let mut drawn = HashSet::new();
         let visible = lines
             .iter()
@@ -143,8 +147,22 @@ impl Reader {
             let Ok(y) = i16::try_from(top) else {
                 continue;
             };
-            frame.render_widget(SlicedImage::new(&encoded, SignedPosition { x: 0, y }), area);
+            match encoded {
+                PictureProtocol::Classic(bitmap) => {
+                    placements.extend(Placement::clipped(bitmap, area, y))
+                }
+                PictureProtocol::Sliced(protocol) => frame.render_widget(
+                    SlicedImage::new(&protocol, SignedPosition { x: 0, y }),
+                    area,
+                ),
+            }
         }
+        self.classic_cache.borrow_mut().finish_frame();
+    }
+
+    /// Consume the images visible in the last reader draw for the terminal graphics layer.
+    pub(crate) fn classic_placements(&self) -> Vec<Placement> {
+        self.classic.take()
     }
 
     /// Turn each marker of a visible body line into an OSC 8 hyperlink: the marker's first
