@@ -21,8 +21,7 @@ toml = "1.1"
 toml_edit = "0.25"
 directories = "6.0"
 keyring = "4.2"
-# Use the Jiff migration from ramosbugs/oauth2-rs#355 until a published release includes it.
-oauth2 = { git = "https://github.com/ramosbugs/oauth2-rs", rev = "e58e7c2d2b889b45e51f844247c3281e7a2f8f86" }
+oauth2 = "5.0"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "http2"] }
 async-trait = "0.1.92"
 fastrand = "2.5"

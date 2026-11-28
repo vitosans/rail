@@ -14,12 +14,10 @@ ignore = [
   { id = "RUSTSEC-2026-0370", reason = "zvariant: transitive keyring dependency; migration requires zbus 6" },
   { id = "RUSTSEC-2026-0371", reason = "zbus_names: transitive keyring dependency; migration requires zbus 6" },
   { id = "RUSTSEC-2026-0372", reason = "zvariant_derive: transitive keyring dependency; migration requires zbus 6" },
+  # oauth2 5.0 still uses chrono; its jiff migration (ramosbugs/oauth2-rs#355) is unreleased.
+  # Remove this when an oauth2 release drops chrono (#215).
+  { id = "RUSTSEC-2026-0543", reason = "chrono: unmaintained, not vulnerable; needed by oauth2 5.0 until #215" },
 ]
 
 [bans]
 multiple-versions = "allow"
-
-[sources]
-# The OAuth migration is pinned to a reviewed upstream commit in Cargo.toml.
-allow-git = ["https://github.com/ramosbugs/oauth2-rs"]
-required-git-spec = "rev"
