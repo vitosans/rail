@@ -1,5 +1,6 @@
 //! User configuration: `config.toml`.
 
+mod duration;
 pub mod edit;
 pub mod link;
 pub mod load;

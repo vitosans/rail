@@ -10,6 +10,7 @@ use std::sync::Arc;
 use rail_core::config::Config;
 use rail_core::ops::BrowserEnv;
 use rail_core::paths::Paths;
+use ratatui_image::picker::{Capability, Picker, ProtocolType};
 
 use crate::tui::clock::Clock;
 use crate::tui::data::{DaemonLink, StoreReader};
@@ -166,11 +167,11 @@ fn hint_for(error: &ThemeError) -> &'static str {
 /// inside tmux with no client attached, where tmux answers queries itself but passes the
 /// picture query through to an outer terminal that is not there (`tmux_has_client`). Each of
 /// those gets half blocks.
-fn picker() -> Option<ratatui_image::picker::Picker> {
+fn picker() -> Option<Picker> {
     if test_hooks::no_image_query() {
         return None;
     }
-    let halfblocks = ratatui_image::picker::Picker::halfblocks;
+    let halfblocks = Picker::halfblocks;
     let in_tmux = std::env::var_os("TMUX").is_some();
     if !asks_terminal(std::env::var("TERM").ok().as_deref())
         || !answers_queries()
@@ -178,8 +179,20 @@ fn picker() -> Option<ratatui_image::picker::Picker> {
     {
         return Some(halfblocks());
     }
-    let picker = ratatui_image::picker::Picker::from_query_stdio();
-    Some(picker.unwrap_or_else(|_| halfblocks()))
+    let mut picker = Picker::from_query_stdio().unwrap_or_else(|_| halfblocks());
+    if crate::tui::classic_kitty::in_zellij_kitty() {
+        picker.set_protocol_type(zellij_kitty_protocol(picker.capabilities()));
+    }
+    Some(picker)
+}
+
+fn zellij_kitty_protocol(capabilities: &[Capability]) -> ProtocolType {
+    // Kitty cannot display Sixel, even when Zellij advertises it.
+    if capabilities.contains(&Capability::Kitty) {
+        ProtocolType::Kitty
+    } else {
+        ProtocolType::Halfblocks
+    }
 }
 
 /// How many clients tmux says this session has (`#{session_attached}`), as tmux printed it;
@@ -222,6 +235,19 @@ fn asks_terminal(term: Option<&str>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn zellij_in_kitty_requires_a_positive_kitty_query_for_pixel_images() {
+        assert_eq!(
+            zellij_kitty_protocol(&[Capability::Kitty, Capability::Sixel]),
+            ProtocolType::Kitty
+        );
+        assert_eq!(
+            zellij_kitty_protocol(&[Capability::Sixel]),
+            ProtocolType::Halfblocks
+        );
+        assert_eq!(zellij_kitty_protocol(&[]), ProtocolType::Halfblocks);
+    }
 
     /// #155: a tmux session with no client passes the picture query to nobody, so it gets half
     /// blocks; an unreadable answer counts as no client.

@@ -29,7 +29,6 @@ reqwest.workspace = true
 url.workspace = true
 regex.workspace = true
 percent-encoding.workspace = true
-humantime-serde.workspace = true
 schemars.workspace = true
 fs4.workspace = true
 sha2.workspace = true

@@ -73,7 +73,8 @@ so an AI coding agent can help you set it up without ever seeing your secrets.
   current by a background daemon that can start at login.
 - **A reader built for threads.** Opens on the newest message with the older ones as cards,
   folded quotes, numbered (clickable) links, and HTML mail drawn with its styles and pictures
-  (remote pictures only when you ask).
+  (remote pictures only when you ask). Pictures also render at pixel resolution in Zellij
+  inside Kitty when the pane supports Kitty graphics.
 - **Fast to drive.** Filter as you type, saved searches, a command palette, selections and bulk
   actions with undo, snooze, and keys you can change (with `vim`, `mutt`, `emacs`, `gmail` and `outlook` presets).
 - **Writing in your own editor**, with a ten second undo send and drafts that sync to the

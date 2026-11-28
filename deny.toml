@@ -5,6 +5,7 @@ allow = [
 ]
 
 [advisories]
+unmaintained = "all"
 yanked = "deny"
 # These standalone crates were folded into zbus 6, not reported vulnerable.
 # keyring 4.2's Linux backend still requires zbus 5. Remove these when the
@@ -17,3 +18,8 @@ ignore = [
 
 [bans]
 multiple-versions = "allow"
+
+[sources]
+# The OAuth migration is pinned to a reviewed upstream commit in Cargo.toml.
+allow-git = ["https://github.com/ramosbugs/oauth2-rs"]
+required-git-spec = "rev"

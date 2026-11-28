@@ -11,21 +11,23 @@
 //! A reader asks for at most `MAX_PICTURES_PER_READER`, `MAX_PICTURES_IN_FLIGHT` at a time,
 //! and keeps each shrunk to `MAX_KEPT_PIXELS`, so one mail cannot fill memory.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, hash_map::Entry};
 use std::path::Path;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use image::{DynamicImage, ImageReader, Limits};
 use rail_core::provider::auth_results::aligned;
 use rail_core::provider::html::Image;
 use rail_core::store::view::{BodyState, MessageView};
 use ratatui::layout::Size;
-use ratatui_image::picker::Picker;
+use ratatui_image::picker::{Picker, ProtocolType};
 use ratatui_image::sliced::SlicedProtocol;
 use ratatui_image::{FilterType, Resize};
 
 use super::Reader;
 use super::rich::RichBody;
+use crate::tui::classic_kitty::Bitmap;
 
 /// CSS pixels to one terminal column, as a mail client's reading pane draws them.
 const CSS_PX_PER_COL: f64 = 8.0;
@@ -252,6 +254,59 @@ pub type Pictures = HashMap<(i64, Source), Picture>;
 /// a picture, replaced when the size changes.
 pub(super) type Protocols = HashMap<(i64, Source), ((u16, u16), Rc<SlicedProtocol>)>;
 
+#[derive(Clone)]
+pub(super) enum PictureProtocol {
+    Sliced(Rc<SlicedProtocol>),
+    Classic(Arc<Bitmap>),
+}
+
+/// A single source may appear at several sizes on screen. Keep an encoding of each until
+/// its last placement scrolls away, so a redraw never has to upload unchanged pixels.
+#[derive(Default)]
+pub(super) struct ClassicCache {
+    entries: HashMap<(i64, Source, Size), (PictureProtocol, bool)>,
+}
+
+impl ClassicCache {
+    fn protocol(
+        &mut self,
+        key: (i64, Source),
+        picker: &Picker,
+        image: &DynamicImage,
+        size: Size,
+    ) -> Option<PictureProtocol> {
+        let (protocol, visible) = match self.entries.entry((key.0, key.1, size)) {
+            Entry::Occupied(found) => found.into_mut(),
+            Entry::Vacant(slot) => {
+                let cell = picker.font_size();
+                let protocol = match Bitmap::encode(image, size, (cell.width, cell.height)) {
+                    Some(bitmap) => PictureProtocol::Classic(bitmap),
+                    None => PictureProtocol::Sliced(sliced(&Picker::halfblocks(), image, size)?),
+                };
+                slot.insert((protocol, false))
+            }
+        };
+        *visible = true;
+        Some(protocol.clone())
+    }
+
+    pub(super) fn finish_frame(&mut self) {
+        self.entries
+            .retain(|_, (_, visible)| std::mem::take(visible));
+    }
+}
+
+fn sliced(picker: &Picker, image: &DynamicImage, size: Size) -> Option<Rc<SlicedProtocol>> {
+    // A mail can request a display size larger than the source image.
+    let encoded = SlicedProtocol::new_with_resize(
+        picker,
+        image.clone(),
+        size,
+        Resize::Scale(Some(FilterType::Triangle)),
+    );
+    encoded.ok().map(Rc::new)
+}
+
 /// A picture to ask the daemon for: (message id, its provider id, source).
 pub type Wanted = (i64, String, Source);
 
@@ -266,7 +321,13 @@ impl Reader {
     pub fn set_images(&mut self, picker: Option<Picker>) {
         self.picker = picker;
         self.protocols.borrow_mut().clear();
+        self.clear_classic_pictures();
         self.changed();
+    }
+
+    pub(super) fn clear_classic_pictures(&mut self) {
+        self.classic.get_mut().clear();
+        self.classic_cache.get_mut().entries.clear();
     }
 
     /// Remote pictures fetched for this thread from the start (`remote_images`) or not, the
@@ -390,40 +451,39 @@ impl Reader {
 
     /// Picture `picture` of message `message` encoded for `cols` by `rows` cells, again only
     /// when its size changes; `None` when it is not read, or images are off.
-    pub fn protocol(
+    pub(super) fn protocol(
         &self,
         message: usize,
         picture: usize,
         cols: u16,
         rows: u16,
-    ) -> Option<Rc<SlicedProtocol>> {
+    ) -> Option<PictureProtocol> {
         let picker = self.picker.as_ref()?;
         let m = self.detail.messages.get(message)?;
         let inline = self.rich_bodies.get(&m.id)?.pictures.get(picture)?;
         let key = (m.id, inline.source.clone());
+        let Some(Picture::Ready(decoded)) = self.pictures.get(&key) else {
+            return None;
+        };
+        let size = Size::new(cols, rows);
+        if self.in_zellij_kitty && picker.protocol_type() == ProtocolType::Kitty {
+            return self
+                .classic_cache
+                .borrow_mut()
+                .protocol(key, picker, &decoded.image, size);
+        }
         if let Some((_, found)) = self
             .protocols
             .borrow()
             .get(&key)
             .filter(|(size, _)| *size == (cols, rows))
         {
-            return Some(found.clone());
+            return Some(PictureProtocol::Sliced(Rc::clone(found)));
         }
-        let Some(Picture::Ready(decoded)) = self.pictures.get(&key) else {
-            return None;
-        };
-        // Scaled, not fit: a mail declares the size it wants drawn, often larger than the
-        // picture itself, and a browser stretches it to that size.
-        let encoded = SlicedProtocol::new_with_resize(
-            picker,
-            decoded.image.clone(),
-            Size::new(cols, rows),
-            Resize::Scale(Some(FilterType::Triangle)),
-        );
-        let encoded = Rc::new(encoded.ok()?);
+        let encoded = sliced(picker, &decoded.image, size)?;
         self.protocols
             .borrow_mut()
-            .insert(key, ((cols, rows), encoded.clone()));
-        Some(encoded)
+            .insert(key, ((cols, rows), Rc::clone(&encoded)));
+        Some(PictureProtocol::Sliced(encoded))
     }
 }

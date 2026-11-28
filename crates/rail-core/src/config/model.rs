@@ -51,7 +51,7 @@ pub struct OnePasswordConfig {
 #[serde(deny_unknown_fields, default)]
 pub struct General {
     pub editor: Option<String>,
-    #[serde(with = "humantime_serde")]
+    #[serde(deserialize_with = "super::duration::deserialize")]
     pub poll_interval: Duration,
     pub body_cache_days: u32,
     /// 0 means the whole mailbox.

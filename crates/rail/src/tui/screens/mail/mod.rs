@@ -767,6 +767,14 @@ impl Screen for MailScreen {
         self.render(frame, theme);
     }
 
+    fn classic_placements(&self) -> Vec<crate::tui::classic_kitty::Placement> {
+        self.reader
+            .as_ref()
+            .filter(|_| self.compose.is_none() && self.modal.is_none())
+            .map(Reader::classic_placements)
+            .unwrap_or_default()
+    }
+
     fn captures_text(&self) -> bool {
         match &self.modal {
             Some(modal) => modal.captures_text(),

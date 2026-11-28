@@ -61,6 +61,7 @@
             src = self;
 
             cargoLock.lockFile = ./Cargo.lock;
+            cargoLock.outputHashes."oauth2-5.1.0" = "sha256-s9X1i6+9O4nQS2Ktusv0mkzR5LynB/hFKOygL1GWfGI=";
 
             # The TLS stack is rustls, so no OpenSSL is needed. nixpkgs' cargo setup hook sets
             # LIBSQLITE3_SYS_USE_PKG_CONFIG=1, so the package links nixpkgs' SQLite (which has

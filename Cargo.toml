@@ -21,7 +21,8 @@ toml = "1.1"
 toml_edit = "0.25"
 directories = "6.0"
 keyring = "4.2"
-oauth2 = "5.0"
+# Use the Jiff migration from ramosbugs/oauth2-rs#355 until a published release includes it.
+oauth2 = { git = "https://github.com/ramosbugs/oauth2-rs", rev = "e58e7c2d2b889b45e51f844247c3281e7a2f8f86" }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "http2"] }
 async-trait = "0.1.92"
 fastrand = "2.5"
@@ -32,7 +33,6 @@ percent-encoding = "2.3"
 unicode-width = "0.2.2"
 unicode-segmentation = "1.13.3"
 icu_properties = "2.2"
-humantime-serde = "1.1"
 clap = { version = "4.6", features = ["derive"] }
 color-eyre = "0.6"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -58,7 +58,7 @@ insta = { version = "1.49.0", default-features = false }
 jiff = { version = "0.2.38", default-features = false, features = ["std", "tz-system", "tzdb-zoneinfo"] }
 nucleo-matcher = "0.3.1"
 signal-hook = { version = "0.4.5", default-features = false }
-rmcp = { version = "3.5.1", default-features = false, features = ["server", "macros", "transport-io", "elicitation", "schemars"] }
+rmcp = { version = "3.12.0", default-features = false, features = ["server", "macros", "transport-io", "elicitation", "schemars"] }
 rustix = { version = "1.1.5", default-features = false, features = ["std", "process"] }
 
 # Debug info is most of a test binary's size: keep file and line numbers for backtraces in
