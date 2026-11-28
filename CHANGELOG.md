@@ -34,8 +34,8 @@ All notable changes to Rail are recorded here. The format follows
 ### Fixed
 
 - **Pictures in Zellij inside Kitty.** The reader uses classic Kitty image placements
-  when the pane supports them, so pictures display at pixel resolution and follow the
-  message as you scroll.
+  when the pane supports them, so pictures display at pixel resolution, follow the
+  message as you scroll and are placed again after the pane is resized (#213).
 - **CI checks the minimum Rust version again.** `rust-toolchain.toml` outranked the toolchain the
   `msrv` job installed, so the job had been checking with the latest stable Rust instead of the
   minimum. The job is now just `msrv`, so raising the minimum no longer renames a required check.

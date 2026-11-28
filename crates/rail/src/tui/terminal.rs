@@ -107,6 +107,14 @@ impl Restored {
             .map_err(|_| io::Error::other("image layer poisoned"))?;
         layer.draw(out, placements)
     }
+
+    /// The screen was cleared under the images: place them all again on the next draw.
+    pub(super) fn invalidate_classic(&self) {
+        // A poisoned layer fails the next draw anyway.
+        if let Ok(mut layer) = self.images.lock() {
+            layer.invalidate();
+        }
+    }
 }
 
 /// Restores the terminal when dropped (raw mode off, alternate screen left, cursor shown),

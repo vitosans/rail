@@ -12,7 +12,7 @@ use ratatui::{Frame, Terminal};
 use super::app::{App, Effect, Msg};
 use super::classic_kitty::{Bitmap, Placement};
 use super::handover::{Handover, Suspend};
-use super::run::run_loop;
+use super::run::{redraw, run_loop};
 use super::screen::Screen;
 use super::terminal::{Restored, TerminalGuard};
 use super::test_util::{RecordingClipboard, once};
@@ -105,4 +105,34 @@ fn dropping_the_terminal_clears_owned_images_before_leaving_the_screen() {
     drop(guard);
     let written = String::from_utf8(output.0.lock().unwrap().clone()).unwrap();
     assert!(written.find("d=I").unwrap() < written.find("\x1b[?1049l").unwrap());
+}
+
+/// #213: ratatui clears the screen when the terminal size changes, which takes the
+/// placements with it, so the next redraw must put every visible picture back.
+#[test]
+fn a_resize_places_classic_images_again() {
+    let screen = PictureScreen {
+        drawn: Cell::new(false),
+        picture: picture(),
+    };
+    let app = App::new(screen, Box::new(RecordingClipboard::default()));
+    let mut terminal = Terminal::new(TestBackend::new(20, 10)).unwrap();
+    let output = Capture::default();
+    let mut hand = Handover::for_terminal(Restored::default(), output.clone());
+    let written =
+        |output: &Capture| String::from_utf8(output.0.lock().unwrap().split_off(0)).unwrap();
+
+    redraw(&mut terminal, &app, &mut hand).unwrap();
+    assert_eq!(written(&output).matches("a=p,").count(), 1);
+    redraw(&mut terminal, &app, &mut hand).unwrap();
+    assert!(
+        written(&output).is_empty(),
+        "an unchanged frame resends nothing"
+    );
+
+    terminal.backend_mut().resize(20, 14);
+    redraw(&mut terminal, &app, &mut hand).unwrap();
+    let after = written(&output);
+    assert_eq!(after.matches("a=t,").count(), 1, "{after:?}");
+    assert_eq!(after.matches("a=p,").count(), 1, "{after:?}");
 }

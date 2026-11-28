@@ -215,6 +215,13 @@ impl Layer {
         Ok(())
     }
 
+    /// Forget what the terminal shows, as after a screen clear: the next draw deletes each
+    /// image that was shown, then uploads and places every visible one again.
+    pub(crate) fn invalidate(&mut self) {
+        self.uncertain
+            .extend(self.shown.drain(..).map(|p| p.bitmap.id));
+    }
+
     fn update(&self, out: &mut impl Write, placements: &[Placement]) -> io::Result<()> {
         let visible: HashSet<_> = placements.iter().map(|p| p.bitmap.id).collect();
         let mut freed = self.uncertain.clone();
