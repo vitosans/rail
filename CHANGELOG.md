@@ -18,6 +18,10 @@ All notable changes to Rail are recorded here. The format follows
 
 ### Changed
 
+- **Dependencies.** Updated rmcp from 3.9 to 3.12, which no longer depends on the unmaintained
+  `chrono` crate, and `url` to 2.5.9 for RUSTSEC-2026-0592. `oauth2` stays on its 5.0 release
+  from crates.io: `cargo deny` ignores the chrono maintenance advisory (RUSTSEC-2026-0543) that
+  oauth2 5.0 brings in until an oauth2 release replaces chrono with jiff (#215).
 - **CI builds the Nix flake.** A new `nix` workflow runs `nix flake check` when the flake, the
   pinned toolchain or the Cargo manifests change, and Dependabot now keeps `flake.lock` current.
   The flake no longer lists Intel Macs, which current nixpkgs has dropped; the release archive
