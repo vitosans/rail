@@ -1,5 +1,9 @@
 use std::process::Command;
 
+#[path = "cli/process_capture.rs"]
+mod process_capture;
+use process_capture::finish_within;
+
 /// Point a command's five XDG-style directories under `dir`, so no test ever reads or
 /// writes the real config, store, secrets or daemon socket, and give it the stand-in browser
 /// (recording into `opened_url_file`), so no test, and no daemon a test starts, can ever open
@@ -39,20 +43,6 @@ impl Drop for StopsDaemon<'_> {
     fn drop(&mut self) {
         let _ = rail_cmd(self.0).args(["daemon", "stop"]).output();
     }
-}
-
-/// Wait for `child` at most `limit`, failing (and killing it) if it is still running then.
-fn finish_within(child: std::process::Child, limit: std::time::Duration) -> std::process::Output {
-    let mut running = KillsChild(Some(child));
-    let deadline = std::time::Instant::now() + limit;
-    while running.0.as_mut().unwrap().try_wait().unwrap().is_none() {
-        assert!(
-            std::time::Instant::now() < deadline,
-            "still running after {limit:?}"
-        );
-        std::thread::sleep(std::time::Duration::from_millis(20));
-    }
-    running.0.take().unwrap().wait_with_output().unwrap()
 }
 
 /// Kills a spawned `rail` if the test fails before it is waited on.
